@@ -867,6 +867,28 @@
       "created": "2026-10-30 17:07",
       "updated": "2026-10-30 17:07",
       "notes": []
+    },
+    {
+      "id": "M-011",
+      "type": "milestone",
+      "title": "打包 0.5.2（动态分屏）",
+      "summary": "当前 / 收到指令的终端自动变大；待推送和发布 Release",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑",
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [
+        "v0.5.2"
+      ],
+      "created": "2026-10-30 17:11",
+      "updated": "2026-10-30 17:11",
+      "notes": []
     }
   ]
 }
