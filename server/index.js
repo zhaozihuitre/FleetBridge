@@ -272,7 +272,7 @@ export async function start() {
   setInterval(publish, config.intervals.sessions);
   setInterval(() => refreshUsage(), config.intervals.usage);
   setInterval(refreshGit, config.intervals.git);
-  console.log(`CLAUDE//OPS  ${url}`);
+  console.log(`FLEET//BRIDGE  ${url}`);
   return server;
 }
 

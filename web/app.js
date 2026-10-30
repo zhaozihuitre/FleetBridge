@@ -913,7 +913,7 @@ window.opsConfirmQuit = async (names) => {
   const yes = await ask({
     danger: true,
     tag: 'QUIT',
-    title: '退出 CLAUDE OPS？',
+    title: '退出舰桥？',
     message: `还有 ${names.length} 支部队在指挥中心里运行，退出会结束它们。会话记录会保留，下次启动时自动恢复阵容。`,
     detail: names.map((n) => '◆ ' + n),
     ok: '退出',

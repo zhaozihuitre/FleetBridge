@@ -1,8 +1,8 @@
 {
-  "name": "claude-ops-monitor",
+  "name": "fleet-bridge",
   "version": "0.4.2",
   "private": true,
-  "description": "Local game-style monitor for Claude Code sessions, usage limits and git state",
+  "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
   "main": "desktop/main.cjs",
   "scripts": {
@@ -14,7 +14,7 @@
   },
   "build": {
     "appId": "local.claude-ops.monitor",
-    "productName": "CLAUDE OPS",
+    "productName": "Fleet Bridge",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -43,9 +43,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CLAUDE OPS 指挥中心",
+      "shortcutName": "Fleet Bridge 舰桥",
       "runAfterFinish": true,
-      "artifactName": "ClaudeOps-Setup-${version}.${ext}"
+      "artifactName": "FleetBridge-Setup-${version}.${ext}"
     }
   },
   "engines": {

@@ -118,7 +118,7 @@ function openMain(term) {
     frame: false,
     show: false,
     backgroundColor: '#04060c',
-    title: 'CLAUDE//OPS 指挥中心',
+    title: '舰桥 · Fleet Bridge',
     webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
   });
   mainWin.maximize();
@@ -209,7 +209,9 @@ ipcMain.on('ops:notify', (_e, title, body) => {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.setAppUserModelId('claude-ops-monitor'); // required for Windows toast notifications
+  // required for Windows toast notifications; kept from the pre-rename build (like appId and ~/.claude-ops)
+  // so notification settings and upgrades carry over
+  app.setAppUserModelId('claude-ops-monitor');
   app.on('second-instance', () => openMain());
   app.whenReady().then(async () => {
     installHookScript();

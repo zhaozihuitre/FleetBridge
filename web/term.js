@@ -25,7 +25,7 @@ function render(state) {
     q('.t-ctx').innerHTML = `<span class="ctx-badge" style="--cc:${color}"><i style="width:${Math.min(100, pct)}%"></i></span><span class="ctx-num" style="color:${color}">${pct}% · ${k}</span>`;
   }
   pane.querySelectorAll('button').forEach((b) => (b.disabled = !a?.alive));
-  document.title = `${name} · CLAUDE//OPS`;
+  document.title = `${name} · 舰桥`;
 }
 
 new EventSource('/api/stream').onmessage = (e) => render(JSON.parse(e.data));

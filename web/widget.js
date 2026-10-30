@@ -26,7 +26,7 @@ $('w-menu').addEventListener('click', (e) => {
   if (!act) return;
   toggleMenu(false);
   if (bridge) bridge.action(act);
-  else if (act === 'open-main') window.open('/', 'claude-ops');
+  else if (act === 'open-main') window.open('/', 'fleet-bridge');
 });
 window.addEventListener('keydown', (e) => e.key === 'Escape' && !$('w-menu').hidden && toggleMenu(false));
 window.addEventListener('blur', () => !$('w-menu').hidden && toggleMenu(false));
@@ -142,9 +142,9 @@ function notifyNew() {
 async function go(el) {
   const agent = el.dataset.agent;
   const pid = Number(el.dataset.pid);
-  if (agent) return bridge ? bridge.openMain(agent) : window.open(`/#term=${agent}`, 'claude-ops');
+  if (agent) return bridge ? bridge.openMain(agent) : window.open(`/#term=${agent}`, 'fleet-bridge');
   if (pid) await fetch('/api/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pid }) });
-  else bridge ? bridge.openMain() : window.open('/', 'claude-ops');
+  else bridge ? bridge.openMain() : window.open('/', 'fleet-bridge');
 }
 
 $('units').addEventListener('click', (e) => {
@@ -152,7 +152,7 @@ $('units').addEventListener('click', (e) => {
   if (row) go(row);
 });
 $('alert').addEventListener('click', () => go($('alert')));
-$('w-main').addEventListener('click', () => (bridge ? bridge.openMain() : window.open('/', 'claude-ops')));
+$('w-main').addEventListener('click', () => (bridge ? bridge.openMain() : window.open('/', 'fleet-bridge')));
 
 function setFolded(v) {
   $('w').classList.toggle('folded', v);

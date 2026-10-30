@@ -746,6 +746,33 @@
       "created": "2026-10-30 16:00",
       "updated": "2026-10-30 16:00",
       "notes": []
+    },
+    {
+      "id": "D-007",
+      "type": "decision",
+      "title": "产品更名为 Fleet Bridge · 舰桥",
+      "summary": "可见名称全部改为舰桥；appId、通知 ID 与 ~/.claude-ops 保持不变以便平滑升级",
+      "detail": "**问题**：「CLAUDE//OPS」是临时名，且直接用了 Claude 商标做产品名。\n**候选方案**：Claude Command / Fleet Bridge（舰桥）/ Squadron / Overwatch Deck / Nexus。\n**结论**：Fleet Bridge · 舰桥。窗口标题、Logo、小窗、安装包（`FleetBridge-Setup-<版本>.exe`）、快捷方式、`package.json` 名称都已改。\n**保持不变**：`appId`（`local.claude-ops.monitor`，让新安装包自动替换旧的 CLAUDE OPS）、通知 ID（`claude-ops-monitor`）、数据目录 `~/.claude-ops`（全局 hook 路径指向这里）。\n**理由**：与「部队 / 出击 / 僚机」的舰队用语一致；不以商标作产品名；内部标识不动，升级无需迁移。\n**注意**：程序名变了，安装目录与窗口偏好（小窗位置、静音）会重置；之前勾选过的「开机自动启动」需要重新勾选。\n",
+      "status": "accepted",
+      "files": [
+        "package.json",
+        "web/index.html",
+        "web/widget.html",
+        "desktop/main.cjs",
+        "README.md"
+      ],
+      "tags": [
+        "命名",
+        "部署"
+      ],
+      "sections": [
+        "overview",
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 16:03",
+      "updated": "2026-10-30 16:03",
+      "notes": []
     }
   ]
 }

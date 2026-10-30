@@ -45,7 +45,7 @@
 ## 部署（打包安装程序）
 
 ```bash
-npm run dist     # 输出到 dist/ClaudeOps-Setup-<version>.exe
+npm run dist     # 输出到 dist/FleetBridge-Setup-<version>.exe
 ```
 
 - electron-builder NSIS，按用户安装（无需管理员），可选安装目录，建桌面 / 开始菜单快捷方式。
