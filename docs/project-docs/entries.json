@@ -773,6 +773,28 @@
       "created": "2026-10-30 16:03",
       "updated": "2026-10-30 16:03",
       "notes": []
+    },
+    {
+      "id": "M-009",
+      "type": "milestone",
+      "title": "发布 0.5.0（Fleet Bridge · 舰桥）",
+      "summary": "更名后的首个版本，安装包发布到 GitHub Release",
+      "detail": "**完成了什么**：以新名字 Fleet Bridge · 舰桥打包 `FleetBridge-Setup-0.5.0.exe`，发布到 https://github.com/zhaozihuitre/FleetBridge/releases\n**关键产出**：安装包会自动替换旧的 CLAUDE OPS（appId 不变），升级后按 roster.json 恢复阵容。\n**下一步**：实测升级恢复（T-006）。\n",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑",
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [
+        "v0.5.0"
+      ],
+      "created": "2026-10-30 16:12",
+      "updated": "2026-10-30 16:12",
+      "notes": []
     }
   ]
 }
