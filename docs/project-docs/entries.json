@@ -889,6 +889,29 @@
       "created": "2026-10-30 17:11",
       "updated": "2026-10-30 17:11",
       "notes": []
+    },
+    {
+      "id": "C-008",
+      "type": "change",
+      "title": "收紧 Windows 通知（0.5.4）",
+      "summary": "同时开多个会话时通知刷屏：每个会话每做完一轮就弹「做完了」。改为：指挥中心在屏幕上时不弹；「做完了」空闲满 20 秒才弹；「负载过高」每会话每小时最多一次；「等你授权」仍立即弹。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/widget.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "通知",
+        "小窗"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 17:29",
+      "updated": "2026-10-30 17:29",
+      "notes": []
     }
   ]
 }

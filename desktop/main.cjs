@@ -202,6 +202,8 @@ ipcMain.on('ops:action', (_e, name) => {
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
 ipcMain.on('ops:notify', (_e, title, body) => {
   if (muted || !Notification.isSupported()) return;
+  // The command center already shows everything; a toast on top of it is just noise.
+  if (mainWin && mainWin.isVisible() && !mainWin.isMinimized()) return;
   const n = new Notification({ title: String(title).slice(0, 80), body: String(body).slice(0, 200), silent: false });
   n.on('click', () => openMain());
   n.show();

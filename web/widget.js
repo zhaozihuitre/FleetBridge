@@ -128,13 +128,31 @@ const NOTIFY = {
   READY: (q) => [`${q.unit.project} 做完了，等你指令`, q.goal],
   OVERLOAD: (q) => [`${q.unit.project} 记忆负载过高`, q.title],
 };
-let seen = null;
+// PERMIT blocks work and is told at once. READY waits until the session has stayed idle a while
+// (the short pauses between turns are not "done"); OVERLOAD is told once an hour per session.
+const READY_AFTER = 20_000;
+const OVERLOAD_EVERY = 3600_000;
+const told = new Set(); // quest keys already notified (or pending when the widget started)
+const overloadAt = new Map(); // sessionId -> last OVERLOAD toast
+let primed = false;
 
 function notifyNew() {
+  const now = Date.now();
   const keys = new Set(state.quests.map((q) => q.key));
-  if (seen && !muted)
-    for (const q of state.quests) if (!seen.has(q.key) && NOTIFY[q.kind] && q.unit) bridge?.notify(...NOTIFY[q.kind](q));
-  seen = keys; // the first render only records what was already pending
+  for (const k of told) if (!keys.has(k)) told.delete(k);
+  for (const q of state.quests) {
+    if (told.has(q.key) || !NOTIFY[q.kind] || !q.unit) continue;
+    if (!primed) { told.add(q.key); continue; } // the first render only records what was already pending
+    if (q.kind === 'READY' && now - (q.since || now) < READY_AFTER) continue; // check again on a later render
+    told.add(q.key);
+    if (q.kind === 'OVERLOAD') {
+      const id = q.unit.sessionId;
+      if (now - (overloadAt.get(id) || 0) < OVERLOAD_EVERY) continue;
+      overloadAt.set(id, now);
+    }
+    if (!muted) bridge?.notify(...NOTIFY[q.kind](q));
+  }
+  primed = true;
 }
 
 /* ---------- actions ---------- */
@@ -182,3 +200,4 @@ new EventSource('/api/stream').onmessage = (e) => {
   notifyNew();
 };
 setInterval(() => state && renderUnits(), 30_000); // keep the "waiting for" times fresh
+setInterval(() => state && notifyNew(), 5_000); // READY toasts come due without a new state push
