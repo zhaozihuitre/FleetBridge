@@ -48,7 +48,13 @@ export function createTerminal(host, id, opts = {}) {
   term.onData((data) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data })));
   term.onResize(sendResize);
 
-  const ro = new ResizeObserver(refit);
+  // Panes animate when the split view resizes them: refit once they settle, not on every frame,
+  // or claude would redraw its whole screen dozens of times per transition.
+  let settle = null;
+  const ro = new ResizeObserver(() => {
+    clearTimeout(settle);
+    settle = setTimeout(refit, 120);
+  });
   ro.observe(host);
   requestAnimationFrame(refit);
 

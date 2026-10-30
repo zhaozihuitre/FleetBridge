@@ -229,6 +229,7 @@ async function sendToTargets(body, label, ids = [...targets]) {
   if (!ids.length) return;
   const r = await post('/api/agents/action', { ...body, id: ids });
   const ok = (r.results || []).filter(Boolean).length;
+  spotlight(ids.filter((_, i) => r.results?.[i]));
   sentLog.unshift({ t: Date.now(), text: label, n: ok });
   toast(ok === ids.length ? `已发给 ${ok} 个 agent` : `发出 ${ok} / ${ids.length}，有的 agent 可能已经退出`);
   renderConsole();
@@ -665,14 +666,64 @@ function ctxBadge(u) {
 }
 
 function setActivePane(id) {
+  const changed = ui.term !== id;
   ui.term = id;
   for (const [pid, { el }] of panes) el.classList.toggle('active', pid === id);
+  if (changed) layoutPanes(); // the dynamic split follows the active pane
+}
+
+// Dynamic split: the active pane takes ~2/3 of the space (its column, and its row in a 2x2),
+// the others shrink. Off: equal sizes. The grid tracks animate via CSS transitions.
+let dynamicSplit = true;
+try {
+  dynamicSplit = localStorage.getItem('fb-dynamic-split') !== '0';
+} catch {
+  // storage unavailable: default on
 }
 
 function layoutPanes() {
-  $('term-grid').dataset.n = String(panes.size);
-  const font = panes.size > 1 ? 12 : 13; // narrower panes get a smaller font to keep enough columns
-  for (const { t } of panes.values()) t.setFontSize(font);
+  const grid = $('term-grid');
+  const ids = [...panes.keys()];
+  const n = ids.length;
+  grid.dataset.n = String(n);
+  grid.classList.toggle('dynamic', dynamicSplit && n > 1);
+  const act = dynamicSplit && n > 1 ? ids.indexOf(ui.term) : -1;
+  const weights = (count, hot) => Array.from({ length: count }, (_, i) => (i === hot ? 'minmax(0, 2fr)' : 'minmax(0, 1fr)')).join(' ');
+  if (act < 0) {
+    grid.style.gridTemplateColumns = '';
+    grid.style.gridTemplateRows = '';
+  } else if (n === 2) {
+    grid.style.gridTemplateColumns = weights(2, act);
+    grid.style.gridTemplateRows = '';
+  } else {
+    grid.style.gridTemplateColumns = weights(2, act % 2);
+    grid.style.gridTemplateRows = weights(2, Math.floor(act / 2));
+  }
+  // the big pane gets a normal font, small ones a smaller one to keep enough columns
+  for (const [id, { t }] of panes) t.setFontSize(n === 1 ? 13 : act >= 0 && id === ui.term ? 13 : act >= 0 ? 11 : 12);
+  $('term-dyn').setAttribute('aria-pressed', String(dynamicSplit));
+}
+
+function setDynamicSplit(on) {
+  dynamicSplit = on;
+  try {
+    localStorage.setItem('fb-dynamic-split', on ? '1' : '0');
+  } catch {
+    // not persisted
+  }
+  layoutPanes();
+}
+
+// Flash the panes that just received a command; a single recipient also becomes the active, big one.
+function spotlight(ids) {
+  const open = ids.filter((id) => panes.has(id));
+  if (open.length === 1) setActivePane(open[0]);
+  for (const id of open) {
+    const el = panes.get(id).el;
+    el.classList.remove('hit');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('hit');
+  }
 }
 
 function openTerm(id) {
@@ -800,6 +851,7 @@ $('deploy-form').addEventListener('submit', async (e) => {
 });
 
 $('term-close-all').addEventListener('click', closeAllPanes);
+$('term-dyn').addEventListener('click', () => setDynamicSplit(!dynamicSplit));
 $('term-add').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -974,9 +1026,12 @@ function connect() {
   es.onmessage = (e) => {
     const first = !state;
     state = JSON.parse(e.data);
-    // deep link: /#term=<agent id> opens that agent's terminal
-    const deep = first && location.hash.match(/^#term=([0-9a-f-]{36})$/);
-    if (deep && state.agents?.some((a) => a.id === deep[1])) setTimeout(() => openTerm(deep[1]), 0);
+    // deep link: /#term=<id>[,<id>...] opens those agents' terminals (split view)
+    const deep = first && location.hash.match(/^#term=([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/);
+    if (deep) {
+      const ids = deep[1].split(',').filter((id) => state.agents?.some((a) => a.id === id));
+      setTimeout(() => ids.forEach((id) => openTerm(id)), 0);
+    }
     $('conn').textContent = '● 已连接';
     $('conn').classList.remove('bad');
     render();

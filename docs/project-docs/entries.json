@@ -842,6 +842,31 @@
       "created": "2026-10-30 17:04",
       "updated": "2026-10-30 17:04",
       "notes": []
+    },
+    {
+      "id": "C-007",
+      "type": "change",
+      "title": "动态分屏：当前 / 收到指令的终端变大",
+      "summary": "分屏随焦点和下令动态调整大小，可在终端顶栏关闭",
+      "detail": "**改动内容**：活动终端用 grid 的 2fr / 1fr 权重放大（两屏：列；四宫格：行和列），其他终端缩小、字号 11、透明度 .78；总指令台发送后 `spotlight()`：单个接收者成为活动终端，多个接收者边框闪烁；顶栏「⇔ 动态」开关（localStorage）。深链接支持 `#term=id1,id2,…` 一次打开多个终端。\n**注意事项**：终端 ResizeObserver 改为停止变化 120ms 后再 fit，避免动画期间反复向 PTY 发送尺寸导致 TUI 重绘。\n",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/terminal.js",
+        "web/style.css",
+        "web/index.html"
+      ],
+      "tags": [
+        "界面",
+        "终端"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 17:07",
+      "updated": "2026-10-30 17:07",
+      "notes": []
     }
   ]
 }
