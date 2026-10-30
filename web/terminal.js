@@ -2,6 +2,7 @@
 // Several can be open at once (split view, pop-out windows); each call makes an independent one.
 import { Terminal } from '/lib/xterm/lib/xterm.mjs';
 import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
+import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 
 const THEME = {
   background: '#050a12',
@@ -28,6 +29,15 @@ export function createTerminal(host, id, opts = {}) {
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host);
+  // GPU rendering: the default DOM renderer lags with several panes redrawing at once.
+  // Falls back to DOM if WebGL is unavailable or its context gets lost.
+  try {
+    const gl = new WebglAddon();
+    gl.onContextLoss(() => gl.dispose());
+    term.loadAddon(gl);
+  } catch {
+    // no WebGL: keep the DOM renderer
+  }
   if (opts.onFocus) term.textarea?.addEventListener('focus', opts.onFocus);
 
   const ws = new WebSocket(`ws://${location.host}/ws/agents/${id}`);

@@ -1,6 +1,6 @@
 {
   "name": "fleet-bridge",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "private": true,
   "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
@@ -25,7 +25,9 @@
       "server/**",
       "web/**"
     ],
-    "asarUnpack": ["node_modules/@lydell/**"],
+    "asarUnpack": [
+      "node_modules/@lydell/**"
+    ],
     "win": {
       "target": [
         {
@@ -58,6 +60,7 @@
   "dependencies": {
     "@lydell/node-pty": "^1.2.0-beta.18",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "ws": "^8.22.0"
   }

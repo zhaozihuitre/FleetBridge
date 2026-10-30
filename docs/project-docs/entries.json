@@ -912,6 +912,31 @@
       "created": "2026-10-30 17:29",
       "updated": "2026-10-30 17:29",
       "notes": []
+    },
+    {
+      "id": "C-009",
+      "type": "change",
+      "title": "终端改用 WebGL 渲染，动态分屏当前终端占 3/4（0.5.5）",
+      "summary": "输入卡顿：xterm 默认 DOM 渲染在多个终端同时重绘时很慢，改用 @xterm/addon-webgl（不可用或上下文丢失时退回 DOM）。动态分屏当前终端由 2/3 加大到约 3/4。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/terminal.js",
+        "web/app.js",
+        "server/index.js",
+        "package.json"
+      ],
+      "tags": [
+        "终端",
+        "性能"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-10-31 08:57",
+      "updated": "2026-10-31 08:57",
+      "notes": []
     }
   ]
 }

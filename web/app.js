@@ -672,7 +672,7 @@ function setActivePane(id) {
   if (changed) layoutPanes(); // the dynamic split follows the active pane
 }
 
-// Dynamic split: the active pane takes ~2/3 of the space (its column, and its row in a 2x2),
+// Dynamic split: the active pane takes ~3/4 of the space (its column, and its row in a 2x2),
 // the others shrink. Off: equal sizes. The grid tracks animate via CSS transitions.
 let dynamicSplit = true;
 try {
@@ -688,7 +688,7 @@ function layoutPanes() {
   grid.dataset.n = String(n);
   grid.classList.toggle('dynamic', dynamicSplit && n > 1);
   const act = dynamicSplit && n > 1 ? ids.indexOf(ui.term) : -1;
-  const weights = (count, hot) => Array.from({ length: count }, (_, i) => (i === hot ? 'minmax(0, 2fr)' : 'minmax(0, 1fr)')).join(' ');
+  const weights = (count, hot) => Array.from({ length: count }, (_, i) => (i === hot ? 'minmax(0, 3fr)' : 'minmax(0, 1fr)')).join(' ');
   if (act < 0) {
     grid.style.gridTemplateColumns = '';
     grid.style.gridTemplateRows = '';

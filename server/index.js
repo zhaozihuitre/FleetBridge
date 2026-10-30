@@ -18,6 +18,7 @@ const STATIC = {
   '/web/': path.join(ROOT, 'web'),
   '/lib/xterm/': path.join(ROOT, 'node_modules', '@xterm', 'xterm'),
   '/lib/xterm-fit/': path.join(ROOT, 'node_modules', '@xterm', 'addon-fit'),
+  '/lib/xterm-webgl/': path.join(ROOT, 'node_modules', '@xterm', 'addon-webgl'),
 };
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 
