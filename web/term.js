@@ -18,11 +18,22 @@ function render(state) {
   const [label, cls] = !a?.alive ? ['● 已退出', 'off'] : u?.permission ? ['● 等你授权', 'permit'] : u?.status === 'busy' ? ['● 作战中', 'busy'] : ['● 待命', 'on'];
   q('.t-state').textContent = label;
   q('.t-state').className = 't-state ' + cls;
+  q('.t-ctx').innerHTML = ''; // rebuilt every update: load badge, then the repo tag
   if (u?.contextPct != null) {
     const pct = Math.round(u.contextPct);
     const color = pct >= state.thresholds.contextWarnPct ? 'var(--red)' : 'var(--cyan)';
     const k = u.contextTokens >= 1000 ? Math.round(u.contextTokens / 1000) + 'K' : String(u.contextTokens);
     q('.t-ctx').innerHTML = `<span class="ctx-badge" style="--cc:${color}"><i style="width:${Math.min(100, pct)}%"></i></span><span class="ctx-num" style="color:${color}">${pct}% · ${k}</span>`;
+  }
+  // which repo this agent pushes to: the one Claude edited last, else the only one in its folder
+  const repos = (u?.repos || []).filter((r) => !r.error);
+  const active = repos.filter((r) => r.claudeTouchedAt).sort((x, y) => y.claudeTouchedAt - x.claudeTouchedAt)[0] || (repos.length === 1 ? repos[0] : null);
+  if (active) {
+    const tag = document.createElement('span');
+    tag.className = 't-repo' + (active.remote ? '' : ' warn');
+    tag.textContent = `⎇ ${active.remote ? active.remote.slug : '无远程'} · ${active.branch || ''}`;
+    tag.title = repos.map((r) => `${r.name} → ${r.remote ? r.remote.host + '/' + r.remote.slug : '无远程'}`).join('\n');
+    q('.t-ctx').appendChild(tag);
   }
   pane.querySelectorAll('button').forEach((b) => (b.disabled = !a?.alive));
   document.title = `${name} · 舰桥`;

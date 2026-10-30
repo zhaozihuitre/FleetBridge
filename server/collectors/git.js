@@ -68,14 +68,38 @@ function oldestChange(repo, files) {
   return oldest;
 }
 
+// "https://user:token@github.com/owner/repo.git" or "git@github.com:owner/repo.git"
+// -> { host, slug: "owner/repo", web }. Credentials embedded in the URL are dropped, never shown.
+function describeRemote(name, raw) {
+  const url = raw.replace(/^(\w+:\/\/)[^@/]+@/, '$1');
+  const m = url.match(/^(?:\w+:\/\/)?(?:[^@/]+@)?([^/:]+)[:/](.+?)(?:\.git)?\/?$/);
+  if (!m) return { name, url, host: null, slug: url, web: null };
+  const [, host, slug] = m;
+  return { name, url, host, slug, web: /^[\w.-]+$/.test(host) ? `https://${host}/${slug}` : null };
+}
+
+function parseRemotes(out) {
+  const seen = new Map();
+  for (const line of out.split('\n')) {
+    const m = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/);
+    if (m && (m[3] === 'push' || !seen.has(m[1]))) seen.set(m[1], describeRemote(m[1], m[2])); // the push URL is where commits go
+  }
+  return [...seen.values()];
+}
+
 async function inspect(repo) {
   const st = parseStatus(await git(repo, ['status', '--porcelain=v2', '--branch', '-z']));
-  const [logOut, statOut, stashOut, gitDir] = await Promise.all([
+  const [logOut, statOut, stashOut, gitDir, remoteOut] = await Promise.all([
     git(repo, ['log', '-1', '--format=%h%x1f%s%x1f%an%x1f%ct']).catch(() => ''),
     git(repo, ['diff', '--shortstat', 'HEAD']).catch(() => ''),
     git(repo, ['stash', 'list']).catch(() => ''),
     git(repo, ['rev-parse', '--absolute-git-dir']).catch(() => ''),
+    git(repo, ['remote', '-v']).catch(() => ''),
   ]);
+  const remotes = parseRemotes(remoteOut);
+  // where a plain `git push` goes: the upstream's remote, else origin, else the only one
+  const upstreamRemote = st.upstream?.split('/')[0];
+  const remote = remotes.find((r) => r.name === upstreamRemote) || remotes.find((r) => r.name === 'origin') || (remotes.length === 1 ? remotes[0] : null);
   const [hash, subject, author, ct] = logOut.trim().split('\x1f');
   const dir = gitDir.trim();
   const has = (f) => dir && fs.existsSync(path.join(dir, f));
@@ -102,6 +126,8 @@ async function inspect(repo) {
     operation: has('MERGE_HEAD') ? 'merge' : has('rebase-merge') || has('rebase-apply') ? 'rebase' : has('CHERRY_PICK_HEAD') ? 'cherry-pick' : null,
     head: hash ? { hash, subject, author, at: +ct * 1000 } : null,
     fetchedAt,
+    remote: remote && { name: remote.name, slug: remote.slug, host: remote.host, web: remote.web },
+    remotes: remotes.map(({ name, slug, host, web }) => ({ name, slug, host, web })),
   };
 }
 

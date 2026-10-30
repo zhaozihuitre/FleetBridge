@@ -54,6 +54,7 @@
 |---|---|
 | `usage` | `{ ok, error, fetchedAt, retryAt, limits:[{key,label,usedPct,resetsAt,active}], account }` |
 | `units[]` | 运行中的会话：`pid, sessionId, project, cwd, status, permission, contextPct, contextTokens, agents[], repos[], owned, agentId` |
+| `units[].repos[]` | `name, path, branch, upstream, ahead, behind, changedCount, …, remote: {name, host, slug, web}, remotes[]`（不含原始 URL） |
 | `quests[]` | 任务：`key, kind, lv, title, goal, since, unit` |
 | `comms[]` | 最近 60 条事件 |
 | `operator` | 领航员 `mood` 与 `lines[]` |

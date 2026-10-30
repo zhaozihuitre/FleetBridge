@@ -1,6 +1,6 @@
 // Electron shell: runs the monitor server in-process, shows the always-on-top status widget
 // and opens the main screen (command center) on demand.
-const { app, BrowserWindow, ipcMain, Notification, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, screen, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -124,12 +124,13 @@ function openMain(term) {
   mainWin.maximize();
   mainWin.once('ready-to-show', () => mainWin.show());
   mainWin.loadURL(target || baseUrl);
-  // ⧉ pop-out terminals open as their own windows; nothing else may open windows
-  mainWin.webContents.setWindowOpenHandler(({ url }) =>
-    url.startsWith(`${baseUrl}/term`)
-      ? { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, autoHideMenuBar: true, backgroundColor: '#050a12' } }
-      : { action: 'deny' },
-  );
+  // ⧉ pop-out terminals open as their own windows; web links (repo pages) go to the default browser
+  mainWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith(`${baseUrl}/term`))
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, autoHideMenuBar: true, backgroundColor: '#050a12' } };
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
   // The widget would cover the command center: hide it while the command center is on screen.
   const showWidget = (on) => widget && (on ? widget.showInactive() : widget.hide());
   mainWin.on('show', () => showWidget(false));

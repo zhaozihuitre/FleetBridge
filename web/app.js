@@ -425,7 +425,38 @@ function repoRow(r) {
   const touched = r.claudeTouchedAt ? `<span class="claude" title="Claude 最后一次修改这个仓库的时间">CLAUDE ${clock(r.claudeTouchedAt, now - r.claudeTouchedAt > 86_400_000)}</span>` : '';
   return `<div class="repo" style="--rc:${rc}" title="${esc(r.head ? `${r.head.hash} · ${r.head.subject} · ${r.head.author}` : r.path)}">
     <div class="r1"><span class="name">${esc(r.name)}</span>${touched}<span class="branch">${esc(r.branch || '(detached)')}</span><span class="sync" style="color:${sync[1]}">${sync[0]}</span></div>
+    ${remoteLine(r)}
     <div class="chg">${esc(chg)}</div></div>`;
+}
+
+// Where this repo pushes to, so commits don't land in the wrong repository.
+function remoteLine(r) {
+  const icon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v6m0 8v6M5 12h14"/><circle cx="12" cy="12" r="3"/></svg>';
+  if (!r.remote) return `<div class="rmt warn">${icon}${r.remotes?.length ? '有多个远程，没有默认推送目标' : '没有远程仓库，只在本地'}</div>`;
+  const label = `${r.remote.host}/${r.remote.slug}`;
+  const others = (r.remotes || []).filter((x) => x.name !== r.remote.name);
+  const more = others.length
+    ? `<span class="more-rmt" title="${esc(others.map((x) => `${x.name} → ${x.host}/${x.slug}`).join('\n'))}">另有 ${others.map((x) => esc(x.name)).join('、')}</span>`
+    : '';
+  const link = r.remote.web
+    ? `<a href="${esc(r.remote.web)}" target="_blank" rel="noopener" title="推送到 ${esc(r.remote.name)}：${esc(label)}（点击打开）">${esc(label)}</a>`
+    : `<span>${esc(label)}</span>`;
+  return `<div class="rmt">${icon}<span class="rname">${esc(r.remote.name)}</span>${link}${more}</div>`;
+}
+
+// The repo an agent is working in: the one Claude edited last, else the only one under its folder.
+function activeRepo(u) {
+  const repos = (u?.repos || []).filter((r) => !r.error);
+  const touched = repos.filter((r) => r.claudeTouchedAt).sort((a, b) => b.claudeTouchedAt - a.claudeTouchedAt);
+  return touched[0] || (repos.length === 1 ? repos[0] : null);
+}
+
+function repoBadge(u) {
+  const r = activeRepo(u);
+  const all = (u?.repos || []).map((x) => `${x.name} → ${x.remote ? x.remote.host + '/' + x.remote.slug : '无远程'}`).join('\n');
+  if (!r) return u?.repos?.length ? `<span class="t-repo" title="${esc(all)}">${u.repos.length} 个仓库</span>` : '';
+  const target = r.remote ? r.remote.slug : '无远程';
+  return `<span class="t-repo ${r.remote ? '' : 'warn'}" title="${esc(all)}">⎇ ${esc(target)} · ${esc(r.branch || '')}</span>`;
 }
 
 function questCard(q) {
@@ -609,7 +640,7 @@ function renderTermHeads() {
       : u?.permission ? ['● 等你授权', 'permit'] : u?.status === 'busy' ? ['● 作战中', 'busy'] : ['● 待命', 'on'];
     st.textContent = label;
     st.className = 't-state ' + cls;
-    el.querySelector('.t-ctx').innerHTML = ctxBadge(u);
+    el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
     el.querySelector('[data-tact=remove]').hidden = alive !== false;
   }
