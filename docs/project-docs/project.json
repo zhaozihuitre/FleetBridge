@@ -1,0 +1,11 @@
+{
+  "name": "CLAUDE//OPS",
+  "description": "游戏风格的 Claude Code 多项目指挥中心：额度、会话状态、git、授权提醒，内嵌终端统一指挥多个 agent",
+  "lang": "zh",
+  "created": "2026-10-30 15:56",
+  "todo_stale_days": 30,
+  "hook": {
+    "remind_on_edit": true,
+    "min_edits": 1
+  }
+}

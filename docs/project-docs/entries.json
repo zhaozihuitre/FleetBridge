@@ -1,0 +1,742 @@
+{
+  "entries": [
+    {
+      "id": "D-001",
+      "type": "decision",
+      "title": "额度用 OAuth usage 接口，会话用本地状态文件",
+      "summary": "额度只有官方接口有；会话、负载、子 agent 全部来自 ~/.claude 下的本地文件",
+      "detail": "**问题**：额度、重置时间、各会话状态从哪里拿，才能准确又不打扰 Claude Code。\n**候选方案**：\n- 解析 `/usage` 输出：要交互，不可行\n- 状态栏输入里的 `rate_limits`：准确，但只有挂了状态栏的会话才有，且只到 5h/周两项\n- `api/oauth/usage`：包含全部 limits（含按模型的周额度），但非公开接口、有限流\n**结论**：额度用 `api/oauth/usage`（只读令牌、不刷新）；会话用 `~/.claude/sessions/*.json` + transcript 增量读取；git 用只读命令。\n**理由**：与 `/usage` 和状态栏交叉验证一致；本地文件零网络开销。限流问题用退避 + 缓存解决（I-001）。",
+      "status": "accepted",
+      "files": [
+        "server/collectors/usage.js",
+        "server/collectors/sessions.js",
+        "server/collectors/transcript.js"
+      ],
+      "tags": [
+        "额度",
+        "会话"
+      ],
+      "sections": [
+        "architecture",
+        "data"
+      ],
+      "refs": [],
+      "created": "2026-10-30 10:30",
+      "updated": "2026-10-30 10:30",
+      "notes": []
+    },
+    {
+      "id": "D-002",
+      "type": "decision",
+      "title": "授权提醒用 Notification hook 写本地文件",
+      "summary": "状态文件没有「等待授权」状态，只能靠 permission_prompt hook",
+      "detail": "**问题**：会话卡在权限确认上时要提醒，但 `sessions/*.json` 只有 busy/idle。\n**候选方案**：HTTP hook 直接推后端（后端没开时丢失）；hook 写文件，后端增量读（后端没开也不丢）。\n**结论**：全局 `~/.claude/settings.json` 加 Notification(permission_prompt) hook，脚本 `~/.claude-ops/hook.js` 追加 `notifications.jsonl`；后端判断 transcript 在通知之后有没有新行来决定是否仍在等待。\n**理由**：不依赖后端在线；hook 异步执行、出错静默，不影响 Claude Code。",
+      "status": "accepted",
+      "files": [
+        "server/hook.js",
+        "server/collectors/notifications.js"
+      ],
+      "tags": [
+        "授权",
+        "hook"
+      ],
+      "sections": [
+        "flows",
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 12:20",
+      "updated": "2026-10-30 12:20",
+      "notes": []
+    },
+    {
+      "id": "D-003",
+      "type": "decision",
+      "title": "可控制的 agent 由指挥中心用 PTY 发起",
+      "summary": "外部程序无法向运行中的终端会话输入；由我们启动真实的交互式 claude 才能完整控制",
+      "detail": "**问题**：用户要从指挥中心给会话下指令。\n**候选方案**：\n- 会话间收件箱（messagingSocketPath）：消息被当作「其他会话发来」，可能需审批，格式无文档\n- Agent SDK / `claude -p`：可控但不是交互式界面\n- node-pty + xterm.js 跑真实 `claude`：完整交互式体验，输入就是键盘输入\n**结论**：采用 PTY 方案；外部终端里的会话只监控、「跳过去」。\n**理由**：官方支持的交互式 CLI，授权确认等都在内嵌终端里原样操作。代价：agent 寿命跟随程序（用恢复阵容弥补）。",
+      "status": "accepted",
+      "files": [
+        "server/agents.js",
+        "web/terminal.js"
+      ],
+      "tags": [
+        "agent",
+        "终端"
+      ],
+      "sections": [
+        "architecture",
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:20",
+      "updated": "2026-10-30 13:20",
+      "notes": []
+    },
+    {
+      "id": "D-004",
+      "type": "decision",
+      "title": "我方 agent 按进程识别，不按会话 ID",
+      "summary": "/clear 和恢复会话会换会话 ID，进程 pid 不变",
+      "detail": "**问题**：卡片 / 小窗要知道哪个会话是我方的，才能打开内嵌终端而不是切窗口。\n**候选方案**：按 sessionId 匹配（/clear、resume 后失效）；按 pid 匹配（node-pty 在 Windows 返回 pid 0）。\n**结论**：启动后把该文件夹里第一个新出现的状态文件的 pid 绑定给 agent，之后一直按 pid 跟随，并同步当前 sessionId。\n**理由**：修复「点跳转只回到窗口不回到对话」。",
+      "status": "accepted",
+      "files": [
+        "server/agents.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "agent"
+      ],
+      "sections": [
+        "architecture"
+      ],
+      "refs": [],
+      "created": "2026-10-30 14:00",
+      "updated": "2026-10-30 14:00",
+      "notes": []
+    },
+    {
+      "id": "D-005",
+      "type": "decision",
+      "title": "去掉 Live2D，桌宠换成战况小窗",
+      "summary": "Live2D 持续占 GPU、信息量少，用户要求换成更有用的信息展示",
+      "detail": "**问题**：Live2D 角色（官方样本 Rice）作为领航员和桌宠，性能和实用性都不理想。\n**结论**：桌宠换成置顶的「战况」小窗（额度、最急任务、部队列表）；指挥中心左侧先换成概览，后改为总指令台。删除 live2d.js、模型与 CDN 依赖。\n**理由**：用户明确要求；顺带去掉了 Live2D 样本模型的再分发授权问题。",
+      "status": "accepted",
+      "files": [
+        "web/widget.html",
+        "web/widget.js",
+        "web/index.html"
+      ],
+      "tags": [
+        "界面"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 14:30",
+      "updated": "2026-10-30 14:30",
+      "notes": []
+    },
+    {
+      "id": "D-006",
+      "type": "decision",
+      "title": "程序数据统一放 ~/.claude-ops",
+      "summary": "安装版程序目录只读；开发版与安装版共用一份数据",
+      "detail": "**问题**：最初数据写在项目 `data/`，安装后程序目录只读，hook 脚本也依赖源码路径。\n**结论**：通讯记录、额度缓存、授权通知、阵容、配置、hook 脚本都放 `~/.claude-ops/`；`MONITOR_DATA_DIR` 可覆盖（测试版隔离用）。\n**理由**：删掉源码目录也不影响提醒；升级后数据延续。",
+      "status": "accepted",
+      "files": [
+        "server/config.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "部署"
+      ],
+      "sections": [
+        "data",
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:03",
+      "updated": "2026-10-30 13:03",
+      "notes": []
+    },
+    {
+      "id": "I-001",
+      "type": "issue",
+      "title": "OAuth 用量接口频繁 429 限流",
+      "summary": "反复重启导致每次启动都立即请求；状态栏插件也在调用同一接口",
+      "detail": "**现象**：顶栏显示「读取失败：http_429 / rate_limited」，持续数十分钟。\n**根因**：每次启动立即请求一次 + 1 分钟轮询；退避状态没有持久化，重启后又立刻请求；claude-hud 状态栏也调用该接口。\n**解决**：429 时 2、4、8…最长 30 分钟退避，退避状态与最后一次成功数据写 `usage-cache.json`；两次请求至少间隔 1 分钟（重启也算）；轮询改为 3 分钟。\n**如何避免**：调试时少重启；用 `npm run probe` 或隔离端口测试。",
+      "status": "resolved",
+      "files": [
+        "server/collectors/usage.js"
+      ],
+      "tags": [
+        "额度"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 11:30",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-002",
+      "type": "issue",
+      "title": "从 Claude 会话里启动的 agent 不注册状态文件",
+      "summary": "继承了 CLAUDE_CODE_CHILD_SESSION 等变量，子 claude 当自己是嵌套会话",
+      "detail": "**现象**：PTY 启动的 claude 能正常交互，但 `~/.claude/sessions/` 下没有它的状态文件，部队卡片里看不到。\n**根因**：开发时程序是从一个 Claude 会话的终端里启动的，环境里有 `CLAUDECODE`、`CLAUDE_CODE_CHILD_SESSION`、`CLAUDE_CODE_SESSION_ID`、消息令牌等。\n**解决**：`agents.js` 的 `agentEnv()` 启动前删除这些会话级变量，保留 `ANTHROPIC_*` 等用户配置。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js"
+      ],
+      "tags": [
+        "agent",
+        "环境"
+      ],
+      "sections": [
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:25",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-003",
+      "type": "issue",
+      "title": "强制结束程序后 agent 成为孤儿进程",
+      "summary": "Stop-Process / 崩溃不会走 before-quit，ConPTY 下的 claude 可能继续运行",
+      "detail": "**现象**：强制结束 Electron 后，有的 claude 进程还在（父进程已不存在）。\n**根因**：只有正常退出才会 `shutdown()` 结束 agent。\n**解决**：恢复阵容时，对仍在运行的同会话进程检查父进程：父进程不在 → 孤儿，结束后再接管；父进程在 → 正被外部终端使用，跳过。\n**如何避免**：用小窗菜单「退出」。",
+      "status": "resolved",
+      "files": [
+        "server/roster.js"
+      ],
+      "tags": [
+        "agent",
+        "进程"
+      ],
+      "sections": [
+        "flows",
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:05",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-004",
+      "type": "issue",
+      "title": "D 盘空间不足导致打包失败",
+      "summary": "D 盘只有 15GB，旧安装包和解包目录占满",
+      "detail": "**现象**：`ENOSPC: no space left on device, write`\n**根因**：每个版本安装包约 120MB、解包目录约 365MB，累计多个版本。\n**解决**：删除被取代的旧安装包；输出保持在项目 `dist/`。\n**如何避免**：每出一个新版本就删掉旧安装包；必要时清理 D 盘。",
+      "status": "resolved",
+      "files": [
+        "package.json"
+      ],
+      "tags": [
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:30",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-005",
+      "type": "issue",
+      "title": "终端里出现 SessionStart hook error（乱码）",
+      "summary": "来自 Warp 插件的启动脚本在 Windows 上执行失败，与本项目无关",
+      "detail": "**现象**：`SessionStart:startup hook error / Failed with non-blocking status code: ...27`\n**根因**：`warp` 与 `oz-harness-support` 插件的 SessionStart hook 运行 `.sh` 脚本，在 Windows 上失败；乱码是日文系统错误信息的编码。外部终端的会话里同样存在。\n**解决**：不影响使用；不需要可禁用这两个插件。",
+      "status": "resolved",
+      "files": [],
+      "tags": [
+        "环境"
+      ],
+      "sections": [
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:35",
+      "updated": "2026-10-30 13:35",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-006",
+      "type": "issue",
+      "title": "Live2D 持续重绘占用大量 GPU / 内存",
+      "summary": "60fps 不停渲染，程序约 1GB，GPU 进程 5 分钟 59 秒 CPU",
+      "detail": "**现象**：电脑卡顿，Electron 约 1GB，GPU 进程 375MB。\n**根因**：Live2D 两个画面（桌宠 + 主界面）以 60fps 持续渲染，窗口不可见也不停。\n**解决**：限帧 24/30fps、不可见时停止渲染、关闭抗锯齿与高 DPR；内存降到约 540MB，GPU CPU 4%。之后 Live2D 整体移除（D-005）。",
+      "status": "resolved",
+      "files": [
+        "web/live2d.js"
+      ],
+      "tags": [
+        "性能"
+      ],
+      "sections": [
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 12:45",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-007",
+      "type": "issue",
+      "title": "同一会话被接管两次，两个进程写同一记录",
+      "summary": "全军出击与「在此继续」各接管了一次同一个会话",
+      "detail": "**现象**：两个我方终端的状态文件都是同一个 sessionId。\n**根因**：接管时只按 agent 初始 id 去重，没有按当前 sessionId 判断。\n**解决**：`spawnAgent` 接管前检查所有存活 agent 的 id 与当前 sessionId，已存在就返回原 agent；阵容按 sessionId 去重。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/roster.js"
+      ],
+      "tags": [
+        "agent"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:35",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "I-008",
+      "type": "issue",
+      "title": "<synthetic> 占位消息导致负载读数为 0",
+      "summary": "中断 / 出错时会写入 usage 全 0 的 assistant 消息",
+      "detail": "**现象**：会话被打断后负载显示 0。\n**根因**：`model = <synthetic>` 的占位消息 usage 全为 0。\n**解决**：计算负载时跳过这类消息和 sidechain 消息。",
+      "status": "resolved",
+      "files": [
+        "server/collectors/transcript.js"
+      ],
+      "tags": [
+        "会话"
+      ],
+      "sections": [
+        "data"
+      ],
+      "refs": [],
+      "created": "2026-10-30 10:35",
+      "updated": "2026-10-30 16:00",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "T-001",
+      "type": "todo",
+      "title": "显示分支的 PR / CI 状态",
+      "summary": "需要 gh 登录（当前未登录，GitHub MCP 也连接失败）",
+      "detail": "**要做什么**：在仓库行显示 PR 链接、CI 是否通过。\n**为什么暂缓**：`gh auth status` 未登录。\n**触发条件**：用户执行 `gh auth login` 后。\n**相关位置**：`server/collectors/git.js`",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "git"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 11:40",
+      "updated": "2026-10-30 11:40",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-002",
+      "type": "todo",
+      "title": "可选的后台 git fetch",
+      "summary": "领先/落后数依赖上次 fetch，可能过期；默认不联网",
+      "detail": "**要做什么**：每 10-15 分钟后台 fetch，让 ↑↓ 准确。\n**为什么暂缓**：会访问网络、需要仓库凭证，用户未确认。\n**相关位置**：`config.git.autoFetch`、`server/collectors/git.js`",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "git"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 11:40",
+      "updated": "2026-10-30 11:40",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-003",
+      "type": "todo",
+      "title": "「跳过去」只能切到窗口，选不中终端标签页",
+      "summary": "Windows Terminal 不支持外部选中标签页",
+      "detail": "**要做什么**：外部会话「跳过去」时定位到具体标签页。\n**为什么暂缓**：没有公开接口；只能切到父窗口。\n**相关位置**：`server/focus.js`",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "会话"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 11:35",
+      "updated": "2026-10-30 11:35",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-004",
+      "type": "todo",
+      "title": "授权 hook 依赖本机 Node 路径",
+      "summary": "settings.json 里写死了本机 Node 的绝对路径",
+      "detail": "**要做什么**：换台电脑或 Node 路径变化时 hook 会失效；可改为用程序自带的运行时或安装时写入。\n**为什么暂缓**：目前只在本机使用。\n**相关位置**：`~/.claude/settings.json`、`server/hook.js`",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "hook",
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:05",
+      "updated": "2026-10-30 13:05",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-005",
+      "type": "todo",
+      "title": "安装程序代码签名",
+      "summary": "未签名，首次运行有 SmartScreen 提示",
+      "detail": "**要做什么**：申请代码签名证书并配置 electron-builder。\n**为什么暂缓**：内部自用。",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:06",
+      "updated": "2026-10-30 13:06",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-006",
+      "type": "todo",
+      "title": "实测 0.4.2 升级时的阵容恢复",
+      "summary": "恢复阵容在隔离测试中验证过，真实升级（安装程序关闭旧版）还没实测",
+      "detail": "**要做什么**：从 0.4.0 升级到 0.4.2，确认 4 个 agent（含当前对话）被接回、孤儿被清理。\n**为什么暂缓**：当前对话运行在安装版里，升级会中断。\n**触发条件**：用户下次方便时升级。\n**相关位置**：`server/roster.js`、`~/.claude-ops/roster.json`",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "agent",
+        "部署"
+      ],
+      "sections": [
+        "flows"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:45",
+      "updated": "2026-10-30 15:45",
+      "notes": [],
+      "priority": "P1"
+    },
+    {
+      "id": "T-007",
+      "type": "todo",
+      "title": "项目还不是 git 仓库",
+      "summary": "项目目录还没有版本管理",
+      "detail": "**要做什么**：`git init` 并提交，之后记录可以填 `--ref`。\n**为什么暂缓**：用户未要求。",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "开发"
+      ],
+      "sections": [
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:50",
+      "updated": "2026-10-30 15:50",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "C-001",
+      "type": "change",
+      "title": "额度改为按接口 limits 列表显示「已用」",
+      "summary": "与 /usage 一致；新增 Fable 等按模型周额度",
+      "detail": "**背景**：只显示 5h / 周两项且显示的是「剩余」，与 `/usage` 对不上。\n**改动内容**：读取 `limits[]`，逐项显示已用 % 与重置倒计时，当前起作用的一项标橙。\n**影响范围**：顶栏、小窗、任务（额度告急）、事件（回充）。",
+      "status": "done",
+      "files": [
+        "server/collectors/usage.js",
+        "web/app.js",
+        "web/widget.js"
+      ],
+      "tags": [
+        "额度"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 13:00",
+      "updated": "2026-10-30 13:00",
+      "notes": []
+    },
+    {
+      "id": "C-002",
+      "type": "change",
+      "title": "指挥中心改为无边框、铺满桌面、自适应布局",
+      "summary": "不再固定 1440x900 缩放；每页条数按可用空间计算",
+      "detail": "**改动内容**：窗口 `frame:false` 并最大化，HUD 顶栏可拖动、自带最小化/最大化/关闭；部队卡片按宽度、任务/存档/通讯按高度计算每页数量。\n**影响范围**：`web/style.css`、`web/app.js` 的 `pageSize()`、`desktop/main.cjs`。",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/style.css",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "界面"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:00",
+      "updated": "2026-10-30 15:00",
+      "notes": []
+    },
+    {
+      "id": "C-003",
+      "type": "change",
+      "title": "出击默认继续文件夹最新会话",
+      "summary": "选了有历史的文件夹时默认接管最新会话，可切换为新会话",
+      "detail": "**改动内容**：出击对话框显示「继续最新会话：标题 · 多久前」；已是我方则直接打开；外部运行中则只能开新会话。\n**影响范围**：`web/app.js` 出击对话框。",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/index.html"
+      ],
+      "tags": [
+        "agent"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:25",
+      "updated": "2026-10-30 15:25",
+      "notes": []
+    },
+    {
+      "id": "C-004",
+      "type": "change",
+      "title": "移除终端与总指令台的快捷命令按钮",
+      "summary": "/compact、/clear、负载高的压缩不再显示，只保留 Esc 与结束",
+      "detail": "**原因**：用户不需要；指令直接在终端或总指令台输入即可。\n**影响范围**：分屏标题栏、弹出终端、总指令台。",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/index.html",
+        "web/term.html"
+      ],
+      "tags": [
+        "界面"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:40",
+      "updated": "2026-10-30 15:40",
+      "notes": []
+    },
+    {
+      "id": "C-005",
+      "type": "change",
+      "title": "弹窗、菜单、滚动条全部主题化",
+      "summary": "confirm()、原生右键菜单、退出对话框、白色滚动条都换成自定义样式",
+      "detail": "**改动内容**：`web/ui.js` 的 `ask()` 替代 `confirm()`；小窗 ☰ 菜单替代原生菜单；退出确认在指挥中心里显示；全局滚动条样式。\n**注意事项**：新增弹窗一律用 `ask()`。",
+      "status": "done",
+      "files": [
+        "web/ui.js",
+        "web/widget.html",
+        "desktop/main.cjs",
+        "web/style.css"
+      ],
+      "tags": [
+        "界面"
+      ],
+      "sections": [
+        "dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-10-30 15:38",
+      "updated": "2026-10-30 15:38",
+      "notes": []
+    },
+    {
+      "id": "M-001",
+      "type": "milestone",
+      "title": "验证数据源可用且准确",
+      "summary": "额度、context、会话、子 agent、git 均可取，并与状态栏交叉验证一致",
+      "detail": "**完成了什么**：确认 OAuth usage 接口、会话状态文件、transcript、子 agent 元数据、git 都能拿到；与状态栏数据对比一致。\n**下一步**：设计界面。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "overview"
+      ],
+      "refs": [],
+      "created": "2026-10-30 10:40",
+      "updated": "2026-10-30 10:40",
+      "notes": []
+    },
+    {
+      "id": "M-002",
+      "type": "milestone",
+      "title": "后端采集 + 游戏风格主界面跑通",
+      "summary": "Node 后端、SSE 推送、指挥中心与 Live2D 领航员",
+      "detail": "**关键产出**：`server/` 采集与状态计算，`web/` 主界面（部队 / 任务 / 通讯）。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "overview"
+      ],
+      "refs": [],
+      "created": "2026-10-30 11:30",
+      "updated": "2026-10-30 11:30",
+      "notes": []
+    },
+    {
+      "id": "M-003",
+      "type": "milestone",
+      "title": "首个安装包 0.1.0",
+      "summary": "Electron 桌宠 + 授权提醒 + 存档",
+      "detail": "**关键产出**：electron-builder NSIS 安装程序。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [
+        "v0.1.0"
+      ],
+      "created": "2026-10-30 13:06",
+      "updated": "2026-10-30 13:06",
+      "notes": []
+    },
+    {
+      "id": "M-004",
+      "type": "milestone",
+      "title": "指挥中心内嵌终端控制 agent（0.2.0）",
+      "summary": "node-pty + xterm.js 跑真实 claude，可出击、接管、下指令",
+      "detail": "**关键产出**：`server/agents.js`、`web/terminal.js`、WebSocket 终端通道。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "v0.2.0"
+      ],
+      "created": "2026-10-30 13:40",
+      "updated": "2026-10-30 13:40",
+      "notes": []
+    },
+    {
+      "id": "M-005",
+      "type": "milestone",
+      "title": "分屏终端 + 战况小窗（0.3.x）",
+      "summary": "最多 4 分屏、弹出窗口；Live2D 移除",
+      "detail": "**关键产出**：分屏终端、战况小窗。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "v0.3.1"
+      ],
+      "created": "2026-10-30 14:16",
+      "updated": "2026-10-30 14:16",
+      "notes": []
+    },
+    {
+      "id": "M-006",
+      "type": "milestone",
+      "title": "总指令台、@ 指定、全军出击（0.4.0）",
+      "summary": "统一下令与批量出击；无边框自适应布局",
+      "detail": "**关键产出**：总指令台、@ 补全、全军出击。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "v0.4.0"
+      ],
+      "created": "2026-10-30 15:22",
+      "updated": "2026-10-30 15:22",
+      "notes": []
+    },
+    {
+      "id": "M-007",
+      "type": "milestone",
+      "title": "恢复阵容与界面主题化（0.4.2）",
+      "summary": "重启/升级/崩溃后自动接回 agent；弹窗与滚动条主题化",
+      "detail": "**关键产出**：`server/roster.js`、`web/ui.js`。\n**下一步**：实测升级恢复（T-006）。",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "flows"
+      ],
+      "refs": [
+        "v0.4.2"
+      ],
+      "created": "2026-10-30 15:42",
+      "updated": "2026-10-30 15:42",
+      "notes": []
+    },
+    {
+      "id": "M-008",
+      "type": "milestone",
+      "title": "建立项目文档",
+      "summary": "补齐 8 个章节，补录当天的决策、问题、TODO、变更与里程碑",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑"
+      ],
+      "sections": [
+        "overview"
+      ],
+      "refs": [],
+      "created": "2026-10-30 16:00",
+      "updated": "2026-10-30 16:00",
+      "notes": []
+    }
+  ]
+}

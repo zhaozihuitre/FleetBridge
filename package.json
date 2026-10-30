@@ -1,0 +1,64 @@
+{
+  "name": "claude-ops-monitor",
+  "version": "0.4.2",
+  "private": true,
+  "description": "Local game-style monitor for Claude Code sessions, usage limits and git state",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "app": "electron .",
+    "demo": "node -e \"process.env.MONITOR_DEMO='1';process.env.MONITOR_PORT='8788';import('./server/index.js').then((m)=>m.start())\"",
+    "probe": "node server/probe.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "local.claude-ops.monitor",
+    "productName": "CLAUDE OPS",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "desktop/**",
+      "server/**",
+      "web/**"
+    ],
+    "asarUnpack": ["node_modules/@lydell/**"],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CLAUDE OPS 指挥中心",
+      "runAfterFinish": true,
+      "artifactName": "ClaudeOps-Setup-${version}.${ext}"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.18",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "ws": "^8.22.0"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+data/
+vendor/
+config.json
+dist/
+.claude/settings.local.json
