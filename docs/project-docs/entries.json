@@ -820,6 +820,28 @@
       "created": "2026-10-30 16:54",
       "updated": "2026-10-30 16:54",
       "notes": []
+    },
+    {
+      "id": "M-010",
+      "type": "milestone",
+      "title": "发布 0.5.1（显示推送目标远程）",
+      "summary": "每个仓库显示 git push 的目标仓库，终端标题栏显示当前仓库",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "里程碑",
+        "部署"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [
+        "v0.5.1"
+      ],
+      "created": "2026-10-30 17:04",
+      "updated": "2026-10-30 17:04",
+      "notes": []
     }
   ]
 }
