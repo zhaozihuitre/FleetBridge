@@ -937,6 +937,30 @@
       "created": "2026-10-31 08:57",
       "updated": "2026-10-31 08:57",
       "notes": []
+    },
+    {
+      "id": "I-009",
+      "type": "issue",
+      "title": "任务栏图标显示为白色",
+      "summary": "程序的 AppUserModelId 是 claude-ops-monitor，Windows 按它找到旧的 CLAUDE OPS 开始菜单快捷方式，而那个 exe 升级后已不存在，于是任务栏图标空白。改为与安装器写入快捷方式的 appId（local.claude-ops.monitor）一致；窗口显式设置 icon；安装时删除旧的 CLAUDE OPS / Fleet Bridge 快捷方式（0.5.6）。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "desktop/main.cjs",
+        "desktop/icon.png",
+        "build/installer.nsh",
+        "package.json"
+      ],
+      "tags": [
+        "打包",
+        "Windows"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-10-31 09:40",
+      "updated": "2026-10-31 09:40",
+      "notes": [],
+      "count": 1
     }
   ]
 }

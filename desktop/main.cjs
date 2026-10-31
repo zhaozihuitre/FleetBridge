@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
+const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
 const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(require('node:os').homedir(), '.claude-ops');
@@ -119,6 +120,7 @@ function openMain(term) {
     show: false,
     backgroundColor: '#04060c',
     title: '舰桥 · Fleet Bridge',
+    icon: ICON,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
   });
   mainWin.maximize();
@@ -127,7 +129,7 @@ function openMain(term) {
   // ⧉ pop-out terminals open as their own windows; web links (repo pages) go to the default browser
   mainWin.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(`${baseUrl}/term`))
-      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, autoHideMenuBar: true, backgroundColor: '#050a12' } };
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, icon: ICON, autoHideMenuBar: true, backgroundColor: '#050a12' } };
     if (/^https:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -212,9 +214,10 @@ ipcMain.on('ops:notify', (_e, title, body) => {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  // required for Windows toast notifications; kept from the pre-rename build (like appId and ~/.claude-ops)
-  // so notification settings and upgrades carry over
-  app.setAppUserModelId('claude-ops-monitor');
+  // Windows takes the taskbar icon and toast sender from the Start-menu shortcut with this same id.
+  // It must equal the build appId, which the installer writes onto its shortcut: the old
+  // 'claude-ops-monitor' matched only a stale CLAUDE OPS shortcut whose exe is gone (blank icon).
+  app.setAppUserModelId(app.isPackaged ? 'local.claude-ops.monitor' : 'local.claude-ops.monitor.dev');
   app.on('second-instance', () => openMain());
   app.whenReady().then(async () => {
     installHookScript();

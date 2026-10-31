@@ -1,6 +1,6 @@
 {
   "name": "fleet-bridge",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
@@ -46,6 +46,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Fleet Bridge 舰桥",
+      "include": "build/installer.nsh",
       "runAfterFinish": true,
       "artifactName": "FleetBridge-Setup-${version}.${ext}"
     }
