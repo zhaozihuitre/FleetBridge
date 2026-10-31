@@ -655,8 +655,8 @@ function setActivePane(id) {
   if (changed) layoutPanes(); // the dynamic split follows the active pane
 }
 
-// Dynamic split: the active pane takes ~3/4 of the space (its column, and its row in a 2x2),
-// the others shrink. Off: equal sizes. The grid tracks animate via CSS transitions.
+// Dynamic split: the active pane fills the main area (3/4 wide, full height) and the others
+// stack in a narrow column on its left. Off: equal sizes.
 let dynamicSplit = true;
 try {
   dynamicSplit = localStorage.getItem('fb-dynamic-split') !== '0';
@@ -671,16 +671,16 @@ function layoutPanes() {
   grid.dataset.n = String(n);
   grid.classList.toggle('dynamic', dynamicSplit && n > 1);
   const act = dynamicSplit && n > 1 ? ids.indexOf(ui.term) : -1;
-  const weights = (count, hot) => Array.from({ length: count }, (_, i) => (i === hot ? 'minmax(0, 3fr)' : 'minmax(0, 1fr)')).join(' ');
   if (act < 0) {
     grid.style.gridTemplateColumns = '';
     grid.style.gridTemplateRows = '';
-  } else if (n === 2) {
-    grid.style.gridTemplateColumns = weights(2, act);
-    grid.style.gridTemplateRows = '';
+    for (const { el } of panes.values()) el.style.gridArea = '';
   } else {
-    grid.style.gridTemplateColumns = weights(2, act % 2);
-    grid.style.gridTemplateRows = weights(2, Math.floor(act / 2));
+    // the others stack top to bottom in a narrow left column, in the order they were opened
+    grid.style.gridTemplateColumns = 'minmax(0, 1fr) minmax(0, 3fr)';
+    grid.style.gridTemplateRows = `repeat(${n - 1}, minmax(0, 1fr))`;
+    let row = 1;
+    for (const [id, { el }] of panes) el.style.gridArea = id === ui.term ? '1 / 2 / -1 / 3' : `${row++} / 1 / ${row} / 2`;
   }
   // the big pane gets a normal font, small ones a smaller one to keep enough columns
   for (const [id, { t }] of panes) t.setFontSize(n === 1 ? 13 : act >= 0 && id === ui.term ? 13 : act >= 0 ? 11 : 12);
