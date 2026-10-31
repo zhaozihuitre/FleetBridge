@@ -194,6 +194,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .pane .term-who .t-state { flex: none; font-size: 11px; }
 .pane .term-actions { flex: none; }
 .term-grid:not([data-n="1"]) .term-cwd { display: none; }
+.pane .t-proj { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-family: var(--body); font-size: 12px; color: var(--amber); }
+.pane .t-proj:empty { display: none; }
+/* the narrow side panes keep only what identifies them (name, project, state) and the close button */
+.term-grid.dynamic .pane:not(.active) .t-ctx,
+.term-grid.dynamic .pane:not(.active) .term-actions button:not([data-tact=close]) { display: none; }
+.term-grid.dynamic .pane:not(.active) .t-name { flex: 0 1 auto; }
 .t-state.busy { color: var(--cyan); } .t-state.permit { color: var(--red); animation: pulse 1s ease-in-out infinite; }
 .t-ctx { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .ctx-badge { position: relative; width: 48px; height: 6px; background: var(--off); overflow: hidden; }

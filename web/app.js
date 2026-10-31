@@ -615,7 +615,13 @@ function renderTermHeads() {
   for (const [id, { el }] of panes) {
     const { a, name, cwd } = agentLabel(id);
     const alive = a?.alive;
-    el.querySelector('.t-name').textContent = name;
+    // the project folder tells panes apart when callsigns don't (alpha, bravo…);
+    // without a callsign (name is just the id) the project is the name
+    const proj = cwd.split(/[\\/]/).filter(Boolean).pop() || '';
+    const bare = name === id.slice(0, 8);
+    el.querySelector('.t-name').textContent = bare && proj ? proj : name;
+    el.querySelector('.t-proj').textContent = !bare && proj && proj.toLowerCase() !== name.toLowerCase() ? proj : '';
+    el.querySelector('.term-who').title = `${name}${proj ? ' · ' + proj : ''}\n${cwd}`;
     el.querySelector('.t-cwd').textContent = cwd;
     const st = el.querySelector('.t-state');
     const u = state?.units.find((x) => x.agentId === id);
@@ -721,7 +727,7 @@ function openTerm(id) {
   const el = document.createElement('div');
   el.className = 'pane';
   el.dataset.pane = id;
-  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-state"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
+  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
   $('term-grid').appendChild(el);
   const t = createTerminal(el.querySelector('.term-host'), id, { fontSize: panes.size ? 12 : 13, onFocus: () => setActivePane(id) });
   panes.set(id, { el, t });
