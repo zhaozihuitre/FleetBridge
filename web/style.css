@@ -85,7 +85,6 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .main { flex: 1; min-height: 0; display: flex; gap: 16px; }
 /* the master console sits on the right (typing side); units / terminals on the left */
 .main .operator { order: 2; width: 340px; }
-.operator .choice kbd { display: none; } /* keys still work; the narrow column has no room for the hints */
 
 /* Left column: overview numbers, latest activity, operator dialog (top to bottom) */
 .operator { position: relative; width: 420px; flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 12px; background: var(--panel-deep); border: 1px solid var(--line); overflow: hidden; clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px); }
@@ -93,21 +92,28 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .operator .tag { font-size: 12px; letter-spacing: 2px; color: var(--muted); }
 .operator .tag.mood { animation: pulse 1.6s ease-in-out infinite; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-/* the agent list takes whatever height is left (and scrolls); everything else keeps its size */
-.cmd-targets { flex: 1 1 auto; min-height: 96px; display: flex; flex-direction: column; gap: 6px; }
-.cmd-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--body); font-size: 12px; color: var(--muted); padding: 0 2px; }
-.cmd-head b { font-family: var(--display); color: var(--cyan); }
-.cmd-head button { height: 24px; margin-left: 4px; padding: 0 8px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 11px; }
-.cmd-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
-.cmd-item { display: grid; grid-template-columns: 16px 8px 1fr auto; align-items: center; gap: 8px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-left: 2px solid var(--c); cursor: pointer; }
-.cmd-item:has(input:checked) { background: rgba(61,245,255,.07); border-color: var(--line-hi); border-left-color: var(--c); }
-.cmd-item input { accent-color: var(--cyan); width: 15px; height: 15px; margin: 0; }
-.cmd-item .dot { width: 8px; height: 8px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
-.cmd-item .who { min-width: 0; display: flex; flex-direction: column; }
-.cmd-item .who b { font-family: var(--display); font-size: 12px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmd-item .who small { font-family: var(--body); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmd-item .st { font-family: var(--body); font-size: 11px; color: var(--c); white-space: nowrap; }
-.cmd-empty { font-family: var(--body); font-size: 12px; color: var(--muted); padding: 12px; border: 1px dashed var(--line); line-height: 1.6; }
+/* message box: reminders arrive as incoming messages, sent commands show as outgoing ones */
+.msg-box { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; background: rgba(4,10,18,.92); border: 1px solid var(--line-hi); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
+.msg { max-width: 92%; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-family: var(--body); }
+.msg.in { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--mc, var(--cyan)); cursor: pointer; }
+.msg.in.on { border-color: var(--line-hi); border-left-color: var(--mc); background: rgba(61,245,255,.06); box-shadow: 0 0 10px rgba(61,245,255,.12); }
+.msg-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); letter-spacing: 1px; min-width: 0; }
+.msg-head b { font-family: var(--display); font-size: 10px; color: var(--bg); background: var(--mc, var(--cyan)); padding: 1px 6px; }
+.msg-head span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-head i { margin-left: auto; font-style: normal; font-family: var(--display); font-size: 10px; color: var(--mc); }
+.msg-text { font-size: 13px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.msg.in:not(.on) .msg-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.msg-text em { font-style: normal; color: var(--red); text-shadow: 0 0 8px rgba(255,77,109,.6); }
+.msg-acts { display: flex; gap: 6px; }
+.msg-acts button { height: 26px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
+.msg-acts button:first-child { border-color: var(--mc); color: var(--text); background: rgba(61,245,255,.08); }
+.msg-acts button:hover { border-color: var(--cyan); color: var(--text); }
+.msg.out { align-self: flex-end; background: rgba(61,245,255,.1); border: 1px solid rgba(61,245,255,.35); }
+.msg.out .msg-text { font-size: 12px; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.msg-meta { align-self: flex-end; font-size: 10px; color: var(--muted); font-family: var(--display); }
+.msg-sep { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); letter-spacing: 2px; }
+.msg-sep::before, .msg-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.cmd-to { font-family: var(--body); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .cmd-form { flex: none; display: flex; flex-direction: column; gap: 6px; }
 .cmd-input { position: relative; display: flex; }
 .cmd-suggest { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 20; max-height: 220px; overflow-y: auto; background: #050a12; border: 1px solid var(--cyan); box-shadow: 0 0 16px rgba(61,245,255,.2); }
@@ -115,29 +121,13 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .cmd-suggest .sg b { font-size: 13px; color: var(--cyan); }
 .cmd-suggest .sg small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmd-suggest .sg.on, .cmd-suggest .sg:hover { background: rgba(61,245,255,.12); }
-.cmd-item .who small i { font-style: normal; color: var(--cyan); }
 .deploy-btn.all { border-color: var(--amber); background: rgba(255,176,32,.12); margin-left: auto; }
 .tabs .deploy-btn.all + .deploy-btn { margin-left: 8px; }
 .cmd-form textarea { flex: 1; resize: none; height: 76px; background: #050a12; border: 1px solid var(--line-hi); color: var(--text); font-family: var(--body); font-size: 14px; line-height: 1.5; padding: 8px 10px; }
 .cmd-form textarea:focus { outline: 1px solid var(--cyan); }
 .cmd-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .cmd-row .btn { height: 36px; }
-.cmd-row kbd { font-family: var(--display); font-size: 10px; color: var(--muted); margin-left: 6px; }
 .cmd-err { font-family: var(--body); font-size: 12px; color: var(--red); }
-.cmd-quick { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
-.cmd-quick button { height: 32px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
-.cmd-quick button:hover:not(:disabled) { border-color: var(--cyan); color: var(--text); }
-.cmd-log { flex: 0 1 auto; max-height: 96px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; }
-.cmd-log:empty { display: none; }
-.log-row { display: grid; grid-template-columns: 38px 1fr auto; gap: 6px; font-size: 12px; align-items: baseline; }
-.log-row .t { font-family: var(--display); font-size: 10px; color: var(--dim); }
-.log-row .m { font-family: var(--body); color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.log-row .n { font-family: var(--display); font-size: 11px; color: var(--green); }
-/* the reminder box shrinks to make room for the console */
-.operator .dialog { padding: 10px 12px; gap: 8px; }
-.operator .dialog .say { font-size: 13px; min-height: 0; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.operator .choices { flex-direction: row; }
-.operator .choice { min-height: 36px; font-size: 13px; }
 .op-stats { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .stat-box { text-align: left; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sc); color: var(--text); display: flex; flex-direction: column; gap: 2px; }
 .stat-box:hover { border-color: var(--line-hi); border-left-color: var(--sc); }

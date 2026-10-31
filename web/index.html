@@ -41,30 +41,15 @@
 <div class="main">
 <section class="operator" id="operator" aria-label="总指令台">
 <div class="op-tags"><span class="tag">COMMAND · 总指令台</span><span class="tag mood" id="op-mood">● 待命</span></div>
-<div class="cmd-targets">
-<div class="cmd-head"><span>发给 <b id="cmd-count">0</b> 个我方 agent</span><span><button type="button" id="cmd-all">全选</button><button type="button" id="cmd-none">清空</button></span></div>
-<div class="cmd-list" id="cmd-list"></div>
-</div>
+<div class="msg-box" id="msg-box" role="log" aria-label="消息"><div class="msg in"><div class="msg-text">正在连接指挥网络…</div></div></div>
 <form class="cmd-form" id="cmd-form">
 <label class="sr-only" for="cmd-text">指令</label>
 <div class="cmd-input">
-<textarea id="cmd-text" rows="4" placeholder="输入指令，Ctrl+Enter 发送。&#10;@名字 只发给指定的终端，不写 @ 就发给勾选的。作战中的会排队执行。"></textarea>
+<textarea id="cmd-text" rows="4" placeholder="输入指令，Ctrl+Enter 发送。&#10;@名字 只发给指定的终端，不写 @ 就发给全部我方 agent。作战中的会排队执行。"></textarea>
 <div class="cmd-suggest" id="cmd-suggest" role="listbox" hidden></div>
 </div>
-<div class="cmd-row"><span class="cmd-err" id="cmd-err" role="alert"></span><button type="submit" class="btn" id="cmd-send">▶ 发送 <kbd>Ctrl+Enter</kbd></button></div>
+<div class="cmd-row"><span class="cmd-to" id="cmd-to"></span><span class="cmd-err" id="cmd-err" role="alert"></span><button type="submit" class="btn" id="cmd-send">▶ 发送</button></div>
 </form>
-<div class="cmd-quick" aria-label="对选中的 agent 一键操作">
-<button type="button" data-q="esc" title="打断选中 agent 的当前操作">Esc 全体中断</button>
-</div>
-<div class="cmd-log" id="cmd-log"></div>
-<div class="dialog">
-<div class="who"><b id="dlg-name">NOVA</b><span id="dlg-target"></span><span class="count" id="dlg-count"></span></div>
-<div class="say" id="dlg-text">正在连接指挥网络…<span class="caret">▌</span></div>
-<div class="choices">
-<button class="choice primary" id="dlg-go">▶ 跳到这个终端<kbd>[ENTER]</kbd></button>
-<button class="choice" id="dlg-next">▷ 下一条提醒<kbd>[SPACE]</kbd></button>
-</div>
-</div>
 </section>
 
 <section class="command" aria-label="指挥面板">

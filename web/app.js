@@ -135,27 +135,41 @@ function renderOperator() {
   const line = currentLine();
   const mood = line && line.kind !== op.mood && op.mood !== 'STANDBY' ? line.kind : op.mood;
   $('operator').dataset.mood = mood;
-  $('dlg-name').textContent = op.name;
   $('op-mood').textContent = KIND[mood]?.mood || '';
   $('op-mood').style.color = KIND[mood]?.c;
-  const text = esc(line?.text || '').replace(/(\d+(?:\.\d+)?%)/g, line?.kind === 'OVERLOAD' || line?.kind === 'ALERT' ? '<em>$1</em>' : '$1');
-  $('dlg-go').innerHTML = line?.kind === 'PERMIT' ? '▶ 去终端授权<kbd>[ENTER]</kbd>' : '▶ 跳到这个终端<kbd>[ENTER]</kbd>';
-  $('dlg-text').innerHTML = `${text}<span class="caret">▌</span>`;
-  $('dlg-target').textContent = line?.unit ? `→ 部队 ${line.unit.project.toUpperCase()}` : '';
-  $('dlg-count').textContent = op.lines.length > 1 ? `${ui.line + 1} / ${op.lines.length}` : '';
-  $('dlg-go').disabled = !line?.unit;
-  const ambient = !line?.key || AMBIENT.has(line.key);
-  $('dlg-next').innerHTML = !ambient
-    ? (op.lines.length > 1 ? '▷ 下一条提醒' : '▷ 30 分钟后再提醒') + `<kbd>[${op.lines.length > 1 ? 'SPACE' : 'S'}]</kbd>`
-    : '▷ 没有其他提醒<kbd></kbd>';
-  $('dlg-next').disabled = ambient;
+
+  // Message box: every reminder as an incoming message (most urgent first), then the commands we sent.
+  const incoming = op.lines.map((l, i) => {
+    const k = KIND[l.kind] || {};
+    const text = esc(l.text).replace(/(\d+(?:\.\d+)?%)/g, l.kind === 'OVERLOAD' || l.kind === 'ALERT' ? '<em>$1</em>' : '$1');
+    const acts = l.unit && !AMBIENT.has(l.key)
+      ? `<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? '▶ 去终端授权' : '▶ 跳到终端'}</button><button type="button" data-msg-snooze="${esc(l.key)}">稍后</button></div>`
+      : '';
+    return `<div class="msg in ${i === ui.line ? 'on' : ''}" style="--mc:${k.c || 'var(--cyan)'}" data-line="${i}">
+      <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project.toUpperCase())}</span>` : ''}<i>${k.label || ''}</i></div>
+      <div class="msg-text">${text}</div>${acts}</div>`;
+  });
+  const outgoing = sentLog
+    .slice(0, 8)
+    .reverse()
+    .map((s) => `<div class="msg out"><div class="msg-text">${esc(s.text)}</div><div class="msg-meta">${clock(s.t)} · 发给 ${s.n} 个</div></div>`);
+  const html = incoming.join('') + (outgoing.length ? '<div class="msg-sep">已发送</div>' + outgoing.join('') : '');
+  if (renderOperator.last !== html) {
+    const box = $('msg-box');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+    box.innerHTML = renderOperator.last = html;
+    if (atBottom && outgoing.length) box.scrollTop = box.scrollHeight;
+  }
+}
+
+function goLine(i) {
+  const l = state?.operator.lines[i];
+  if (l?.unit && !AMBIENT.has(l.key)) focus(l.unit.pid);
 }
 
 /* ---------- master console: one input for all of our agents ---------- */
 
-const targets = new Set(); // agent ids the console sends to
-const knownAgents = new Set(); // so newly deployed agents start out selected
-const sentLog = [];
+const sentLog = []; // shown as outgoing messages in the message box
 
 function liveAgents() {
   return (state?.agents || []).filter((a) => a.alive);
@@ -191,63 +205,35 @@ function parseMentions(raw) {
   return { ids: [...ids], text, unknown };
 }
 
+// Without an @mention a command goes to every live agent of ours.
 function renderConsole() {
-  const live = liveAgents();
-  for (const a of live) {
-    if (knownAgents.has(a.id)) continue;
-    knownAgents.add(a.id);
-    targets.add(a.id);
-  }
-  for (const id of [...targets]) if (!live.some((a) => a.id === id)) targets.delete(id);
-
-  const handleOf = new Map(handles().map((h) => [h.id, h.handle]));
-  const rows = live.map((a) => {
-    const u = state.units.find((x) => x.agentId === a.id);
-    const look = !u ? ['var(--muted)', '启动中'] : u.permission ? ['var(--red)', '等你授权'] : u.status === 'busy' ? ['var(--cyan)', '作战中'] : ['var(--amber)', '待命'];
-    const ctx = u?.contextPct != null ? Math.round(u.contextPct) + '%' : '';
-    return `<label class="cmd-item" style="--c:${look[0]}" title="${esc(a.cwd)}">
-      <input type="checkbox" data-target="${esc(a.id)}" ${targets.has(a.id) ? 'checked' : ''}>
-      <span class="dot"></span>
-      <span class="who"><b>${esc(agentLabel(a.id).name)}</b><small><i>@${esc(handleOf.get(a.id))}</i> · ${esc(a.cwd)}</small></span>
-      <span class="st">${look[1]}${ctx ? ' · ' + ctx : ''}</span>
-    </label>`;
-  });
-  const html = rows.join('') || '<div class="cmd-empty">还没有我方 agent。点右上角「＋ 出击」，或在存档里「在此继续」。</div>';
-  // only rebuild when something changed, so a click or focus in the list isn't interrupted
-  if (renderConsole.last !== html) $('cmd-list').innerHTML = renderConsole.last = html;
-  $('cmd-count').textContent = targets.size;
-  $('cmd-send').disabled = !targets.size;
-  document.querySelectorAll('.cmd-quick button').forEach((b) => (b.disabled = !targets.size));
-
-  $('cmd-log').innerHTML = sentLog
-    .slice(0, 5)
-    .map((s) => `<div class="log-row"><span class="t">${clock(s.t)}</span><span class="m" title="${esc(s.text)}">${esc(s.text)}</span><span class="n">→ ${s.n}</span></div>`)
-    .join('');
+  const n = liveAgents().length;
+  $('cmd-to').textContent = n ? `发给全部 ${n} 个 · @ 指定` : '还没有我方 agent';
+  $('cmd-send').disabled = !n;
 }
 
-async function sendToTargets(body, label, ids = [...targets]) {
+async function sendToTargets(body, label, ids) {
   if (!ids.length) return;
   const r = await post('/api/agents/action', { ...body, id: ids });
   const ok = (r.results || []).filter(Boolean).length;
   spotlight(ids.filter((_, i) => r.results?.[i]));
   sentLog.unshift({ t: Date.now(), text: label, n: ok });
   toast(ok === ids.length ? `已发给 ${ok} 个 agent` : `发出 ${ok} / ${ids.length}，有的 agent 可能已经退出`);
-  renderConsole();
+  renderOperator();
+  $('msg-box').scrollTop = $('msg-box').scrollHeight;
 }
 
-$('cmd-list').addEventListener('change', (e) => {
-  const id = e.target.dataset.target;
-  if (!id) return;
-  e.target.checked ? targets.add(id) : targets.delete(id);
-  renderConsole();
-});
-$('cmd-all').addEventListener('click', () => {
-  for (const a of liveAgents()) targets.add(a.id);
-  renderConsole();
-});
-$('cmd-none').addEventListener('click', () => {
-  targets.clear();
-  renderConsole();
+$('msg-box').addEventListener('click', (e) => {
+  const go = e.target.closest('[data-msg-go]');
+  if (go) return goLine(Number(go.dataset.msgGo));
+  const sn = e.target.closest('[data-msg-snooze]');
+  if (sn) return snoozeLine(sn.dataset.msgSnooze);
+  const m = e.target.closest('[data-line]');
+  if (m) {
+    ui.line = Number(m.dataset.line);
+    ui.lineKey = state.operator.lines[ui.line]?.key;
+    renderOperator();
+  }
 });
 $('cmd-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -258,7 +244,7 @@ $('cmd-form').addEventListener('submit', async (e) => {
   if (m.unknown.length) return ($('cmd-err').textContent = `找不到 ${m.unknown.join(' ')}`);
   if (!m.text) return ($('cmd-err').textContent = '@ 后面还要写指令内容');
   $('cmd-err').textContent = '';
-  const ids = m.ids.length ? m.ids : [...targets];
+  const ids = m.ids.length ? m.ids : liveAgents().map((a) => a.id);
   const who = m.ids.length ? raw.match(/@[^\s@]+/g).join(' ') + ' ' : '';
   await sendToTargets({ action: 'text', text: m.text }, who + m.text, ids);
   $('cmd-text').value = '';
@@ -372,9 +358,6 @@ async function deployAll() {
   toast(failed ? `出击 ${picks.length - failed} 个，${failed} 个失败` : `全军出击！${picks.length} 个终端已就位`);
 }
 $('deploy-all').addEventListener('click', deployAll);
-document.querySelector('.cmd-quick').addEventListener('click', (e) => {
-  if (e.target.closest('button')?.dataset.q === 'esc') sendToTargets({ action: 'key', key: 'esc' }, 'Esc 中断');
-});
 
 /* ---------- pages ---------- */
 
@@ -913,20 +896,12 @@ function nextLine() {
   ui.line = (ui.line + 1) % n;
   ui.lineKey = state.operator.lines[ui.line].key;
   renderOperator();
+  document.querySelector('.msg.on')?.scrollIntoView({ block: 'nearest' });
 }
 
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
 $('prev').addEventListener('click', () => turn(-1));
 $('next').addEventListener('click', () => turn(1));
-$('dlg-go').addEventListener('click', () => {
-  const l = currentLine();
-  if (l?.unit) focus(l.unit.pid);
-});
-$('dlg-next').addEventListener('click', () => {
-  const l = currentLine();
-  if (state.operator.lines.length > 1) nextLine();
-  else if (l) snoozeLine(l.key);
-});
 $('refresh').addEventListener('click', async () => {
   toast('正在刷新…');
   await post('/api/refresh');
@@ -972,11 +947,11 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'e') setTab(TABS[(TABS.indexOf(ui.tab) + 1) % TABS.length]);
   else if (k === 'arrowleft') turn(-1);
   else if (k === 'arrowright') turn(1);
-  else if (k === 'enter') $('dlg-go').click();
+  else if (k === 'enter') currentLine() && goLine(ui.line);
   else if (k === ' ') nextLine();
   else if (k === 's') {
     const l = currentLine();
-    if (l && !$('dlg-next').disabled) snoozeLine(l.key);
+    if (l && !AMBIENT.has(l.key)) snoozeLine(l.key);
   } else return;
   e.preventDefault();
 });

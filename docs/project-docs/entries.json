@@ -961,6 +961,30 @@
       "updated": "2026-10-31 09:40",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-010",
+      "type": "change",
+      "title": "总指令台改为消息框 + 输入框（0.5.7）",
+      "summary": "去掉 agent 勾选列表和「Esc 全体中断」；提醒从底部的单条对话框改为上方可滚动的消息框（每条可跳转/稍后，已发送指令显示为右侧气泡）；输入框和发送在下方。不写 @ 时发给全部我方 agent。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/index.html",
+        "web/app.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "总指令台",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-10-31 09:49",
+      "updated": "2026-10-31 09:49",
+      "notes": []
     }
   ]
 }
