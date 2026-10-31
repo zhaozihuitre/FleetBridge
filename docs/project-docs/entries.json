@@ -751,7 +751,7 @@
       "id": "D-007",
       "type": "decision",
       "title": "产品更名为 Fleet Bridge · 舰桥",
-      "summary": "可见名称全部改为舰桥；appId、通知 ID 与 ~/.claude-ops 保持不变以便平滑升级",
+      "summary": "可见名称全部改为舰桥；appId 与 ~/.claude-ops 保持不变以便平滑升级（通知 ID 后来在 0.5.6 改为与 appId 一致，见 I-009）",
       "detail": "**问题**：「CLAUDE//OPS」是临时名，且直接用了 Claude 商标做产品名。\n**候选方案**：Claude Command / Fleet Bridge（舰桥）/ Squadron / Overwatch Deck / Nexus。\n**结论**：Fleet Bridge · 舰桥。窗口标题、Logo、小窗、安装包（`FleetBridge-Setup-<版本>.exe`）、快捷方式、`package.json` 名称都已改。\n**保持不变**：`appId`（`local.claude-ops.monitor`，让新安装包自动替换旧的 CLAUDE OPS）、通知 ID（`claude-ops-monitor`）、数据目录 `~/.claude-ops`（全局 hook 路径指向这里）。\n**理由**：与「部队 / 出击 / 僚机」的舰队用语一致；不以商标作产品名；内部标识不动，升级无需迁移。\n**注意**：程序名变了，安装目录与窗口偏好（小窗位置、静音）会重置；之前勾选过的「开机自动启动」需要重新勾选。\n",
       "status": "accepted",
       "files": [
@@ -771,8 +771,13 @@
       ],
       "refs": [],
       "created": "2026-10-30 16:03",
-      "updated": "2026-10-30 16:03",
-      "notes": []
+      "updated": "2026-10-31 10:12",
+      "notes": [
+        {
+          "time": "2026-10-31 10:12",
+          "text": "2026-10-31：通知 / 任务栏 ID（AppUserModelId）已改为与 appId 一致的 local.claude-ops.monitor，旧 ID 会匹配到已失效的 CLAUDE OPS 快捷方式，见 I-009。appId 与 ~/.claude-ops 仍不变。"
+        }
+      ]
     },
     {
       "id": "M-009",
@@ -872,7 +877,7 @@
       "id": "M-011",
       "type": "milestone",
       "title": "打包 0.5.2（动态分屏）",
-      "summary": "当前 / 收到指令的终端自动变大；待推送和发布 Release",
+      "summary": "当前 / 收到指令的终端自动变大；已推送（Release 未发布）",
       "detail": "",
       "status": "done",
       "files": [],
@@ -887,8 +892,13 @@
         "v0.5.2"
       ],
       "created": "2026-10-30 17:11",
-      "updated": "2026-10-30 17:11",
-      "notes": []
+      "updated": "2026-10-31 10:12",
+      "notes": [
+        {
+          "time": "2026-10-31 10:12",
+          "text": "2026-10-31：v0.5.1–v0.5.6 的代码与标签已推送到 GitHub；GitHub Release 目前只发布了 0.5.0。"
+        }
+      ]
     },
     {
       "id": "C-008",
@@ -1006,6 +1016,47 @@
       "refs": [],
       "created": "2026-10-31 10:01",
       "updated": "2026-10-31 10:01",
+      "notes": []
+    },
+    {
+      "id": "C-012",
+      "type": "change",
+      "title": "总指令台移到右侧并收窄（0.5.3）",
+      "summary": "习惯在右边输入：总指令台从左侧移到右侧，宽度 340px，部队卡片 / 分屏终端空间更大。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/style.css"
+      ],
+      "tags": [
+        "总指令台",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-10-30 17:20",
+      "updated": "2026-10-30 17:20",
+      "notes": []
+    },
+    {
+      "id": "M-012",
+      "type": "milestone",
+      "title": "0.5.3–0.5.8 本地打包",
+      "summary": "0.5.4 通知收紧、0.5.5 WebGL 终端、0.5.6 任务栏图标修复、0.5.7 总指令台消息框、0.5.8 当前终端居中布局；安装包在 dist/。v0.5.1–v0.5.6 已推送，v0.5.7、v0.5.8 待推送；Release 待发布（需用户执行 release.py）。",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "发布"
+      ],
+      "sections": [],
+      "refs": [
+        "v0.5.8"
+      ],
+      "created": "2026-10-31 10:12",
+      "updated": "2026-10-31 10:12",
       "notes": []
     }
   ]

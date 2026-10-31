@@ -23,7 +23,7 @@
 |---|---|---|
 | 桌面壳 | Electron 45 | 战况小窗（置顶）、指挥中心（无边框）、弹出终端窗口 |
 | 后端 | Node.js（ESM，无框架） | `http` + SSE 推送状态，`ws` 做终端通道 |
-| 终端 | `@lydell/node-pty`（ConPTY）+ `@xterm/xterm` | 伪终端里跑真实 `claude`，网页里显示 |
+| 终端 | `@lydell/node-pty`（ConPTY）+ `@xterm/xterm`（WebGL 渲染） | 伪终端里跑真实 `claude`，网页里显示 |
 | 前端 | 原生 HTML / CSS / JS 模块 | 无构建步骤 |
 | 打包 | electron-builder（NSIS） | Windows 安装程序，按用户安装 |
 
@@ -46,8 +46,9 @@ FleetBridge/
 │   ├── widget.html widget.js         战况小窗
 │   ├── term.html term.js terminal.js 终端（分屏 / 弹出窗口）
 │   └── ui.js                         主题确认框
-├── desktop/             Electron 主进程与 preload
-├── build/icon.png       程序图标
+├── desktop/             Electron 主进程与 preload；icon.png 为窗口 / 任务栏图标
+├── build/icon.png       程序图标（安装包 / exe）
+├── build/installer.nsh  安装时清理旧版快捷方式
 └── docs/project-docs/   本文档
 ```
 
