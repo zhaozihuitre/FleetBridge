@@ -6,7 +6,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
-const WIDGET_WIDTH = 422; // the page's 420px card plus its border
+const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
 const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(require('node:os').homedir(), '.claude-ops');
 

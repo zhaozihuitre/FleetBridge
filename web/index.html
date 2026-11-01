@@ -41,7 +41,7 @@
 <div class="main">
 <section class="operator" id="operator" aria-label="总指令台">
 <div class="op-tags"><span class="tag">COMMAND · 总指令台</span><span class="tag mood" id="op-mood">● 待命</span></div>
-<div class="op-nova" id="op-nova"><div class="op-av" id="op-av" title="点她一下"></div><div class="op-say"><b id="op-say-tag">NOVA</b><p id="op-say">正在连接指挥网络…</p></div></div>
+<div class="op-stats" id="op-stats" aria-label="今日概况"></div>
 <div class="msg-box" id="msg-box" role="log" aria-label="消息"><div class="msg in"><div class="msg-text">正在连接指挥网络…</div></div></div>
 <form class="cmd-form" id="cmd-form">
 <label class="sr-only" for="cmd-text">指令</label>
@@ -86,7 +86,6 @@
 
 <footer class="keys">
 <span class="conn" id="conn">● 连接中</span>
-<span class="hint"><span><b>Q / E</b> 切换标签</span><span><b>← / →</b> 翻页</span><span><b>ENTER</b> 跳到终端</span><span><b>SPACE</b> 下一条提醒</span><span><b>S</b> 稍后提醒</span><span><b>N</b> 出击</span></span>
 </footer>
 </div>
 </div>
@@ -107,7 +106,6 @@
 <div class="deploy-row"><button type="button" class="btn ghost" id="dp-cancel">取消</button><button type="submit" class="btn" id="dp-go">▶ 出击</button></div>
 </form>
 </dialog>
-<script src="/web/nova.js"></script>
 <script type="module" src="/web/app.js"></script>
 </body>
 </html>

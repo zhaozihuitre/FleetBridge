@@ -92,13 +92,6 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .operator .tag { font-size: 12px; letter-spacing: 2px; color: var(--muted); }
 .operator .tag.mood { animation: pulse 1.6s ease-in-out infinite; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-/* NOVA, the adjutant: her face follows the most urgent reminder, she reads out the selected one */
-.op-nova { flex: none; display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 2px; background: rgba(4,10,18,.92); border: 1px solid var(--line-hi); border-left: 3px solid var(--nc, var(--cyan)); }
-.op-av { width: 104px; flex: none; }
-.op-say { flex: 1; min-width: 0; }
-.op-say b { display: block; font-family: var(--display); font-size: 11px; letter-spacing: 2px; color: var(--nc, var(--cyan)); margin-bottom: 4px; }
-.op-say p { margin: 0; font-family: var(--body); font-size: 13px; line-height: 1.6; color: var(--text); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-height: 760px) { .op-av { width: 72px; } .op-say p { -webkit-line-clamp: 3; } }
 /* message box: reminders arrive as incoming messages, sent commands show as outgoing ones */
 .msg-box { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; background: rgba(4,10,18,.92); border: 1px solid var(--line-hi); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
 .msg { max-width: 92%; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-family: var(--body); }
@@ -136,11 +129,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .cmd-row .btn { height: 36px; }
 .cmd-err { font-family: var(--body); font-size: 12px; color: var(--red); }
 .op-stats { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.stat-box { text-align: left; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sc); color: var(--text); display: flex; flex-direction: column; gap: 2px; }
+.stat-box { text-align: left; padding: 7px 10px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sc); color: var(--text); display: flex; flex-direction: column; gap: 2px; }
 .stat-box:hover { border-color: var(--line-hi); border-left-color: var(--sc); }
-.stat-box b { font-family: var(--display); font-size: 30px; font-weight: 900; line-height: 1.1; color: var(--sc); text-shadow: 0 0 12px var(--sc); }
-.stat-box span { font-family: var(--body); font-size: 14px; font-weight: 700; }
-.stat-box small { font-family: var(--body); font-size: 11px; color: var(--muted); }
+.stat-box b { font-family: var(--display); font-size: 22px; font-weight: 900; line-height: 1.1; color: var(--sc); text-shadow: 0 0 12px var(--sc); }
+.stat-box span { font-family: var(--body); font-size: 12px; font-weight: 700; }
+.stat-box small { font-family: var(--body); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-box.zero b { color: var(--dim); text-shadow: none; }
 .op-feed { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #050a12; border: 1px solid var(--line); overflow: hidden; }
 .op-feed-head { font-family: var(--body); font-size: 12px; color: var(--muted); }
@@ -379,7 +372,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .keys { height: 24px; flex: none; display: flex; justify-content: space-between; gap: 22px; font-size: 12px; letter-spacing: 1px; color: var(--dim); }
 .keys b { color: var(--muted); }
 .keys .conn.bad { color: var(--red); }
-.keys .hint { display: flex; gap: 22px; }
+/* only shown when the stream drops; the shortcuts still work without hints */
+.keys:not(:has(.conn.bad)) { display: none; }
 
 .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: rgba(4,10,18,.95); border: 1px solid var(--cyan); color: var(--text); padding: 10px 18px; font-family: var(--body); font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }

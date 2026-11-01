@@ -67,7 +67,7 @@ function seg(pct, n, color) {
 }
 
 function kTokens(n) {
-  return n == null ? '--' : n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
+  return n == null ? '--' : n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
 }
 
 /* ---------- header ---------- */
@@ -137,7 +137,7 @@ function renderOperator() {
   $('operator').dataset.mood = mood;
   $('op-mood').textContent = KIND[mood]?.mood || '';
   $('op-mood').style.color = KIND[mood]?.c;
-  sayLine(line, mood);
+  renderStats();
 
   // Message box: every reminder as an incoming message (most urgent first), then the commands we sent.
   const incoming = op.lines.map((l, i) => {
@@ -163,22 +163,25 @@ function renderOperator() {
   }
 }
 
-// NOVA: one instance, mood = the operator mood, and she reads the selected reminder when it changes.
-const nova = window.Nova?.create($('op-av'), { bubble: false });
-let novaSaid = '';
-
-function sayLine(line, mood) {
-  if (!nova) return;
-  nova.setMood(mood);
-  const k = KIND[mood] || {};
-  $('op-nova').style.setProperty('--nc', k.c || 'var(--cyan)');
-  $('op-say-tag').textContent = `${state.operator.name}${k.mood ? ' · ' + k.mood.replace('● ', '') : ''}`;
-  const text = line?.text || '';
-  if (text === novaSaid) return;
-  novaSaid = text;
-  $('op-say').textContent = text;
-  $('op-say').title = text;
-  nova.say(text); // moves her mouth; the text itself is shown beside her
+// Today at a glance, above the message box: tokens, cache hit rate, prompts, who is waiting for you.
+function renderStats() {
+  const t = state.today;
+  const th = state.thresholds;
+  const now = Date.now();
+  const waiting = state.units.filter((u) => u.permission || (u.status === 'idle' && now - u.statusSince <= th.standbyMinutes * 60_000));
+  const longest = waiting.reduce((m, u) => Math.max(m, now - u.statusSince), 0);
+  const permit = waiting.filter((u) => u.permission).length;
+  const hit = t?.cacheHitPct;
+  const tiles = [
+    { c: 'var(--cyan)', v: t ? kTokens(t.total) : '--', k: '今日 token', s: t ? `输出 ${kTokens(t.output)} · ${t.sessions} 个会话` : '统计中…', tip: t ? `输入 ${t.input.toLocaleString()} · 缓存读 ${t.cacheRead.toLocaleString()} · 缓存写 ${t.cacheWrite.toLocaleString()} · 输出 ${t.output.toLocaleString()}` : '' },
+    { c: hit == null ? 'var(--dim)' : hit >= 80 ? 'var(--green)' : hit >= 50 ? 'var(--amber)' : 'var(--red)', v: hit == null ? '--' : `${Math.round(hit)}%`, k: '缓存命中', s: '越高越省额度', tip: '缓存读取 ÷ 全部输入 token' },
+    { c: 'var(--cyan)', v: t ? String(t.prompts) : '--', k: '今日指令', s: '你发出的指令数', tip: '今天所有会话里你输入的指令（不含工具结果和斜杠命令）' },
+    { c: permit ? 'var(--red)' : waiting.length ? 'var(--amber)' : 'var(--dim)', v: String(waiting.length), k: permit ? `等你 · ${permit} 个授权` : '等你', s: waiting.length ? `最久 ${ago(longest).replace(' 前', '').replace('前', '')}` : '没有会话在等', tip: waiting.map((u) => u.project).join('、') },
+  ];
+  const html = tiles
+    .map((x) => `<div class="stat-box ${x.v === '0' || x.v === '--' ? 'zero' : ''}" style="--sc:${x.c}" title="${esc(x.tip)}"><b>${esc(x.v)}</b><span>${esc(x.k)}</span><small>${esc(x.s)}</small></div>`)
+    .join('');
+  if (renderStats.last !== html) $('op-stats').innerHTML = renderStats.last = html;
 }
 
 function goLine(i) {

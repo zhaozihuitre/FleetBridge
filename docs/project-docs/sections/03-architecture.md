@@ -35,6 +35,7 @@ flowchart LR
 | 会话记录 | `server/collectors/transcript.js` | 增量读取 `.jsonl`：负载、最后汇报 / 指令、编辑过的文件 | — |
 | git | `server/collectors/git.js` | 找仓库、`status --porcelain=v2 -z`、log、diff、stash | git 命令 |
 | 存档 | `server/collectors/history.js` | 扫描所有会话记录头尾，取 cwd / 标题 / 最后指令 | — |
+| 今日统计 | `server/collectors/today.js` | 增量读今天写过的会话记录（含子 agent）：token、缓存命中、指令数；每 30 秒随 git 刷新 | — |
 | 授权通知 | `server/collectors/notifications.js` | 增量读 hook 写的 `notifications.jsonl` | — |
 | 我方 agent | `server/agents.js` | node-pty 启动 `claude`，屏幕缓冲、输入、按 pid 绑定会话 | node-pty |
 | 阵容 | `server/roster.js` | 保存 / 读取 `roster.json`；判断孤儿进程 | PowerShell |

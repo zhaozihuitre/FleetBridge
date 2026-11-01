@@ -6,6 +6,7 @@ import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage } from './collectors/usage.js';
 import { collectHistory } from './collectors/history.js';
+import { collectToday } from './collectors/today.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
@@ -28,6 +29,7 @@ const sessionsNow = { 1: demoSessions, empty: () => [] }[process.env.MONITOR_DEM
 let usage = null;
 let gitByCwd = {};
 let history = [];
+let today = null;
 let state = null;
 let stateJson = '';
 const clients = new Set();
@@ -52,6 +54,7 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     agents,
     agentSupport: agentSupport(),
+    today,
   };
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
@@ -73,6 +76,7 @@ async function refreshGit() {
     const sessions = sessionsNow();
     gitByCwd = await collectGit(sessions.map((s) => s.cwd));
     history = collectHistory();
+    today = collectToday();
     publish();
   } finally {
     gitBusy = false;

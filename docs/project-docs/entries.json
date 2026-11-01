@@ -1129,6 +1129,55 @@
       "created": "2026-11-01 16:38",
       "updated": "2026-11-01 16:38",
       "notes": []
+    },
+    {
+      "id": "C-015",
+      "type": "change",
+      "title": "去掉 NOVA：总指令台顶部改为今日概况，小窗恢复原样（0.6.1）",
+      "summary": "总指令台顶部 4 格：今日 token、缓存命中率、今日指令数、等你的会话数与最久等待。新增 server/collectors/today.js 增量统计今天的会话记录（含已结束会话与子 agent，按消息 id 去重）。小窗恢复 0.5.9 的样式，删除 web/nova.js。去掉底部快捷键提示栏，底栏只在连接断开时出现。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/collectors/today.js",
+        "server/index.js",
+        "web/app.js",
+        "web/index.html",
+        "web/style.css",
+        "web/widget.html",
+        "web/widget.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "指标",
+        "总指令台",
+        "小窗"
+      ],
+      "sections": [
+        "02-features",
+        "03-architecture"
+      ],
+      "refs": [],
+      "created": "2026-11-01 16:47",
+      "updated": "2026-11-01 16:49",
+      "notes": []
+    },
+    {
+      "id": "D-009",
+      "type": "decision",
+      "title": "用指标替代 NOVA 形象",
+      "summary": "用户认为 2D 形象没必要，改为显示更有用的今日指标；NOVA 原型仍保留在 ideas/nova 与 git 历史（v0.6.0）中。",
+      "detail": "",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "NOVA",
+        "指标"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 16:47",
+      "updated": "2026-11-01 16:47",
+      "notes": []
     }
   ]
 }

@@ -7,39 +7,36 @@
 <link rel="stylesheet" href="/web/style.css">
 <style>
 html, body { background: transparent; overflow: hidden; }
-.w { width: 420px; color: var(--text); font-family: var(--body); background: rgba(5,10,18,.96); border: 1px solid var(--line-hi); box-shadow: 0 0 18px rgba(61,245,255,.15); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); user-select: none; }
+.w { width: 300px; color: var(--text); font-family: var(--body); background: rgba(5,10,18,.96); border: 1px solid var(--line-hi); box-shadow: 0 0 18px rgba(61,245,255,.15); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); user-select: none; }
 .w-head { -webkit-app-region: drag; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .w-head .logo { font-family: var(--display); font-weight: 900; font-size: 11px; letter-spacing: 1.5px; color: var(--cyan); }
 .w-head .chips { flex: 1; display: flex; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .w-head .chips b { font-family: var(--display); font-weight: 700; }
 .w-head button { -webkit-app-region: no-drag; width: 28px; height: 28px; border: 0; background: transparent; color: var(--muted); font-size: 14px; }
 .w-head button:hover { color: var(--cyan); }
-.w-body { padding: 8px 10px 10px; display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 10px; }
-/* left: NOVA and the quota as HP bars under her; right: what needs you */
-.w-left { display: flex; flex-direction: column; gap: 6px; }
-.w-av { width: 118px; margin: 0 auto -6px; }
-.w-mood { text-align: center; font-family: var(--display); font-size: 10px; letter-spacing: 1.5px; color: var(--nc, var(--cyan)); }
-.hp { display: flex; flex-direction: column; gap: 2px; }
-.hp .top { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
-.hp .top b { font-family: var(--display); font-size: 10px; color: var(--text); }
-.hp.active .top b { color: var(--amber); }
-.hp.low .top b { color: var(--red); }
-.hp .bar { position: relative; height: 7px; background: #0b1626; border: 1px solid var(--line); transform: skewX(-18deg); overflow: hidden; }
-.hp .bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--hc) 0%, color-mix(in srgb, var(--hc) 70%, #fff) 100%); box-shadow: 0 0 6px var(--hc); }
-.hp .bar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 9px, rgba(4,6,12,.7) 9px 10px); }
-.w-right { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.w-right .cap { font-family: var(--display); font-size: 10px; letter-spacing: 2px; color: var(--muted); display: flex; justify-content: space-between; }
-.nt { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 8px; align-items: start; width: 100%; padding: 6px 8px; background: var(--panel); border: 1px solid transparent; border-left: 2px solid var(--c); color: var(--text); text-align: left; font-family: var(--body); }
-.nt:hover { border-color: var(--line-hi); border-left-color: var(--c); }
-.nt .dot { width: 8px; height: 8px; margin-top: 4px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
-.nt .dot.blink { animation: pulse 1s ease-in-out infinite; }
-.nt .mid { min-width: 0; display: flex; flex-direction: column; }
-.nt .p { display: flex; gap: 6px; align-items: baseline; font-family: var(--display); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-.nt .p span { overflow: hidden; text-overflow: ellipsis; }
-.nt .p em { margin-left: auto; flex: none; font-style: normal; font-family: var(--display); font-size: 9px; font-weight: 500; color: var(--c); }
-.nt .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.w.folded .w-body { grid-template-columns: minmax(0, 1fr); }
-.w.folded .w-left, .w.folded .cap, .w.folded .nt:not(:first-of-type), .w.folded .more { display: none; }
+.w-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.w.folded .w-body > :not(.w-alert) { display: none; }
+.w.folded .w-alert:empty { display: none; }
+.lim { display: grid; grid-template-columns: 74px 1fr 34px; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.lim .seg { height: 6px; }
+.lim .pct { font-family: var(--display); font-size: 11px; color: var(--text); text-align: right; }
+.lim.active .pct { color: var(--amber); }
+.lim.low .pct { color: var(--red); }
+.w-alert { width: 100%; text-align: left; padding: 7px 9px; border: 1px solid var(--qc, var(--line)); background: rgba(255,77,109,.08); color: var(--text); font-family: var(--body); font-size: 12px; line-height: 1.45; }
+.w-alert:empty { display: none; }
+.w-alert b { color: var(--qc); }
+.w-alert small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-units { display: flex; flex-direction: column; gap: 3px; }
+.row { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; background: var(--panel); border: 1px solid transparent; border-left: 2px solid var(--c); color: var(--text); text-align: left; font-family: var(--body); }
+.row:hover { border-color: var(--line-hi); border-left-color: var(--c); }
+.row .dot { width: 8px; height: 8px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
+.row .dot.blink { animation: pulse 1s ease-in-out infinite; }
+.row .mid { min-width: 0; display: flex; flex-direction: column; }
+.row .p { font-family: var(--display); font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .p i { font-style: normal; font-family: var(--body); font-size: 10px; color: var(--bg); background: var(--green); padding: 0 4px; margin-left: 5px; letter-spacing: 0; }
+.row .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .r { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--display); font-size: 10px; color: var(--muted); }
+.row .r .ctx { color: var(--kc); font-size: 11px; }
 .w-menu { display: flex; flex-direction: column; padding: 4px; background: #050a12; border-bottom: 1px solid var(--line-hi); }
 .w-menu[hidden] { display: none; }
 .w-menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--soft); font-family: var(--body); font-size: 13px; text-align: left; }
@@ -68,11 +65,11 @@ html, body { background: transparent; overflow: hidden; }
 <button role="menuitem" data-act="quit" class="quit">退出</button>
 </nav>
 <div class="w-body">
-<div class="w-left"><div class="w-av" id="w-av" title="点她一下"></div><div class="w-mood" id="w-mood"></div><div id="limits"></div></div>
-<div class="w-right" id="notes"></div>
+<div id="limits"></div>
+<button class="w-alert" id="alert"></button>
+<div class="w-units" id="units"></div>
 </div>
 </div>
-<script src="/web/nova.js"></script>
 <script type="module" src="/web/widget.js"></script>
 </body>
 </html>
