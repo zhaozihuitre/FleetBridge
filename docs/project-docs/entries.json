@@ -1620,7 +1620,7 @@
       "title": "离开时把「等你授权」推送到手机 / Slack",
       "summary": "需要用户选择渠道并提供 webhook 或账号；可配合「多久没操作算离开」的判断。",
       "detail": "",
-      "status": "open",
+      "status": "done",
       "files": [],
       "tags": [
         "通知"
@@ -1628,8 +1628,13 @@
       "sections": [],
       "refs": [],
       "created": "2026-11-01 19:05",
-      "updated": "2026-11-01 19:05",
-      "notes": [],
+      "updated": "2026-11-01 20:28",
+      "notes": [
+        {
+          "time": "2026-11-01 20:28",
+          "text": "2026-11-01：用 ntfy 实现（0.8.0）。"
+        }
+      ],
       "priority": "P2"
     },
     {
@@ -1958,6 +1963,51 @@
       "updated": "2026-11-01 20:20",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-032",
+      "type": "change",
+      "title": "手机推送通知（ntfy）（0.8.0）",
+      "summary": "新增 server/push.js：等你授权 / 做完了 / 额度告急 / 负载过高推送到手机通知栏（安卓 ntfy App），扫 ntfy:// 码订阅，点通知打开手机页；内容只含项目与事件。实测：测试通知与测试 agent 完成后的「Monitor 做完了」都送达频道。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/push.js",
+        "server/mobile.js",
+        "server/index.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "手机",
+        "通知"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 20:28",
+      "updated": "2026-11-01 20:28",
+      "notes": []
+    },
+    {
+      "id": "D-012",
+      "type": "decision",
+      "title": "手机系统通知用 ntfy",
+      "summary": "手机网页在 http 下不能发系统通知；Web Push 需 HTTPS 与 PWA，开发量大。ntfy 免费、安卓有官方 App、支持深链接订阅与点击跳转，只需服务端 POST。内容最小化以减少经第三方的信息。",
+      "detail": "",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "通知"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 20:28",
+      "updated": "2026-11-01 20:28",
+      "notes": []
     }
   ]
 }

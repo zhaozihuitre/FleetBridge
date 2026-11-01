@@ -1123,9 +1123,30 @@ async function renderPhone(info) {
   $('ph-urls').innerHTML = info.urls.map((u) => `<li><b>http://${esc(u.ip)}:${info.port}/m</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}</li>`).join('');
 }
 
+function renderPush(info) {
+  $('pu-toggle').textContent = info.enabled ? L('关闭推送') : L('开启推送');
+  $('pu-test').hidden = $('pu-regen').hidden = $('pu-steps').hidden = !info.enabled;
+  $('pu-qr').innerHTML = info.qr || '';
+  if (!info.qr) $('pu-qr').textContent = L('推送通知');
+  $('pu-topic').textContent = info.enabled ? info.topic || '' : '';
+  $('pu-tip').textContent = info.enabled ? L('用手机扫码订阅') : L('开启后，等你授权、做完了、额度告急时推送到手机。');
+}
+
 $('phone-btn').addEventListener('click', async () => {
   $('phone').showModal();
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
+  renderPush(await fetch('/api/push').then((r) => r.json()));
+});
+$('pu-toggle').addEventListener('click', async () => {
+  renderPush(await post('/api/push', { enabled: $('pu-toggle').textContent === L('开启推送') }));
+});
+$('pu-regen').addEventListener('click', async () => {
+  renderPush(await post('/api/push', { regenerate: true }));
+  toast(L('已换新频道，手机上需要重新订阅'));
+});
+$('pu-test').addEventListener('click', async () => {
+  const r = await post('/api/push/test', {});
+  toast(r.ok ? L('测试通知已发出，看看手机') : L('发送失败：') + (r.error || ''));
 });
 $('ph-toggle').addEventListener('click', async () => {
   const on = $('ph-toggle').textContent === L('开启手机访问');

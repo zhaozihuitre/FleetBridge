@@ -51,6 +51,13 @@ function addresses() {
   return out;
 }
 
+/** The phone page address for a notification to open, or null when phone access is off. */
+export function phoneUrl() {
+  if (!settings.enabled || !server?.listening) return null;
+  const a = addresses().find((x) => !x.tailscale) || addresses()[0];
+  return a ? `http://${a.ip}:${PORT}/m` : null;
+}
+
 export async function mobileInfo() {
   const urls = settings.enabled && settings.token ? addresses().map((a) => ({ ...a, url: `http://${a.ip}:${PORT}/m?k=${settings.token}` })) : [];
   // dark on light: some phone cameras cannot read inverted codes

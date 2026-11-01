@@ -13,7 +13,8 @@ import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
-import { mobileInfo, setMobile, startMobile, stopMobile } from './mobile.js';
+import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
+import { pushInfo, pushQuests, setPush, testPush } from './push.js';
 import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
@@ -93,6 +94,8 @@ function publish() {
   };
   // queued orders: the next one goes to each of our agents that has finished its turn
   dispatch(state.units.filter((u) => u.owned), (id, text) => sendText(getAgent(id), text));
+  // phone push: whatever needs you, whether or not anyone is looking at a screen
+  pushQuests(state.quests, phoneUrl());
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
   stateJson = json;
@@ -248,6 +251,9 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/api/agents/action') return send(res, 200, agentAction(await readBody(req)));
   // phone access (on / off, new key, QR): only from this computer
   if (req.url === '/api/mobile') return send(res, 200, req.method === 'POST' ? await setMobile(await readBody(req)) : await mobileInfo());
+  // phone push (ntfy): on / off, new channel, a test message
+  if (req.url === '/api/push') return send(res, 200, req.method === 'POST' ? await setPush(await readBody(req)) : await pushInfo());
+  if (req.method === 'POST' && req.url === '/api/push/test') return send(res, 200, await testPush(phoneUrl()));
   // Review / commit / push: only repos the git collector found (live and offline projects).
   if (req.url.startsWith('/api/git/')) {
     const url = new URL(req.url, 'http://localhost');
