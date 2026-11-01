@@ -1777,6 +1777,31 @@
       "created": "2026-11-01 19:29",
       "updated": "2026-11-01 19:29",
       "notes": []
+    },
+    {
+      "id": "C-028",
+      "type": "change",
+      "title": "指挥中心全屏（F11 / 右上角按钮）（0.7.2）",
+      "summary": "ops:win 新增 fullscreen；窗口进出全屏时通知页面切换按钮图标。实测全屏为 1536×864（含任务栏区域），F11 退出恢复。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "desktop/main.cjs",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "窗口"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 19:38",
+      "updated": "2026-11-01 19:38",
+      "notes": []
     }
   ]
 }

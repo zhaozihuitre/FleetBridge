@@ -76,6 +76,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .frameless .win-ctl { display: flex; }
 .win-ctl button { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); color: var(--muted); }
 .win-ctl button:hover { color: var(--text); border-color: var(--line-hi); }
+.win-ctl .fs .fs-off, .fullscreen .win-ctl .fs .fs-on { display: none; }
+.fullscreen .win-ctl .fs .fs-off { display: block; }
 .win-ctl .close:hover { color: #fff; background: #c42b3c; border-color: #c42b3c; }
 .frameless .hud { -webkit-app-region: drag; }
 .frameless .hud button { -webkit-app-region: no-drag; }

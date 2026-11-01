@@ -124,6 +124,8 @@ function openMain(term) {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
   });
   mainWin.maximize();
+  for (const ev of ['enter-full-screen', 'leave-full-screen'])
+    mainWin.on(ev, () => mainWin?.webContents.executeJavaScript(`document.body.classList.toggle('fullscreen', ${ev === 'enter-full-screen'})`).catch(() => {}));
   mainWin.once('ready-to-show', () => mainWin.show());
   mainWin.loadURL(target || baseUrl);
   // ⧉ pop-out terminals open as their own windows; web links (repo pages) go to the default browser
@@ -196,6 +198,8 @@ ipcMain.on('ops:win', (e, action) => {
   if (action === 'minimize') w.minimize();
   else if (action === 'maximize') w.isMaximized() ? w.unmaximize() : w.maximize();
   else if (action === 'close') w.close();
+  // true fullscreen (over the taskbar); the page is told so it can swap the button icon
+  else if (action === 'fullscreen') w.setFullScreen(!w.isFullScreen());
 });
 ipcMain.on('ops:action', (_e, name) => {
   ACTIONS[name]?.();

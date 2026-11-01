@@ -1321,6 +1321,12 @@ const winBridge = window.opsBridge;
 if (winBridge?.win) {
   document.body.classList.add('frameless');
   document.querySelectorAll('[data-win]').forEach((b) => b.addEventListener('click', () => winBridge.win(b.dataset.win)));
+  // F11: fullscreen on / off, from anywhere in the page (also while typing)
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'F11') return;
+    e.preventDefault();
+    winBridge.win('fullscreen');
+  });
 }
 
 // The desktop shell calls this directly when the window is already open.
