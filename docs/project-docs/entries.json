@@ -1638,7 +1638,7 @@
       "title": "安装 0.7.0 并推送 / 发版",
       "summary": "0.6.3–0.7.0 均未推送到 GitHub（Release 停在 0.6.2）。安装会结束运行在舰桥里的会话（含这个开发会话），需用户在场时进行；安装后验证：授权按钮、审查提交、队列、搜索、额度预测。",
       "detail": "",
-      "status": "open",
+      "status": "done",
       "files": [],
       "tags": [
         "发布"
@@ -1646,8 +1646,13 @@
       "sections": [],
       "refs": [],
       "created": "2026-11-01 19:05",
-      "updated": "2026-11-01 19:05",
-      "notes": [],
+      "updated": "2026-11-01 19:12",
+      "notes": [
+        {
+          "time": "2026-11-01 19:12",
+          "text": "2026-11-01：main 与 v0.7.0 已推送，GitHub Release 已发布；本地安装已启动。"
+        }
+      ],
       "priority": "P1"
     },
     {
@@ -1705,6 +1710,25 @@
       "updated": "2026-11-01 19:06",
       "notes": [],
       "priority": "P2"
+    },
+    {
+      "id": "M-016",
+      "type": "milestone",
+      "title": "发布 0.7.0",
+      "summary": "main 与 v0.7.0 已推送，GitHub Release 已发布并上传安装包（约 109 MB）。",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "发布"
+      ],
+      "sections": [],
+      "refs": [
+        "v0.7.0"
+      ],
+      "created": "2026-11-01 19:12",
+      "updated": "2026-11-01 19:12",
+      "notes": []
     }
   ]
 }
