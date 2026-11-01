@@ -213,10 +213,7 @@ async function press(body) {
   await post('/api/action', { id: screenId, ...body });
   setTimeout(refreshScreen, 400);
 }
-$('keypad').addEventListener('click', (e) => {
-  const k = e.target.closest('[data-key]');
-  if (k) press({ action: 'key', key: k.dataset.key });
-});
+document.querySelector('.sheet-head .esc').addEventListener('click', () => press({ action: 'key', key: 'esc' }));
 $('sheet-menu').addEventListener('click', (e) => {
   const c = e.target.closest('[data-choice]');
   if (c) press({ action: 'answer', choice: c.dataset.choice });

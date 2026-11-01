@@ -1912,6 +1912,30 @@
       "updated": "2026-11-01 20:07",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-031",
+      "type": "change",
+      "title": "手机版去掉方向键区（0.7.8）",
+      "summary": "用户认为直接在输入框打字即可，不需要方向键等快捷键；看屏幕只保留编号菜单按钮和标题栏 Esc，手机端按键白名单收回到 esc。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/m.html",
+        "web/m.js",
+        "web/m.css",
+        "server/mobile.js"
+      ],
+      "tags": [
+        "手机"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 20:13",
+      "updated": "2026-11-01 20:13",
+      "notes": []
     }
   ]
 }

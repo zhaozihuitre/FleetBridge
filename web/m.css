@@ -105,12 +105,13 @@ main { flex: 1; padding: 8px 12px 178px; display: flex; flex-direction: column; 
 #send:disabled { opacity: .45; box-shadow: none; }
 
 /* ---------- a terminal on the whole screen ---------- */
-.sheet { position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column; padding-bottom: 136px; background: var(--bg); }
+.sheet { position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column; padding-bottom: 128px; background: var(--bg); }
 .sheet[hidden] { display: none; }
 .sheet-head { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--line-hi); background: var(--panel); }
 .back { width: 40px; height: 40px; flex: none; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); font-size: 26px; line-height: 1; }
 .sh-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sh-title b { font-family: var(--display); font-size: 14px; letter-spacing: 1px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-head .esc { height: 34px; padding: 0 12px; background: transparent; border: 1px solid rgba(255,77,109,.6); color: #ff8fa3; font-family: var(--label); font-weight: 600; font-size: 14px; }
 .live { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 10px; letter-spacing: 1px; color: var(--green); }
 .live i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: pulse 1.6s ease-in-out infinite; }
 .screen-wrap { flex: 1; min-height: 0; margin: 8px 10px 0; border: 1px solid var(--line-hi); box-shadow: inset 0 0 24px rgba(61,245,255,.06); background: #050a12; display: flex; }
@@ -119,11 +120,6 @@ main { flex: 1; padding: 8px 12px 178px; display: flex; flex-direction: column; 
 .menu:empty { display: none; }
 .menu button { min-height: 42px; padding: 6px 12px; text-align: left; background: var(--panel); border: 1px solid var(--line-hi); color: var(--soft); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .menu button.cur { border-color: var(--cyan); color: var(--text); background: rgba(61,245,255,.1); }
-.keypad { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; padding: 8px 10px; }
-.keypad button { height: 42px; background: linear-gradient(180deg, #13223a, #0b1626); border: 1px solid var(--line-hi); border-bottom-width: 3px; color: var(--text); font-family: var(--label); font-weight: 600; font-size: 15px; }
-.keypad button:active { transform: translateY(1px); border-bottom-width: 1px; background: rgba(61,245,255,.2); }
-.keypad .ok { color: var(--green); border-color: rgba(77,255,166,.6); }
-.keypad .no { color: #ff8fa3; border-color: rgba(255,77,109,.6); }
 
 .toast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 10; max-width: 86vw; padding: 10px 16px; background: rgba(11,22,38,.96); border: 1px solid var(--cyan); box-shadow: 0 0 18px rgba(61,245,255,.25); font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .toast.on { opacity: 1; }
