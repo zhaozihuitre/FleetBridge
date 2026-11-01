@@ -101,6 +101,11 @@
 </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<dialog class="review" id="review" aria-labelledby="rv-title">
+<div class="rv-head"><h2 id="rv-title"><span class="mono">REVIEW</span> <b id="rv-repo"></b> <span id="rv-branch"></span></h2><div class="rv-remote" id="rv-remote"></div><button type="button" class="rv-x" id="rv-close" aria-label="关闭">✕</button></div>
+<div class="rv-body"><ul class="rv-files" id="rv-files" aria-label="改动的文件"></ul><pre class="rv-diff" id="rv-diff"></pre></div>
+<form class="rv-foot" id="rv-form"><textarea id="rv-msg" rows="2" placeholder="提交说明（必填）"></textarea><div class="rv-actions"><span class="rv-err" id="rv-err" role="alert"></span><button type="button" class="btn ghost" id="rv-push" hidden>↑ 推送</button><button type="submit" class="btn ghost" id="rv-commit">✓ 提交</button><button type="button" class="btn" id="rv-commit-push">✓ 提交并推送</button></div></form>
+</dialog>
 <dialog class="deploy" id="deploy">
 <form method="dialog" id="deploy-form">
 <h2><span class="mono">DEPLOY</span> 出击 · 启动新的 Claude Code</h2>

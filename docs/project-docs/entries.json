@@ -1518,6 +1518,33 @@
       "created": "2026-11-01 18:53",
       "updated": "2026-11-01 18:53",
       "notes": []
+    },
+    {
+      "id": "C-025",
+      "type": "change",
+      "title": "审查改动 + 一键提交 / 推送",
+      "summary": "仓库行「审查改动」打开审查窗口：推送目标、改动文件列表、彩色差异、提交说明，提交 / 提交并推送 / 推送。新增 server/gitops.js 与 /api/git/* 接口，仅限已扫描到的仓库。本次提交即通过该窗口完成（实测提交路径）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/gitops.js",
+        "server/index.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "git",
+        "审查"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:56",
+      "updated": "2026-11-01 18:56",
+      "notes": []
     }
   ]
 }

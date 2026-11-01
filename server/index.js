@@ -8,6 +8,7 @@ import { collectUsage, limitLabel } from './collectors/usage.js';
 import { getLang, L, setLang } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
+import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
@@ -229,6 +230,33 @@ const server = http.createServer(async (req, res) => {
       return false;
     });
     return send(res, 200, { ok: results.some(Boolean), results });
+  }
+  // Review / commit / push: only repos the git collector found (live and offline projects).
+  if (req.url.startsWith('/api/git/')) {
+    const url = new URL(req.url, 'http://localhost');
+    const body = req.method === 'POST' ? await readBody(req) : {};
+    const repo = url.searchParams.get('repo') || body.repo;
+    const known = Object.values({ ...offlineGit, ...gitByCwd }).flat().some((r) => r.path === repo);
+    if (!known) return send(res, 404, { error: L('不认识这个仓库', 'Unknown repository', '不明なリポジトリ') });
+    try {
+      if (req.method === 'GET' && url.pathname === '/api/git/changes') return send(res, 200, { files: await changes(repo) });
+      if (req.method === 'GET' && url.pathname === '/api/git/diff') return send(res, 200, { diff: await diff(repo, url.searchParams.get('file') || '', url.searchParams.get('status') || '') });
+      if (req.method === 'POST' && url.pathname === '/api/git/commit') {
+        const message = String(body.message || '').trim();
+        if (!message) return send(res, 400, { error: L('提交说明不能为空', 'The commit message is empty', 'コミットメッセージが空です') });
+        const output = await commit(repo, message, Boolean(body.push));
+        refreshGit(); // the cards show the new state right away
+        return send(res, 200, { ok: true, output });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/git/push') {
+        const output = await pushRepo(repo);
+        refreshGit();
+        return send(res, 200, { ok: true, output });
+      }
+    } catch (e) {
+      return send(res, 500, { error: e.message });
+    }
+    return send(res, 404, { error: 'not_found' });
   }
   if (req.method === 'GET' && req.url.startsWith('/api/search?')) {
     const q = (new URL(req.url, 'http://localhost').searchParams.get('q') || '').trim().slice(0, 200);

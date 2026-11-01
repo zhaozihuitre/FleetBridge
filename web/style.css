@@ -264,7 +264,41 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 
 .deploy-btn { align-self: center; height: 36px; margin-left: 12px; padding: 0 16px; background: rgba(77,255,166,.12); border: 1px solid var(--green); color: var(--text); font-family: var(--body); font-size: 14px; font-weight: 700; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .deploy { width: 560px; max-width: calc(100vw - 32px); padding: 0; background: var(--panel); color: var(--text); border: 1px solid var(--cyan); box-shadow: 0 0 40px rgba(61,245,255,.25); }
-.deploy::backdrop, .ops-dialog::backdrop { background: rgba(0,0,0,.6); }
+.deploy::backdrop, .ops-dialog::backdrop, .review::backdrop { background: rgba(0,0,0,.6); }
+/* change review: files on the left, the diff on the right, commit at the bottom */
+.review { width: min(1180px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); padding: 0; background: var(--panel); color: var(--text); border: 1px solid var(--cyan); box-shadow: 0 0 40px rgba(61,245,255,.25); }
+.review[open] { display: flex; flex-direction: column; }
+.rv-head { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--line); font-family: var(--body); }
+.rv-head h2 { margin: 0; font-size: 16px; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.rv-head h2 .mono { color: var(--cyan); letter-spacing: 2px; }
+.rv-head #rv-branch { font-size: 12px; color: var(--muted); border: 1px solid var(--line-hi); padding: 0 6px; }
+.rv-remote { flex: 1; min-width: 0; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-remote b { color: var(--cyan); font-weight: 500; }
+.rv-remote.warn { color: var(--amber); }
+.rv-x { width: 32px; height: 32px; border: 1px solid var(--line-hi); background: transparent; color: var(--muted); }
+.rv-x:hover { color: var(--text); border-color: var(--cyan); }
+.rv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.rv-files { margin: 0; padding: 6px; list-style: none; overflow-y: auto; border-right: 1px solid var(--line); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
+.rv-files li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; cursor: pointer; font-family: var(--body); font-size: 12px; border-left: 2px solid transparent; }
+.rv-files li:hover { background: rgba(61,245,255,.06); }
+.rv-files li.on { background: rgba(61,245,255,.1); border-left-color: var(--cyan); }
+.rv-files .st { font-family: var(--display); font-size: 10px; color: var(--sc); }
+.rv-files .fn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.rv-files .n { font-family: var(--display); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.rv-files .n .a { color: var(--green); } .rv-files .n .d { color: var(--red); }
+.rv-diff { margin: 0; padding: 10px 14px; overflow: auto; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); background: #050a12; scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
+.rv-diff .add { color: var(--green); background: rgba(77,255,166,.07); display: block; }
+.rv-diff .del { color: var(--red); background: rgba(255,77,109,.08); display: block; }
+.rv-diff .hunk { color: var(--cyan); display: block; margin-top: 6px; }
+.rv-diff .meta { color: var(--dim); display: block; }
+.rv-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--line); }
+.rv-foot textarea { resize: none; background: #050a12; border: 1px solid var(--line-hi); color: var(--text); font-family: var(--body); font-size: 14px; padding: 8px 10px; }
+.rv-foot textarea:focus { outline: 1px solid var(--cyan); }
+.rv-actions { display: flex; align-items: center; gap: 8px; }
+.rv-actions .btn { height: 34px; }
+.rv-err { flex: 1; font-family: var(--body); font-size: 12px; color: var(--red); white-space: pre-wrap; }
+.repo .rv-open { margin-left: 8px; height: 22px; padding: 0 8px; border: 1px solid var(--line-hi); background: transparent; color: var(--soft); font-family: var(--body); font-size: 11px; }
+.repo .rv-open:hover { border-color: var(--cyan); color: var(--text); }
 
 /* Themed confirm dialog (web/ui.js) */
 .ops-dialog { width: 460px; max-width: calc(100vw - 32px); padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--cyan); box-shadow: 0 0 40px rgba(61,245,255,.25); clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }

@@ -461,7 +461,7 @@ function repoRow(r) {
   return `<div class="repo" style="--rc:${rc}" title="${esc(r.head ? `${r.head.hash} · ${r.head.subject} · ${r.head.author}` : r.path)}">
     <div class="r1"><span class="name">${esc(r.name)}</span>${touched}<span class="branch">${esc(r.branch || '(detached)')}</span><span class="sync" style="color:${sync[1]}">${sync[0]}</span></div>
     ${remoteLine(r)}
-    <div class="chg">${esc(chg)}</div></div>`;
+    <div class="chg">${esc(chg)}${r.changedCount || r.ahead ? `<button type="button" class="rv-open" data-review="${esc(r.path)}">${L('审查改动')}</button>` : ''}</div></div>`;
 }
 
 // Where this repo pushes to, so commits don't land in the wrong repository.
@@ -987,6 +987,8 @@ $('refresh').addEventListener('click', async () => {
   toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
+  const rv = e.target.closest('[data-review]');
+  if (rv) return openReview(rv.dataset.review);
   const fo = e.target.closest('[data-folder]');
   if (fo) {
     if (ui.search) clearSearch(false);
@@ -1034,6 +1036,107 @@ window.addEventListener('keydown', (e) => {
     if (l && !AMBIENT.has(l.key)) snoozeLine(l.key);
   } else return;
   e.preventDefault();
+});
+
+/* ---------- change review: diff, commit and push without leaving the bridge ---------- */
+
+const review = { repo: null, files: [], file: null };
+
+function repoByPath(p) {
+  for (const u of [...state.units, ...(state.offline || [])]) for (const r of u.repos) if (r.path === p) return r;
+  return null;
+}
+
+function diffHtml(text) {
+  return text
+    .split('\n')
+    .map((l) => {
+      const cls = l.startsWith('@@') ? 'hunk' : /^(diff |index |--- |\+\+\+ |new file|deleted file)/.test(l) ? 'meta' : l.startsWith('+') ? 'add' : l.startsWith('-') ? 'del' : '';
+      return cls ? `<span class="${cls}">${esc(l) || ' '}</span>` : esc(l) + '\n';
+    })
+    .join('');
+}
+
+async function showDiff(f) {
+  review.file = f.file;
+  for (const li of $('rv-files').children) li.classList.toggle('on', li.dataset.file === f.file);
+  $('rv-diff').textContent = L('读取中…');
+  const r = await fetch(`/api/git/diff?repo=${encodeURIComponent(review.repo)}&file=${encodeURIComponent(f.file)}&status=${f.status}`).then((x) => x.json());
+  if (review.file !== f.file) return;
+  $('rv-diff').innerHTML = r.error ? esc(r.error) : diffHtml(r.diff || '') || esc(L('（没有文本差异）'));
+}
+
+const ST = { modified: ['M', 'var(--amber)'], added: ['A', 'var(--green)'], untracked: ['U', 'var(--green)'], deleted: ['D', 'var(--red)'], renamed: ['R', 'var(--cyan)'], copied: ['C', 'var(--cyan)'], conflict: ['!', 'var(--red)'] };
+
+async function openReview(path) {
+  const r = repoByPath(path);
+  review.repo = path;
+  $('rv-repo').textContent = r?.name || path;
+  $('rv-branch').textContent = r?.branch || '';
+  $('rv-remote').className = 'rv-remote' + (r?.remote ? '' : ' warn');
+  $('rv-remote').innerHTML = r?.remote ? `${L('推送到')} <b>${esc(r.remote.name)}</b> ${esc(`${r.remote.host}/${r.remote.slug}`)}${r.ahead ? ` · ↑${r.ahead}` : ''}` : esc(L('没有远程仓库，只在本地'));
+  $('rv-err').textContent = '';
+  $('rv-files').innerHTML = '';
+  $('rv-diff').textContent = L('读取中…');
+  $('rv-push').hidden = !(r?.ahead > 0 && r?.remote);
+  $('review').showModal();
+  const res = await fetch(`/api/git/changes?repo=${encodeURIComponent(path)}`).then((x) => x.json());
+  if (res.error) return ($('rv-diff').textContent = res.error);
+  review.files = res.files;
+  $('rv-commit').disabled = $('rv-commit-push').disabled = !res.files.length;
+  $('rv-commit-push').disabled ||= !r?.remote;
+  $('rv-files').innerHTML = res.files
+    .map((f) => {
+      const [s, c] = ST[f.status] || ST.modified;
+      const n = f.ins == null ? '' : `<span class="a">+${f.ins}</span> <span class="d">−${f.del}</span>`;
+      return `<li data-file="${esc(f.file)}" title="${esc(f.file)}"><span class="st" style="--sc:${c}">${s}</span><span class="fn">${esc(f.file)}</span><span class="n">${n}</span></li>`;
+    })
+    .join('');
+  if (res.files.length) showDiff(res.files[0]);
+  else $('rv-diff').textContent = L('工作区干净，没有要提交的改动。');
+  $('rv-msg').focus();
+}
+
+async function doCommit(push) {
+  const message = $('rv-msg').value.trim();
+  if (!message) return ($('rv-err').textContent = L('先写提交说明'));
+  $('rv-err').textContent = '';
+  for (const b of ['rv-commit', 'rv-commit-push', 'rv-push']) $(b).disabled = true;
+  const r = await post('/api/git/commit', { repo: review.repo, message, push });
+  if (!r.ok) {
+    $('rv-err').textContent = r.error || L('提交失败');
+    for (const b of ['rv-commit', 'rv-commit-push', 'rv-push']) $(b).disabled = false;
+    return;
+  }
+  $('rv-msg').value = '';
+  $('review').close();
+  toast(push ? L('已提交并推送') : L('已提交'));
+}
+
+$('rv-files').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-file]');
+  const f = li && review.files.find((x) => x.file === li.dataset.file);
+  if (f) showDiff(f);
+});
+$('rv-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  doCommit(false);
+});
+$('rv-commit-push').addEventListener('click', () => doCommit(true));
+$('rv-push').addEventListener('click', async () => {
+  $('rv-push').disabled = true;
+  const r = await post('/api/git/push', { repo: review.repo });
+  $('rv-push').disabled = false;
+  if (!r.ok) return ($('rv-err').textContent = r.error || L('推送失败'));
+  $('review').close();
+  toast(L('已推送'));
+});
+$('rv-close').addEventListener('click', () => $('review').close());
+$('rv-msg').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    doCommit(false);
+  }
 });
 
 /* ---------- full-text search over all sessions ---------- */
