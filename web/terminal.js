@@ -7,9 +7,9 @@ import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 
 // The command center palette for all 16 colors: our agents run Claude Code with the dark-ansi
 // theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from these.
-const THEME = {
+export const THEME = {
   background: '#050a12',
-  foreground: '#ddf6ff',
+  foreground: '#9fd4ff', // body text: a soft sky blue, easier on the eyes than white for long reads
   cursor: '#3df5ff',
   cursorAccent: '#050a12',
   selectionBackground: 'rgba(61,245,255,.3)',
@@ -20,15 +20,17 @@ const THEME = {
   blue: '#4d9fff',
   magenta: '#c77dff',
   cyan: '#3df5ff',
-  white: '#b8cfdc',
-  brightBlack: '#4f7a90',
+  white: '#7fb2d0',
+  // dark-ansi paints panels (diff review, the highlighted prompt) with this as background, and dim
+  // text with it as foreground: a dark slate, with minimumContrastRatio lifting the dim text
+  brightBlack: '#24384a',
   brightRed: '#3df5ff', // Claude's brand accent (logo, highlights) in dark-ansi: our cyan; errors use plain red
   brightGreen: '#8affc4',
   brightYellow: '#ffd166',
   brightBlue: '#82bcff',
   brightMagenta: '#dcaaff',
   brightCyan: '#b8fcff',
-  brightWhite: '#ffffff',
+  brightWhite: '#d6f0ff',
 };
 
 /**
@@ -38,7 +40,7 @@ const THEME = {
  */
 export function createTerminal(host, id, opts = {}) {
   host.innerHTML = '';
-  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: THEME });
+  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: THEME, minimumContrastRatio: 3 });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host);

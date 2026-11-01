@@ -1397,6 +1397,27 @@
       "created": "2026-11-01 18:20",
       "updated": "2026-11-01 18:20",
       "notes": []
+    },
+    {
+      "id": "I-010",
+      "type": "issue",
+      "title": "终端里 Claude 的改动审查面板是淡蓝底，看不清",
+      "summary": "dark-ansi 主题用 ANSI 亮黑（8 号色）做面板背景（改动审查、高亮的用户消息），而它被设成了中灰蓝 #4f7a90。改为深石板蓝 #24384a，并开启 xterm minimumContrastRatio: 3，让同色的暗提示文字自动提亮。另：0.6.7 的提交漏掉了天蓝正文（文件改动在提交前丢失），这次补上。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "web/terminal.js"
+      ],
+      "tags": [
+        "终端",
+        "配色"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 18:36",
+      "updated": "2026-11-01 18:36",
+      "notes": [],
+      "count": 1
     }
   ]
 }
