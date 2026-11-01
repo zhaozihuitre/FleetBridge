@@ -197,7 +197,7 @@ function operatorState(units, quests, now) {
     const dozing = quests.every((q) => q.kind === 'READY' && now - (q.since || 0) > standbyMs);
     return {
       mood: dozing ? 'STANDBY' : quests[0].kind,
-      lines: quests.map((q) => ({ key: q.key, kind: q.kind, text: operatorLine(q), unit: q.unit })),
+      lines: quests.map((q) => ({ key: q.key, kind: q.kind, text: operatorLine(q), unit: q.unit, at: q.since || null })),
     };
   }
   if (!units.length)

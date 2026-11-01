@@ -1349,6 +1349,30 @@
       "created": "2026-11-01 17:58",
       "updated": "2026-11-01 17:58",
       "notes": []
+    },
+    {
+      "id": "C-020",
+      "type": "change",
+      "title": "消息框：消息占满宽度、显示时间（0.6.6）",
+      "summary": "总指令台消息框里每条消息占满整行；提醒消息带发生时间（服务端 operator lines 增加 at 字段，取提醒的 since）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/style.css",
+        "web/app.js",
+        "server/state.js"
+      ],
+      "tags": [
+        "总指令台",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:05",
+      "updated": "2026-11-01 18:05",
+      "notes": []
     }
   ]
 }

@@ -106,12 +106,13 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 /* message box: reminders arrive as incoming messages, sent commands show as outgoing ones */
 .msg-box { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; background: rgba(4,10,18,.92); border: 1px solid var(--line-hi); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
-.msg { max-width: 92%; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-family: var(--body); }
-.msg.in { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--mc, var(--cyan)); cursor: pointer; }
+.msg { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-family: var(--body); }
+.msg.in { align-self: stretch; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--mc, var(--cyan)); cursor: pointer; }
 .msg.in.on { border-color: var(--line-hi); border-left-color: var(--mc); background: rgba(61,245,255,.06); box-shadow: 0 0 10px rgba(61,245,255,.12); }
 .msg-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); letter-spacing: 1px; min-width: 0; }
 .msg-head b { font-family: var(--display); font-size: 10px; color: var(--bg); background: var(--mc, var(--cyan)); padding: 1px 6px; }
 .msg-head span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-head time { flex: none; font-family: var(--display); font-size: 10px; color: var(--muted); letter-spacing: 0; }
 .msg-head i { margin-left: auto; font-style: normal; font-family: var(--display); font-size: 10px; color: var(--mc); }
 .msg-text { font-size: 13px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
 .msg.in:not(.on) .msg-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -120,7 +121,7 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .msg-acts button { height: 26px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
 .msg-acts button:first-child { border-color: var(--mc); color: var(--text); background: rgba(61,245,255,.08); }
 .msg-acts button:hover { border-color: var(--cyan); color: var(--text); }
-.msg.out { align-self: flex-end; background: rgba(61,245,255,.1); border: 1px solid rgba(61,245,255,.35); }
+.msg.out { align-self: stretch; background: rgba(61,245,255,.1); border: 1px solid rgba(61,245,255,.35); }
 .msg.out .msg-text { font-size: 12px; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .msg-meta { align-self: flex-end; font-size: 10px; color: var(--muted); font-family: var(--display); }
 .msg-sep { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); letter-spacing: 2px; }
