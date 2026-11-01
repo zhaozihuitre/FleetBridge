@@ -44,6 +44,9 @@ function summarize(file, size) {
 }
 
 // Recent sessions across all projects (running ones included), newest first.
+/** sessionId -> transcript path of the sessions in the last history, for the full-text search */
+export const historyFiles = new Map();
+
 export function collectHistory() {
   const root = path.join(config.claudeDir, 'projects');
   const files = [];
@@ -76,6 +79,7 @@ export function collectHistory() {
     // scratch/temp sessions whose folder is gone can't be resumed
     if (!cwd || !fs.existsSync(cwd) || !(title || lastPrompt)) continue;
     out.push({ sessionId: f.id, cwd, project: path.basename(cwd) || cwd, title, lastPrompt, updatedAt: f.mtimeMs, size: f.size });
+    historyFiles.set(f.id, f.file);
   }
   return out;
 }

@@ -6,7 +6,8 @@ import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel } from './collectors/usage.js';
 import { getLang, L, setLang } from './i18n.js';
-import { collectHistory } from './collectors/history.js';
+import { collectHistory, historyFiles } from './collectors/history.js';
+import { searchSessions } from './search.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
@@ -228,6 +229,17 @@ const server = http.createServer(async (req, res) => {
       return false;
     });
     return send(res, 200, { ok: results.some(Boolean), results });
+  }
+  if (req.method === 'GET' && req.url.startsWith('/api/search?')) {
+    const q = (new URL(req.url, 'http://localhost').searchParams.get('q') || '').trim().slice(0, 200);
+    if (q.length < 2) return send(res, 400, { error: 'query_too_short' });
+    const files = history.filter((h) => historyFiles.has(h.sessionId)).map((h) => ({ sessionId: h.sessionId, file: historyFiles.get(h.sessionId) }));
+    try {
+      const results = await searchSessions(files, q);
+      return send(res, 200, { q, results });
+    } catch (e) {
+      return send(res, 500, { error: e.message });
+    }
   }
   if (req.method === 'POST' && req.url === '/api/lang') {
     const { lang } = await readBody(req);

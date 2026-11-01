@@ -1490,6 +1490,34 @@
       "created": "2026-11-01 18:50",
       "updated": "2026-11-01 18:50",
       "notes": []
+    },
+    {
+      "id": "C-024",
+      "type": "change",
+      "title": "全文搜索所有会话",
+      "summary": "标签栏搜索框；server/search.js 用 worker 线程扫描会话记录（只看用户指令与 Claude 文字回复），结果在存档页显示命中片段与高亮，可直接继续会话。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/search.js",
+        "server/collectors/history.js",
+        "server/index.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "搜索",
+        "存档"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:53",
+      "updated": "2026-11-01 18:53",
+      "notes": []
     }
   ]
 }

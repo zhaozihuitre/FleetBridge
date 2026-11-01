@@ -511,6 +511,12 @@ function msgRow(e) {
   return `<div class="msg"><span class="t">[${clock(e.t, Date.now() - e.t > 86_400_000)}]</span><span class="k" style="--kc:${k.c}">${k.label}</span><span class="m" title="${esc(e.msg)}">${esc(e.msg)}</span></div>`;
 }
 
+// The search term highlighted in an escaped snippet.
+function mark(text, q) {
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  return i < 0 ? esc(text) : `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, i + q.length))}</mark>${esc(text.slice(i + q.length))}`;
+}
+
 function archiveRow(h) {
   const now = Date.now();
   const action = h.owned
@@ -523,8 +529,10 @@ function archiveRow(h) {
     <div class="when"><span class="mono">${clock(h.updatedAt, true)}</span><small>${ago(now - h.updatedAt)}</small></div>
     <div class="info">
       <div class="r1"><b>${esc(h.project.toUpperCase())}</b>${h.pid ? `<span class="running">${L('运行中')}</span>` : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
-      <div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>
-      <div class="path">${esc(h.cwd)}</div>
+      ${h.snippets
+        ? h.snippets.slice(0, 2).map((s) => `<div class="hit" title="${esc(s.text)}"><i>${s.role === 'user' ? 'YOU' : 'CLAUDE'}</i>${mark(s.text, ui.search.q)}</div>`).join('')
+        : `<div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>
+      <div class="path">${esc(h.cwd)}</div>`}
     </div>
     ${action}
   </article>`;
@@ -549,6 +557,10 @@ function currentFolder(list = folders()) {
 function currentList() {
   // units: live sessions first, then every other project's latest session (newest first)
   const units = [...state.units, ...(state.offline || [])];
+  if (ui.tab === 'archive' && ui.search) {
+    const byId = new Map((state.history || []).map((h) => [h.sessionId, h]));
+    return { kind: 'archive', list: (ui.search.results || []).filter((r) => byId.has(r.sessionId)).map((r) => ({ ...byId.get(r.sessionId), ...r })) };
+  }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
   return { kind: ui.tab, list: { units: state.units, quests: state.quests, comms: state.comms }[ui.tab] };
@@ -588,7 +600,11 @@ function renderPage() {
     const scroll = document.querySelector('.folders')?.scrollTop || 0;
     html = `<div class="archive">
       <nav class="folders" aria-label="${L('项目文件夹')}"><div class="archive-head"><span class="mono">FOLDERS</span><span>${L('{0} 个 · ↑↓ 切换', fl.length)}</span></div>${folderList(fl, sel)}</nav>
-      <div class="saves"><div class="archive-head"><span class="mono">SAVE DATA</span><span>${ui.tab === 'units' ? L('没有活动的会话 · ') : ''}${esc(sel?.cwd || '')}${L(' · {0} 个', list.length)}</span></div>
+      <div class="saves"><div class="archive-head">${
+        ui.search && ui.tab === 'archive'
+          ? `<span class="mono">SEARCH</span><span>${ui.search.results ? L('「{0}」：{1} 个会话', esc(ui.search.q), list.length) : L('搜索中…')}</span>`
+          : `<span class="mono">SAVE DATA</span><span>${ui.tab === 'units' ? L('没有活动的会话 · ') : ''}${esc(sel?.cwd || '')}${L(' · {0} 个', list.length)}</span>`
+      }</div>
       ${items.map(archiveRow).join('') || `<div class="blank">${L('没有找到会话')}</div>`}</div></div>`;
     $('page').innerHTML = html;
     document.querySelector('.folders').scrollTop = scroll; // keep the folder list where it was across live refreshes
@@ -973,6 +989,7 @@ $('refresh').addEventListener('click', async () => {
 $('page').addEventListener('click', (e) => {
   const fo = e.target.closest('[data-folder]');
   if (fo) {
+    if (ui.search) clearSearch(false);
     ui.folder = fo.dataset.folder;
     ui.page = 0;
     renderPage();
@@ -1018,6 +1035,40 @@ window.addEventListener('keydown', (e) => {
   } else return;
   e.preventDefault();
 });
+
+/* ---------- full-text search over all sessions ---------- */
+
+async function runSearch(q) {
+  ui.search = { q, results: null };
+  $('search-clear').hidden = false;
+  setTab('archive');
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then((x) => x.json());
+    if (ui.search?.q !== q) return; // a newer search replaced this one
+    if (r.error) throw new Error(r.error);
+    ui.search.results = r.results;
+  } catch (e) {
+    ui.search.results = [];
+    toast(L('搜索失败：') + e.message);
+  }
+  renderPage();
+}
+
+function clearSearch(render = true) {
+  ui.search = null;
+  $('search-q').value = '';
+  $('search-clear').hidden = true;
+  if (render) renderPage();
+}
+
+$('search-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = $('search-q').value.trim();
+  if (q.length < 2) return toast(L('至少输入 2 个字'));
+  runSearch(q);
+});
+$('search-q').addEventListener('keydown', (e) => e.key === 'Escape' && clearSearch());
+$('search-clear').addEventListener('click', () => clearSearch());
 
 /* ---------- language: the globe in the top bar ---------- */
 
