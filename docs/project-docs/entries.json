@@ -1301,6 +1301,31 @@
       "created": "2026-11-01 17:39",
       "updated": "2026-11-01 17:39",
       "notes": []
+    },
+    {
+      "id": "C-018",
+      "type": "change",
+      "title": "部队页列出所有项目（0.6.4）",
+      "summary": "运行中的部队在前；其后每个未运行的项目一张 OFFLINE 卡（最新会话、同样式：负载、汇报、仓库），按最后活动倒序，可直接出击或在外部终端继续。新增 server/offline.js；未运行项目的 git 每 2 分钟扫描。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/offline.js",
+        "server/index.js",
+        "web/app.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "部队",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 17:51",
+      "updated": "2026-11-01 17:51",
+      "notes": []
     }
   ]
 }

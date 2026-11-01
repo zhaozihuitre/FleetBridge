@@ -290,6 +290,8 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .unit { position: relative; background: var(--panel); border: 1px solid var(--line); padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px); --c: var(--cyan); }
 .unit.idle { --c: var(--amber); border-color: #4a3812; }
 .unit.standby { --c: var(--muted); }
+.unit.offline { --c: var(--muted); }
+.unit.offline h3 { color: var(--soft); }
 .unit.permit { --c: var(--red); border-color: #5c1f2c; animation: permit 1.2s ease-in-out infinite; }
 @keyframes permit { 50% { border-color: var(--red); } }
 .unit::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }

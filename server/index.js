@@ -8,6 +8,7 @@ import { collectUsage, limitLabel } from './collectors/usage.js';
 import { getLang, L, setLang } from './i18n.js';
 import { collectHistory } from './collectors/history.js';
 import { collectToday } from './collectors/today.js';
+import { buildOffline, offlineSessions } from './offline.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
@@ -31,6 +32,8 @@ let usage = null;
 let gitByCwd = {};
 let history = [];
 let today = null;
+let offlineGit = {}; // git of offline projects: rescanned every 2 minutes, not every 30 s
+let offlineGitAt = 0;
 let state = null;
 let stateJson = '';
 const clients = new Set();
@@ -54,6 +57,8 @@ function publish() {
       return { ...u, owned: Boolean(agentId), agentId };
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
+    // projects with nothing running: their latest session, as cards after the live units
+    offline: buildOffline(offlineSessions(history, sessions.map((s) => s.cwd)), { ...offlineGit, ...gitByCwd }),
     agents,
     agentSupport: agentSupport(),
     today,
@@ -80,6 +85,11 @@ async function refreshGit() {
     gitByCwd = await collectGit(sessions.map((s) => s.cwd));
     history = collectHistory();
     today = collectToday();
+    const off = offlineSessions(history, sessions.map((s) => s.cwd)).map((h) => h.cwd);
+    if (Date.now() - offlineGitAt > 120_000 || off.some((c) => !(c in offlineGit))) {
+      offlineGit = await collectGit(off);
+      offlineGitAt = Date.now();
+    }
     publish();
   } finally {
     gitBusy = false;

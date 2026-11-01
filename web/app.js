@@ -388,8 +388,8 @@ function unitCard(u) {
   const th = state.thresholds;
   const now = Date.now();
   const standby = u.status === 'idle' && now - u.statusSince > th.standbyMinutes * 60_000;
-  const cls = u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
-  const label = lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : lang === 'ja' ? (u.permission ? 'PERMIT · 承認待ち' : u.status === 'busy' ? 'ENGAGED · 作業中' : standby ? 'STANDBY · 休止' : 'AWAITING · 待機') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
+  const cls = u.offline ? 'offline' : u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
+  const label = u.offline ? { zh: 'OFFLINE · 未出击', en: 'OFFLINE', ja: 'OFFLINE · 未出撃' }[lang] : lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : lang === 'ja' ? (u.permission ? 'PERMIT · 承認待ち' : u.status === 'busy' ? 'ENGAGED · 作業中' : standby ? 'STANDBY · 休止' : 'AWAITING · 待機') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
@@ -397,7 +397,10 @@ function unitCard(u) {
   const repos = u.repos.slice(0, 4).map(repoRow).join('');
   const more = u.repos.length > 4 ? `<div class="empty">${L('还有 {0} 个仓库…', u.repos.length - 4)}</div>` : '';
   const oldestFetch = u.repos.reduce((m, r) => (r.fetchedAt && (!m || r.fetchedAt < m) ? r.fetchedAt : m), null);
-  const action = u.owned
+  // offline: its latest session, deployed here (or in an outside terminal) on demand
+  const action = u.offline
+    ? `<button class="mini" data-takeover="${esc(u.sessionId)}" title="${L('在指挥中心里继续，可以直接下指令')}">${L('▶ 出击')}</button><button class="mini ghost" data-resume="${esc(u.sessionId)}" title="${L('在新的 Windows Terminal 里继续')}">${L('外部终端')}</button>`
+    : u.owned
     ? `<button class="mini" data-term="${esc(u.agentId)}" title="${L('打开它的终端，直接下指令')}">${L('▶ 终端')}</button>`
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
@@ -405,7 +408,7 @@ function unitCard(u) {
     <div class="top"><span>◆ ${label}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.project)}</h3><div class="call">${L('呼号')} ${esc(u.name)} · ${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
-    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || L('（还没有汇报）'))}</div>
+    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
       <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('LOAD 记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
       <div class="stat"><div class="k"><span>${L('DRONES 僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
@@ -519,7 +522,10 @@ function currentFolder(list = folders()) {
 
 // What the current tab pages through; Units falls back to the archive when nothing is running.
 function currentList() {
-  if (ui.tab === 'archive' || (ui.tab === 'units' && !state.units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
+  // units: live sessions first, then every other project's latest session (newest first)
+  const units = [...state.units, ...(state.offline || [])];
+  if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
+  if (ui.tab === 'units') return { kind: 'units', list: units };
   return { kind: ui.tab, list: { units: state.units, quests: state.quests, comms: state.comms }[ui.tab] };
 }
 
