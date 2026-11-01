@@ -212,10 +212,10 @@ export function screenLines(agent) {
 export function menuOptions(agent) {
   const lines = screenLines(agent);
   let last = -1;
-  for (let i = lines.length - 1; i >= 0; i--) if (/^\s*(?:❯\s*)?\d\.\s+\S/.test(lines[i])) { last = i; break; }
+  for (let i = lines.length - 1; i >= 0; i--) if (/^\s*(?:[❯›>▸]\s*)?\d\.\s+\S/.test(lines[i])) { last = i; break; }
   if (last < 0) return [];
   // walk up through the options, their indented descriptions and the blank lines between them
-  const inMenu = (l) => /^\s*(?:❯\s*)?\d\.\s+\S/.test(l) || /^\s{4,}\S/.test(l);
+  const inMenu = (l) => /^\s*(?:[❯›>▸]\s*)?\d\.\s+\S/.test(l) || /^\s{4,}\S/.test(l);
   let first = last;
   for (let i = last - 1; i >= 0; i--) {
     if (!lines[i].trim() || /^[\s─━╌┄-]{8,}$/.test(lines[i])) continue; // blank lines and dividers between options
@@ -224,20 +224,21 @@ export function menuOptions(agent) {
   }
   const out = [];
   for (let i = first; i <= last; i++) {
-    const m = lines[i].match(/^\s*(❯\s*)?(\d)\.\s+(.+?)\s*$/);
+    const m = lines[i].match(/^\s*([❯›>▸]\s*)?(\d)\.\s+(.+?)\s*$/);
     if (m) out.push({ key: m[2], label: m[3], current: Boolean(m[1]) });
   }
-  // a live menu always marks its current option with the cursor; numbered lists in Claude's text do not
+  // a live menu always marks its current option with a cursor (❯ in pickers, > in questions);
+  // numbered lists in Claude's text do not
   return out.length >= 2 && out.some((o) => o.current) ? out : [];
 }
 
 export function permissionPrompt(agent) {
   const lines = screenLines(agent);
-  const optAt = lines.findIndex((l) => /^\s*(?:❯\s*)?1\.\s+\S/.test(l));
+  const optAt = lines.findIndex((l) => /^\s*(?:[❯›>▸]\s*)?1\.\s+\S/.test(l));
   if (optAt < 0) return null;
   const options = [];
   for (let i = optAt; i < lines.length; i++) {
-    const m = lines[i].match(/^\s*(?:❯\s*)?(\d)\.\s+(.+?)\s*$/);
+    const m = lines[i].match(/^\s*(?:[❯›>▸]\s*)?(\d)\.\s+(.+?)\s*$/);
     if (m) options.push({ key: m[1], label: m[2] });
     else if (options.length && lines[i].trim() && !/^\s{3,}/.test(lines[i])) break;
   }
