@@ -1802,6 +1802,33 @@
       "created": "2026-11-01 19:38",
       "updated": "2026-11-01 19:38",
       "notes": []
+    },
+    {
+      "id": "C-029",
+      "type": "change",
+      "title": "手机版：彩色屏幕、任意编号菜单的按钮、方向键等按键（0.7.3）",
+      "summary": "用户反馈手机上屏幕只有一种颜色、看代码吃力，弹出的选择 / 提交无法操作。新增 server/screenhtml.js 把 headless 屏幕按配色转 HTML；menuOptions() 识别任意编号菜单；KEYS 增加方向键、Tab、Space、Backspace，手机端白名单放开这些键。实测 /model 菜单 6 个选项成按钮，Esc 关闭。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/screenhtml.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/mobile.js",
+        "web/m.html",
+        "web/m.js",
+        "web/m.css"
+      ],
+      "tags": [
+        "手机"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 19:42",
+      "updated": "2026-11-01 19:42",
+      "notes": []
     }
   ]
 }

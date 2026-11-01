@@ -127,12 +127,12 @@ async function handle(req, res) {
     });
     return;
   }
-  if (req.method === 'GET' && url.pathname === '/api/screen') return send(res, 200, { lines: hooks.screen(url.searchParams.get('id')) });
+  if (req.method === 'GET' && url.pathname === '/api/screen') return send(res, 200, hooks.screen(url.searchParams.get('id')));
   if (req.method === 'POST' && url.pathname === '/api/action') {
     const body = await readBody(req);
     // the phone may talk to agents, nothing more: no spawning, killing, git, or settings
     if (!['text', 'queue', 'unqueue', 'answer', 'key'].includes(body.action)) return send(res, 400, { error: 'not_allowed' });
-    if (body.action === 'key' && body.key !== 'esc') return send(res, 400, { error: 'not_allowed' });
+    if (body.action === 'key' && !['esc', 'enter', 'up', 'down', 'left', 'right', 'tab', 'shift-tab', 'space', 'backspace'].includes(body.key)) return send(res, 400, { error: 'not_allowed' });
     return send(res, 200, hooks.action(body));
   }
   return send(res, 404, { error: 'not_found' });

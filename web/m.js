@@ -120,8 +120,13 @@ async function refreshScreen() {
   const r = await fetch(`/api/screen?id=${encodeURIComponent(screenId)}`).then((x) => x.json()).catch(() => ({ lines: [] }));
   const el = $('screen');
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-  el.textContent = (r.lines || []).join('\n') || L('（没有内容）');
+  // colored by the server (text already escaped there)
+  if (r.html?.length) el.innerHTML = r.html.join('\n');
+  else el.textContent = L('（没有内容）');
   if (atBottom) el.scrollTop = el.scrollHeight;
+  const menu = r.menu || [];
+  const html = menu.map((o) => `<button type="button" class="${o.current ? 'cur' : ''}" data-choice="${esc(o.key)}">${esc(o.key)}. ${esc(o.label)}</button>`).join('');
+  if ($('sheet-menu').dataset.last !== html) $('sheet-menu').innerHTML = $('sheet-menu').dataset.last = html;
 }
 
 function openScreen(id) {
@@ -185,11 +190,19 @@ $('composer').addEventListener('submit', async (e) => {
 });
 
 $('sheet-close').addEventListener('click', closeScreen);
-$('sheet-esc').addEventListener('click', async () => {
+// keys and menu choices go straight to the agent shown, then the screen refreshes soon after
+async function press(body) {
   if (!screenId) return;
-  await post('/api/action', { id: screenId, action: 'key', key: 'esc' });
-  toast(L('已发送 Esc'));
-  setTimeout(refreshScreen, 600);
+  await post('/api/action', { id: screenId, ...body });
+  setTimeout(refreshScreen, 400);
+}
+$('keypad').addEventListener('click', (e) => {
+  const k = e.target.closest('[data-key]');
+  if (k) press({ action: 'key', key: k.dataset.key });
+});
+$('sheet-menu').addEventListener('click', (e) => {
+  const c = e.target.closest('[data-choice]');
+  if (c) press({ action: 'answer', choice: c.dataset.choice });
 });
 
 /* ---------- live state ---------- */

@@ -59,12 +59,22 @@ main { flex: 1; padding: 10px 12px 170px; display: flex; flex-direction: column;
 .composer #send { flex: none; width: 72px; background: rgba(61,245,255,.12); border: 1px solid var(--cyan); color: var(--text); font-size: 15px; }
 .composer #send:disabled { opacity: .5; }
 
-.sheet { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; flex-direction: column; padding-bottom: 150px; }
+.sheet { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; flex-direction: column; padding-bottom: 128px; }
 .sheet[hidden] { display: none; }
 .sheet-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line-hi); }
 .sheet-head b { flex: 1; color: var(--cyan); letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-head button { height: 36px; min-width: 44px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); }
-.screen { flex: 1; margin: 0; overflow: auto; padding: 10px; font: 11px/1.45 var(--mono); color: #9fd4ff; white-space: pre; }
+.screen { flex: 1; margin: 0; overflow: auto; padding: 10px; font: 11px/1.45 var(--mono); color: #9fd4ff; background: #050a12; white-space: pre; }
+/* the numbered menu on screen, as buttons; and keys to drive any dialog */
+.menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 10px 0; }
+.menu:empty { display: none; }
+.menu button { min-height: 40px; padding: 6px 10px; text-align: left; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu button.cur { border-color: var(--cyan); color: var(--text); background: rgba(61,245,255,.08); }
+.keypad { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 6px 10px; }
+.keypad button { height: 40px; background: #0b1626; border: 1px solid var(--line-hi); color: var(--text); font-size: 14px; }
+.keypad button:active { background: rgba(61,245,255,.2); }
+.keypad .ok { color: var(--green); border-color: var(--green); }
+.keypad .no { color: #ff8fa3; border-color: var(--red); }
 
 .toast { position: fixed; left: 50%; bottom: 140px; transform: translateX(-50%); z-index: 10; max-width: 86vw; padding: 10px 14px; background: #0b1626; border: 1px solid var(--cyan); font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .toast.on { opacity: 1; }

@@ -22,8 +22,13 @@
 <div class="c-row"><textarea id="text" rows="2" placeholder="输入指令…"></textarea><button type="submit" id="send">发送</button></div>
 </form>
 <div class="sheet" id="sheet" hidden>
-<div class="sheet-head"><b id="sheet-name"></b><button type="button" id="sheet-esc">Esc</button><button type="button" id="sheet-close" aria-label="关闭">✕</button></div>
+<div class="sheet-head"><b id="sheet-name"></b><button type="button" id="sheet-close" aria-label="关闭">✕</button></div>
 <pre class="screen" id="screen"></pre>
+<div class="menu" id="sheet-menu"></div>
+<div class="keypad" id="keypad">
+<button type="button" data-key="up" aria-label="上">↑</button><button type="button" data-key="down" aria-label="下">↓</button><button type="button" data-key="left" aria-label="左">←</button><button type="button" data-key="right" aria-label="右">→</button><button type="button" data-key="enter" class="ok">⏎ Enter</button>
+<button type="button" data-key="tab">Tab</button><button type="button" data-key="shift-tab">⇧Tab</button><button type="button" data-key="space">Space</button><button type="button" data-key="backspace" aria-label="退格">⌫</button><button type="button" data-key="esc" class="no">Esc</button>
+</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <script type="module" src="/web/m.js"></script>

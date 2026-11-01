@@ -185,7 +185,8 @@ export function sendText(agent, text) {
   return true;
 }
 
-const KEYS = { esc: '\x1b', 'ctrl-c': '\x03', enter: '\r' };
+// what a button can press: the command center uses esc; the phone page drives any dialog with the rest
+const KEYS = { esc: '\x1b', 'ctrl-c': '\x03', enter: '\r', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', tab: '\t', 'shift-tab': '\x1b[Z', space: ' ', backspace: '\x7f' };
 
 export function sendKey(agent, key) {
   if (!agent?.alive || !KEYS[key]) return false;
@@ -207,6 +208,22 @@ export function screenLines(agent) {
  * The permission dialog Claude Code is showing, if any: its text (the tool and command asked about)
  * and its numbered options. Found by the "❯ 1." style option list at the bottom of the screen.
  */
+/** Any numbered menu at the bottom of the screen (select lists, questions), for the phone page. */
+export function menuOptions(agent) {
+  const lines = screenLines(agent);
+  let last = -1;
+  for (let i = lines.length - 1; i >= 0; i--) if (/^\s*(?:❯\s*)?\d\.\s+\S/.test(lines[i])) { last = i; break; }
+  if (last < 0) return [];
+  let first = last;
+  while (first > 0 && (/^\s*(?:❯\s*)?\d\.\s+\S/.test(lines[first - 1]) || /^\s{4,}\S/.test(lines[first - 1]))) first--;
+  const out = [];
+  for (let i = first; i <= last; i++) {
+    const m = lines[i].match(/^\s*(❯\s*)?(\d)\.\s+(.+?)\s*$/);
+    if (m) out.push({ key: m[2], label: m[3], current: Boolean(m[1]) });
+  }
+  return out.length >= 2 ? out : [];
+}
+
 export function permissionPrompt(agent) {
   const lines = screenLines(agent);
   const optAt = lines.findIndex((l) => /^\s*(?:❯\s*)?1\.\s+\S/.test(l));

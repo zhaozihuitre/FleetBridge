@@ -14,13 +14,14 @@ import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { mobileInfo, setMobile, startMobile, stopMobile } from './mobile.js';
+import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
-import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
+import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -396,7 +397,10 @@ export async function start() {
   setInterval(publish, config.intervals.sessions);
   setInterval(() => refreshUsage(), config.intervals.usage);
   setInterval(refreshGit, config.intervals.git);
-  await startMobile({ clients, getState: () => state, action: agentAction, screen: (id) => screenLines(getAgent(id)) });
+  await startMobile({ clients, getState: () => state, action: agentAction, screen: (id) => {
+    const a = getAgent(id);
+    return { html: screenHtml(a?.screen), menu: a ? menuOptions(a) : [] };
+  } });
   console.log(`FLEET//BRIDGE  ${url}`);
   return server;
 }
