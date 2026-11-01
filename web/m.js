@@ -219,6 +219,22 @@ $('sheet-menu').addEventListener('click', (e) => {
   if (c) press({ action: 'answer', choice: c.dataset.choice });
 });
 
+/* ---------- the on-screen keyboard must not cover the composer ---------- */
+
+// Android Chrome resizes the page for the keyboard (interactive-widget in the viewport meta);
+// iOS Safari and others only shrink the visual viewport, so lift the composer by what it hides.
+const vv = window.visualViewport;
+if (vv) {
+  const fit = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    document.documentElement.style.setProperty('--kb', `${kb}px`);
+  };
+  vv.addEventListener('resize', fit);
+  vv.addEventListener('scroll', fit);
+  fit();
+}
+$('text').addEventListener('focus', () => setTimeout(() => $('text').scrollIntoView({ block: 'nearest' }), 300));
+
 /* ---------- live state ---------- */
 
 function connect() {

@@ -1936,6 +1936,28 @@
       "created": "2026-11-01 20:13",
       "updated": "2026-11-01 20:13",
       "notes": []
+    },
+    {
+      "id": "I-016",
+      "type": "issue",
+      "title": "手机上输入框有时被软键盘挡住",
+      "summary": "固定在底部的输入框在 iOS Safari 等浏览器里不会随键盘上移。viewport 加 interactive-widget=resizes-content（安卓 Chrome）；m.js 用 visualViewport 计算键盘高度写入 --kb，输入框、列表、屏幕视图、提示都按它上移（iOS 等）。真机键盘无法在电脑上模拟，需用户实测。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "web/m.html",
+        "web/m.css",
+        "web/m.js"
+      ],
+      "tags": [
+        "手机"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 20:20",
+      "updated": "2026-11-01 20:20",
+      "notes": [],
+      "count": 1
     }
   ]
 }
