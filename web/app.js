@@ -720,6 +720,9 @@ function layoutPanes() {
   // the big pane gets a normal font, small ones a smaller one to keep enough columns
   for (const [id, { t }] of panes) t.setFontSize(n === 1 ? 13 : act >= 0 && id === ui.term ? 13 : act >= 0 ? 11 : 12);
   $('term-dyn').setAttribute('aria-pressed', String(dynamicSplit));
+  // the label names the current mode, so an accidental click is easy to spot
+  $('term-dyn').textContent = dynamicSplit ? L('⇔ 动态') : L('▦ 等分');
+  $('term-dyn').title = dynamicSplit ? L('动态分屏：当前 / 刚收到指令的终端变大，其他变小') : L('等分：所有终端一样大。点击切回动态分屏');
 }
 
 function setDynamicSplit(on) {

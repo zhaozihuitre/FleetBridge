@@ -1373,6 +1373,30 @@
       "created": "2026-11-01 18:05",
       "updated": "2026-11-01 18:05",
       "notes": []
+    },
+    {
+      "id": "C-021",
+      "type": "change",
+      "title": "终端正文改为天蓝；分屏按钮显示当前模式（0.6.7）",
+      "summary": "xterm 正文 #9fd4ff、次要文字 #7fb2d0、强调 #d6f0ff。用户反馈获取焦点的终端不再变大：原因是安装版里动态分屏被关掉（fb-dynamic-split=0），代码正常；按钮改为按模式显示「⇔ 动态」/「▦ 等分」，避免误关后看不出来。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/terminal.js",
+        "web/app.js",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "终端",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:20",
+      "updated": "2026-11-01 18:20",
+      "notes": []
     }
   ]
 }
