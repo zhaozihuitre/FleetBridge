@@ -214,8 +214,14 @@ export function menuOptions(agent) {
   let last = -1;
   for (let i = lines.length - 1; i >= 0; i--) if (/^\s*(?:❯\s*)?\d\.\s+\S/.test(lines[i])) { last = i; break; }
   if (last < 0) return [];
+  // walk up through the options, their indented descriptions and the blank lines between them
+  const inMenu = (l) => /^\s*(?:❯\s*)?\d\.\s+\S/.test(l) || /^\s{4,}\S/.test(l);
   let first = last;
-  while (first > 0 && (/^\s*(?:❯\s*)?\d\.\s+\S/.test(lines[first - 1]) || /^\s{4,}\S/.test(lines[first - 1]))) first--;
+  for (let i = last - 1; i >= 0; i--) {
+    if (!lines[i].trim() || /^[\s─━╌┄-]{8,}$/.test(lines[i])) continue; // blank lines and dividers between options
+    if (!inMenu(lines[i])) break;
+    first = i;
+  }
   const out = [];
   for (let i = first; i <= last; i++) {
     const m = lines[i].match(/^\s*(❯\s*)?(\d)\.\s+(.+?)\s*$/);

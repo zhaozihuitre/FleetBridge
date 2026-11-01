@@ -1852,6 +1852,26 @@
       "created": "2026-11-01 19:48",
       "updated": "2026-11-01 19:48",
       "notes": []
+    },
+    {
+      "id": "I-013",
+      "type": "issue",
+      "title": "手机上 Claude 的选择题（AskUserQuestion）不显示编号按钮",
+      "summary": "选择题的选项之间有说明行、空行，最后的「Chat about this」前还有分隔线；menuOptions 往上找时遇到空行 / 分隔线就停，只认到 1 个选项，不足 2 个不显示。改为跳过空行与分隔线。用模拟画面验证：5 个选项全部识别。用户用方向键 + Enter 已能作答（0.7.4 实测）。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/agents.js"
+      ],
+      "tags": [
+        "手机"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:57",
+      "updated": "2026-11-01 19:57",
+      "notes": [],
+      "count": 1
     }
   ]
 }
