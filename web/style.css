@@ -137,6 +137,25 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .msg-meta { align-self: flex-end; font-size: 10px; color: var(--muted); font-family: var(--display); }
 .msg-sep { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); letter-spacing: 2px; }
 .msg-sep::before, .msg-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.cmd-mode { flex: none; height: 30px; padding: 0 8px; background: transparent; border: 1px solid var(--line-hi); color: var(--muted); font-family: var(--body); font-size: 12px; }
+.cmd-mode:hover { color: var(--text); border-color: var(--cyan); }
+.cmd-mode[aria-pressed="true"] { color: var(--amber); border-color: var(--amber); background: rgba(255,176,32,.1); }
+.cmd-row .cmd-to { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* saved prompts, opened above the input */
+.cmd-lib { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 21; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; background: #050a12; border: 1px solid var(--cyan); box-shadow: 0 0 16px rgba(61,245,255,.2); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
+.cmd-lib[hidden] { display: none; }
+.cmd-lib .lib-item { display: grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center; border-bottom: 1px solid var(--line); }
+.cmd-lib .lib-item button { height: 32px; border: 0; background: transparent; color: var(--soft); font-family: var(--body); font-size: 12px; text-align: left; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-lib .lib-item button:hover { background: rgba(61,245,255,.1); color: var(--text); }
+.cmd-lib .lib-item .del { padding: 0; text-align: center; color: var(--muted); }
+.cmd-lib .lib-item .del:hover { color: var(--red); }
+.cmd-lib .lib-add { height: 32px; border: 0; background: transparent; color: var(--cyan); font-family: var(--body); font-size: 12px; text-align: left; padding: 0 10px; }
+.cmd-lib .lib-add:hover { background: rgba(61,245,255,.1); }
+.cmd-lib .lib-empty { padding: 10px; font-family: var(--body); font-size: 12px; color: var(--muted); }
+.msg.out.queued { border-style: dashed; border-color: rgba(255,176,32,.5); background: rgba(255,176,32,.06); }
+.msg.out.queued .msg-meta { display: flex; align-items: center; gap: 8px; }
+.msg.out.queued .msg-meta button { width: 20px; height: 20px; border: 0; background: transparent; color: var(--muted); }
+.msg.out.queued .msg-meta button:hover { color: var(--red); }
 .cmd-to { font-family: var(--body); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .cmd-form { flex: none; display: flex; flex-direction: column; gap: 6px; }
 .cmd-input { position: relative; display: flex; }

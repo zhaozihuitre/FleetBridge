@@ -66,6 +66,12 @@ function renderLimits() {
         })
         .join('')
     : `<div class="lim"><span>${L('额度')}</span><span>${state.usage?.error ? L('读取失败') : L('读取中…')}</span><span></span></div>`;
+  // same as the command center: say when these numbers are an old reading (e.g. rate limited)
+  const u = state.usage;
+  if (limits.length && u?.error && u.fetchedAt) {
+    const d = new Date(u.fetchedAt);
+    $('limits').insertAdjacentHTML('beforeend', `<div class="lim-stale">${L('缓存 {0}', `${pad(d.getHours())}:${pad(d.getMinutes())}`)}${u.error === 'rate_limited' ? L(' · 接口限流，稍后自动重试') : ''}</div>`);
+  }
 }
 
 function unitLook(u) {

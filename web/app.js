@@ -173,7 +173,10 @@ function renderOperator() {
     .slice(0, 8)
     .reverse()
     .map((s) => `<div class="msg out"><div class="msg-text">${esc(s.text)}</div><div class="msg-meta">${clock(s.t)} · ${L('发给 {0} 个', s.n)}</div></div>`);
-  const html = incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '');
+  const queued = (state.agents || [])
+    .filter((a) => a.alive && a.queue?.length)
+    .flatMap((a) => a.queue.map((q, i) => `<div class="msg out queued"><div class="msg-text">${esc(q.text)}</div><div class="msg-meta">→ ${esc(agentLabel(a.id).name)} · #${i + 1}<button type="button" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></div></div>`));
+  const html = incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '') + (queued.length ? `<div class="msg-sep">${L('排队中')}</div>` + queued.join('') : '');
   if (renderOperator.last !== html) {
     const box = $('msg-box');
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
@@ -259,7 +262,8 @@ async function sendToTargets(body, label, ids) {
   const ok = (r.results || []).filter(Boolean).length;
   spotlight(ids.filter((_, i) => r.results?.[i]));
   sentLog.unshift({ t: Date.now(), text: label, n: ok });
-  toast(ok === ids.length ? L('已发给 {0} 个 agent', ok) : L('发出 {0} / {1}，有的 agent 可能已经退出', ok, ids.length));
+  if (body.action === 'queue') toast(L('已加入 {0} 个 agent 的队列，做完当前的再发', ok));
+  else toast(ok === ids.length ? L('已发给 {0} 个 agent', ok) : L('发出 {0} / {1}，有的 agent 可能已经退出', ok, ids.length));
   renderOperator();
   $('msg-box').scrollTop = $('msg-box').scrollHeight;
 }
@@ -267,6 +271,8 @@ async function sendToTargets(body, label, ids) {
 $('msg-box').addEventListener('click', (e) => {
   const go = e.target.closest('[data-msg-go]');
   if (go) return goLine(Number(go.dataset.msgGo));
+  const uq = e.target.closest('[data-unqueue]');
+  if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
   const an = e.target.closest('[data-answer]');
   if (an) {
     an.disabled = true;
@@ -294,10 +300,77 @@ $('cmd-form').addEventListener('submit', async (e) => {
   $('cmd-err').textContent = '';
   const ids = m.ids.length ? m.ids : liveAgents().map((a) => a.id);
   const who = m.ids.length ? raw.match(/@[^\s@]+/g).join(' ') + ' ' : '';
-  await sendToTargets({ action: 'text', text: m.text }, who + m.text, ids);
+  await sendToTargets({ action: queueMode ? 'queue' : 'text', text: m.text }, (queueMode ? '⏱ ' : '') + who + m.text, ids);
   $('cmd-text').value = '';
   closeSuggest();
 });
+
+/* queue mode: orders wait in a queue and go out one per finished turn */
+let queueMode = false;
+try {
+  queueMode = localStorage.getItem('fb-queue-mode') === '1';
+} catch {
+  // default: send right away
+}
+function setQueueMode(on) {
+  queueMode = on;
+  $('cmd-queue').setAttribute('aria-pressed', String(on));
+  try {
+    localStorage.setItem('fb-queue-mode', on ? '1' : '0');
+  } catch {
+    // not remembered
+  }
+}
+setQueueMode(queueMode);
+$('cmd-queue').addEventListener('click', () => setQueueMode(!queueMode));
+
+/* the library of saved prompts */
+let library = [];
+async function loadLibrary() {
+  library = (await fetch('/api/prompts').then((r) => r.json()).catch(() => ({ list: [] }))).list || [];
+}
+async function saveLibrary(list) {
+  library = (await post('/api/prompts', { list })).list || list;
+}
+function renderLibrary() {
+  $('lib-menu').innerHTML =
+    (library.length
+      ? library.map((p, i) => `<div class="lib-item"><button type="button" data-lib="${i}" title="${esc(p)}">${esc(p.split('\n')[0])}</button><button type="button" class="del" data-lib-del="${i}" title="${L('删除')}">✕</button></div>`).join('')
+      : `<div class="lib-empty">${L('还没有常用指令。在输入框写好后点下面保存。')}</div>`) +
+    `<button type="button" class="lib-add" data-lib-add>${L('＋ 保存当前输入')}</button>`;
+}
+async function toggleLibrary(open = $('lib-menu').hidden) {
+  if (open) {
+    await loadLibrary();
+    renderLibrary();
+  }
+  $('lib-menu').hidden = !open;
+  $('cmd-lib').setAttribute('aria-expanded', String(open));
+}
+$('cmd-lib').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleLibrary();
+});
+$('lib-menu').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const use = e.target.closest('[data-lib]');
+  const del = e.target.closest('[data-lib-del]');
+  if (use) {
+    $('cmd-text').value = library[Number(use.dataset.lib)] || '';
+    toggleLibrary(false);
+    $('cmd-text').focus();
+  } else if (del) {
+    await saveLibrary(library.filter((_, i) => i !== Number(del.dataset.libDel)));
+    renderLibrary();
+  } else if (e.target.closest('[data-lib-add]')) {
+    const t = $('cmd-text').value.trim();
+    if (!t) return toast(L('输入框是空的'));
+    if (!library.includes(t)) await saveLibrary([...library, t]);
+    renderLibrary();
+    toast(L('已保存到常用'));
+  }
+});
+document.addEventListener('click', () => !$('lib-menu').hidden && toggleLibrary(false));
 
 /* @ autocomplete: suggests our agents while typing a mention */
 const suggest = { items: [], index: 0, start: -1 };

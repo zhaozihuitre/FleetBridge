@@ -1545,6 +1545,56 @@
       "created": "2026-11-01 18:56",
       "updated": "2026-11-01 18:56",
       "notes": []
+    },
+    {
+      "id": "C-026",
+      "type": "change",
+      "title": "指令队列与常用指令库",
+      "summary": "新增 server/queue.js：按 agent 排队，空闲 5 秒自动发下一条（快速回合在两次轮询之间 busy→idle 也能识别）；消息框显示排队中、可移除。常用指令库存 prompts.json。实测 ONE/TWO、THREE/FOUR 依次发出。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/queue.js",
+        "server/index.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "总指令台",
+        "队列"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": []
+    },
+    {
+      "id": "I-012",
+      "type": "issue",
+      "title": "测试实例轮询额度接口导致正式程序限流，指挥中心显示旧缓存",
+      "summary": "今天多次重启测试实例，每次都读一次额度接口，触发 429；安装版只能显示 18:14 的缓存（指挥中心标了缓存，小窗没标，看起来不一致）。新增 MONITOR_USAGE=off 让测试实例不调接口；小窗也显示「缓存 HH:MM · 接口限流」。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/collectors/usage.js",
+        "web/widget.js",
+        "web/widget.html"
+      ],
+      "tags": [
+        "额度",
+        "限流"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": [],
+      "count": 1
     }
   ]
 }

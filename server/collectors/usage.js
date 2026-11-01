@@ -98,6 +98,9 @@ async function profile(cred) {
 // Claude Code owns the token and refreshes it; we only read, so an expired token
 // means "open Claude Code once", never a refresh from here (that would rotate it under CC).
 export async function collectUsage(force = false) {
+  // MONITOR_USAGE=off (test instances): never call the endpoint. It is rate limited per account,
+  // so extra instances polling it starve the real app (it then shows a stale cache).
+  if (process.env.MONITOR_USAGE === 'off') return last;
   if (!force && Date.now() < backoffUntil) return last;
   if (Date.now() - (last?.fetchedAt || 0) < MIN_GAP && last?.ok !== false && !force) return { ...last, stale: false };
   try {

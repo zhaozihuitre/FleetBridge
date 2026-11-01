@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { config, ROOT } from './config.js';
+import { config, DATA_DIR, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel } from './collectors/usage.js';
@@ -12,6 +12,7 @@ import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
+import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
@@ -82,12 +83,14 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: buildOffline(offlineSessions(history, sessions.map((s) => s.cwd)), { ...offlineGit, ...gitByCwd }),
-    agents,
+    agents: agents.map((a) => ({ ...a, queue: queueOf(a.id) })),
     agentSupport: agentSupport(),
     today,
     forecast: fc,
     lang: getLang(),
   };
+  // queued orders: the next one goes to each of our agents that has finished its turn
+  dispatch(state.units.filter((u) => u.owned), (id, text) => sendText(getAgent(id), text));
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
   stateJson = json;
@@ -214,7 +217,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (req.method === 'POST' && req.url === '/api/agents/action') {
-    const { id, action, text, key, choice } = await readBody(req);
+    const { id, action, text, key, choice, index } = await readBody(req);
     const ids = Array.isArray(id) ? id : [id];
     const results = ids.map((one) => {
       const a = getAgent(one);
@@ -222,6 +225,14 @@ const server = http.createServer(async (req, res) => {
       if (action === 'text' && typeof text === 'string' && text.trim()) return sendText(a, text);
       if (action === 'key') return sendKey(a, key);
       if (action === 'answer') return answerPrompt(a, String(choice));
+      if (action === 'queue' && typeof text === 'string' && text.trim()) {
+        enqueue(a.id, text.trim());
+        return true;
+      }
+      if (action === 'unqueue') {
+        dequeue(a.id, Number.isInteger(index) ? index : null);
+        return true;
+      }
       if (action === 'kill') {
         killAgent(a);
         return true;
@@ -268,6 +279,25 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       return send(res, 500, { error: e.message });
     }
+  }
+  // Saved prompts (the console's library): a plain list in the data folder.
+  if (req.url === '/api/prompts') {
+    const file = path.join(DATA_DIR, 'prompts.json');
+    if (req.method === 'POST') {
+      const { list } = await readBody(req);
+      if (!Array.isArray(list)) return send(res, 400, { error: 'bad_list' });
+      const clean = list.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.slice(0, 4000)).slice(0, 100);
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(clean, null, 2));
+      return send(res, 200, { list: clean });
+    }
+    let list = [];
+    try {
+      list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      // none saved yet
+    }
+    return send(res, 200, { list });
   }
   if (req.method === 'POST' && req.url === '/api/lang') {
     const { lang } = await readBody(req);
