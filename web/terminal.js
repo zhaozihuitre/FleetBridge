@@ -5,18 +5,30 @@ import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
 import { L } from './i18n.js';
 import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 
+// The command center palette for all 16 colors: our agents run Claude Code with the dark-ansi
+// theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from these.
 const THEME = {
   background: '#050a12',
   foreground: '#ddf6ff',
   cursor: '#3df5ff',
+  cursorAccent: '#050a12',
   selectionBackground: 'rgba(61,245,255,.3)',
   black: '#0a1120',
-  brightBlack: '#4f7a90',
-  cyan: '#3df5ff',
-  brightCyan: '#b8fcff',
-  yellow: '#ffb020',
   red: '#ff4d6d',
   green: '#4dffa6',
+  yellow: '#ffb020',
+  blue: '#4d9fff',
+  magenta: '#c77dff',
+  cyan: '#3df5ff',
+  white: '#b8cfdc',
+  brightBlack: '#4f7a90',
+  brightRed: '#3df5ff', // Claude's brand accent (logo, highlights) in dark-ansi: our cyan; errors use plain red
+  brightGreen: '#8affc4',
+  brightYellow: '#ffd166',
+  brightBlue: '#82bcff',
+  brightMagenta: '#dcaaff',
+  brightCyan: '#b8fcff',
+  brightWhite: '#ffffff',
 };
 
 /**

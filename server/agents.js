@@ -36,9 +36,11 @@ const CLAUDE = findClaude();
 
 // Extra settings for our agents only (--settings outranks user/project settings): no status line —
 // the command center shows each agent's context itself, and the user's HUD would just eat terminal rows.
+// The dark-ansi theme draws Claude Code with the 16 terminal colors only (no fixed RGB), so the
+// xterm palette in web/terminal.js can dress it in the command center's colors.
 const AGENT_SETTINGS = path.join(DATA_DIR, 'agent-settings.json');
 function agentSettingsFile() {
-  const body = JSON.stringify({ statusLine: { type: 'command', command: 'exit 0' } }, null, 2);
+  const body = JSON.stringify({ statusLine: { type: 'command', command: 'exit 0' }, theme: 'dark-ansi' }, null, 2);
   try {
     if (!fs.existsSync(AGENT_SETTINGS) || fs.readFileSync(AGENT_SETTINGS, 'utf8') !== body) {
       fs.mkdirSync(DATA_DIR, { recursive: true });

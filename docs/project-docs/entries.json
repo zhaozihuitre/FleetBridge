@@ -1326,6 +1326,29 @@
       "created": "2026-11-01 17:51",
       "updated": "2026-11-01 17:51",
       "notes": []
+    },
+    {
+      "id": "C-019",
+      "type": "change",
+      "title": "终端里的 Claude 改用指挥中心配色（0.6.5）",
+      "summary": "我方 agent 的 --settings 加 theme: dark-ansi，Claude Code 只用 16 色；xterm 调色板完整定义为指挥中心配色，ANSI 亮红（Claude 品牌色）映射为青。不影响用户自己终端的主题；已运行的 agent 重启后生效。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/agents.js",
+        "web/terminal.js"
+      ],
+      "tags": [
+        "终端",
+        "UI"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 17:58",
+      "updated": "2026-11-01 17:58",
+      "notes": []
     }
   ]
 }
