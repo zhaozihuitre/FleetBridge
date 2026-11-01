@@ -1,0 +1,206 @@
+// The phone page: what needs you (answerable right here), every unit, a read-only view of an
+// agent's screen, and one input to send or queue orders. Talks only to the phone server.
+import { L, translateDom } from './i18n.js';
+
+translateDom();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const pad = (n) => String(n).padStart(2, '0');
+const hhmm = (ms) => {
+  const d = new Date(ms);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+const KIND = { PERMIT: 'var(--red)', ALERT: 'var(--red)', OVERLOAD: 'var(--red)', READY: 'var(--amber)', GIT: 'var(--amber)', ENGAGED: 'var(--cyan)', STANDBY: 'var(--muted)' };
+const AMBIENT = new Set(['engaged', 'calm', 'standby', 'empty']);
+
+let state = null;
+let view = 'msgs';
+let queueMode = false;
+let screenId = null;
+let screenTimer = 0;
+
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').classList.add('on');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => $('toast').classList.remove('on'), 2200);
+}
+
+const ours = () => (state?.agents || []).filter((a) => a.alive);
+const nameOf = (id) => {
+  const a = (state?.agents || []).find((x) => x.id === id);
+  const u = state?.units.find((x) => x.agentId === id);
+  return a?.name || u?.project || id.slice(0, 8);
+};
+
+function renderQuota() {
+  const f = state.forecast || {};
+  $('quota').innerHTML = (state.usage?.limits || [])
+    .map((l) => {
+      const used = Math.max(0, Math.min(100, l.usedPct));
+      const low = 100 - used <= state.thresholds.energyLowPct;
+      const fc = f[l.key];
+      const c = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
+      const v = fc?.runsOutAt ? L('约 {0} 用完', hhmm(fc.runsOutAt)) : `${Math.round(used)}%`;
+      return `<div class="q" style="--c:${c}"><span>${esc(l.label)}</span><span class="bar"><i style="width:${used}%"></i></span><span class="v ${fc?.runsOutAt ? 'hot' : ''}">${esc(v)}</span></div>`;
+    })
+    .join('');
+}
+
+function renderMsgs() {
+  const lines = state.operator?.lines || [];
+  $('n-msgs').textContent = lines.filter((l) => !AMBIENT.has(l.key)).length || '';
+  if (view !== 'msgs') return;
+  $('list').innerHTML =
+    lines
+      .map((l) => {
+        const live = l.unit ? state.units.find((u) => u.sessionId === l.unit.sessionId) : null;
+        const pp = l.kind === 'PERMIT' && live?.owned ? live.permission?.prompt : null;
+        const answer = pp
+          ? `${pp.text ? `<pre>${esc(pp.text)}</pre>` : ''}<div class="acts">${pp.options
+              .map((o) => `<button type="button" class="${o.key === '1' ? 'yes' : ''}" data-answer="${esc(live.agentId)}" data-choice="${esc(o.key)}">${esc(o.key)}. ${esc(o.label)}</button>`)
+              .join('')}<button type="button" class="no" data-answer="${esc(live.agentId)}" data-choice="esc">${L('拒绝（Esc）')}</button></div>`
+          : '';
+        const look = live?.owned && !pp ? `<div class="acts row"><button type="button" data-screen="${esc(live.agentId)}">${L('看屏幕')}</button><button type="button" data-to="${esc(live.agentId)}">${L('发指令')}</button></div>` : '';
+        return `<article class="card" style="--c:${KIND[l.kind] || 'var(--cyan)'}">
+          <div class="head"><b>${esc(l.kind)}</b>${l.unit ? `<span class="p">${esc(l.unit.project.toUpperCase())}</span>` : ''}${l.at ? `<time>${hhmm(l.at)}</time>` : ''}</div>
+          <div class="text">${esc(l.text)}</div>${answer}${look}</article>`;
+      })
+      .join('') || `<div class="empty">${L('一切正常，没有需要你处理的事')}</div>`;
+}
+
+function renderUnits() {
+  $('n-units').textContent = state.units.length || '';
+  if (view !== 'units') return;
+  const now = Date.now();
+  $('list').innerHTML =
+    state.units
+      .map((u) => {
+        const st = u.permission ? [L('等你授权'), 'var(--red)'] : u.status === 'busy' ? [L('作战中'), 'var(--cyan)'] : [L('待命'), 'var(--amber)'];
+        const mins = Math.max(0, Math.round((now - u.statusSince) / 60_000));
+        const text = u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
+        const acts = u.owned ? `<div class="acts row"><button type="button" data-screen="${esc(u.agentId)}">${L('看屏幕')}</button><button type="button" data-to="${esc(u.agentId)}">${L('发指令')}</button></div>` : '';
+        return `<article class="card" style="--c:${st[1]}">
+          <div class="head"><span class="p">${esc(u.project.toUpperCase())}</span>${u.owned ? `<span class="ours">${L('我方')}</span>` : ''}<b>${esc(st[0])}</b><time>${mins}m · <span class="ctx">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'}</span></time></div>
+          ${text ? `<div class="sub">${esc(text)}</div>` : ''}${acts}</article>`;
+      })
+      .join('') || `<div class="empty">${L('没有运行中的会话')}</div>`;
+}
+
+function renderTargets() {
+  const sel = $('target');
+  const keep = sel.value;
+  const opts = [`<option value="all">${L('全部我方 agent（{0}）', ours().length)}</option>`, ...ours().map((a) => `<option value="${esc(a.id)}">${esc(nameOf(a.id))}</option>`)];
+  const html = opts.join('');
+  if (renderTargets.last !== html) {
+    sel.innerHTML = renderTargets.last = html;
+    sel.value = [...sel.options].some((o) => o.value === keep) ? keep : 'all';
+  }
+  $('send').disabled = !ours().length;
+}
+
+function render() {
+  if (!state) return;
+  renderQuota();
+  renderMsgs();
+  renderUnits();
+  renderTargets();
+}
+
+function setView(v) {
+  view = v;
+  for (const b of document.querySelectorAll('.tabs [data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === v));
+  render();
+  window.scrollTo(0, 0);
+}
+
+async function refreshScreen() {
+  if (!screenId) return;
+  const r = await fetch(`/api/screen?id=${encodeURIComponent(screenId)}`).then((x) => x.json()).catch(() => ({ lines: [] }));
+  const el = $('screen');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+  el.textContent = (r.lines || []).join('\n') || L('（没有内容）');
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
+function openScreen(id) {
+  screenId = id;
+  $('sheet-name').textContent = nameOf(id);
+  $('sheet').hidden = false;
+  $('target').value = id;
+  refreshScreen();
+  clearInterval(screenTimer);
+  screenTimer = setInterval(refreshScreen, 2000);
+}
+
+function closeScreen() {
+  screenId = null;
+  clearInterval(screenTimer);
+  $('sheet').hidden = true;
+}
+
+/* ---------- events ---------- */
+
+document.querySelector('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (b) setView(b.dataset.view);
+});
+
+$('list').addEventListener('click', async (e) => {
+  const an = e.target.closest('[data-answer]');
+  if (an) {
+    an.disabled = true;
+    const r = await post('/api/action', { id: an.dataset.answer, action: 'answer', choice: an.dataset.choice });
+    return toast(r.results?.[0] ? L('已回应授权') : L('回应失败：agent 可能已经退出'));
+  }
+  const sc = e.target.closest('[data-screen]');
+  if (sc) return openScreen(sc.dataset.screen);
+  const to = e.target.closest('[data-to]');
+  if (to) {
+    $('target').value = to.dataset.to;
+    $('text').focus();
+  }
+});
+
+$('queue').addEventListener('click', () => {
+  queueMode = !queueMode;
+  $('queue').setAttribute('aria-pressed', String(queueMode));
+});
+
+$('composer').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('text').value.trim();
+  if (!text) return;
+  const ids = $('target').value === 'all' ? ours().map((a) => a.id) : [$('target').value];
+  if (!ids.length) return toast(L('还没有我方 agent'));
+  $('send').disabled = true;
+  const r = await post('/api/action', { id: ids, action: queueMode ? 'queue' : 'text', text });
+  $('send').disabled = false;
+  const ok = (r.results || []).filter(Boolean).length;
+  if (!ok) return toast(L('发送失败'));
+  $('text').value = '';
+  toast(queueMode ? L('已加入 {0} 个 agent 的队列，做完当前的再发', ok) : L('已发给 {0} 个 agent', ok));
+  if (screenId) setTimeout(refreshScreen, 1200);
+});
+
+$('sheet-close').addEventListener('click', closeScreen);
+$('sheet-esc').addEventListener('click', async () => {
+  if (!screenId) return;
+  await post('/api/action', { id: screenId, action: 'key', key: 'esc' });
+  toast(L('已发送 Esc'));
+  setTimeout(refreshScreen, 600);
+});
+
+/* ---------- live state ---------- */
+
+function connect() {
+  const es = new EventSource('/api/stream');
+  es.onopen = () => $('conn').classList.remove('bad');
+  es.onmessage = (e) => {
+    state = JSON.parse(e.data);
+    render();
+  };
+  es.onerror = () => $('conn').classList.add('bad'); // EventSource reconnects by itself
+}
+connect();

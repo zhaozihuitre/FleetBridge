@@ -13,13 +13,14 @@ import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
+import { mobileInfo, setMobile, startMobile, stopMobile } from './mobile.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
-import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
+import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -162,6 +163,33 @@ function readBody(req) {
   });
 }
 
+/** One action for one or more of our agents; shared by the command center and the phone page. */
+function agentAction({ id, action, text, key, choice, index }) {
+  const ids = Array.isArray(id) ? id : [id];
+  const results = ids.map((one) => {
+    const a = getAgent(one);
+    if (!a) return false;
+    if (action === 'text' && typeof text === 'string' && text.trim()) return sendText(a, text);
+    if (action === 'key') return sendKey(a, key);
+    if (action === 'answer') return answerPrompt(a, String(choice));
+    if (action === 'queue' && typeof text === 'string' && text.trim()) {
+      enqueue(a.id, text.trim());
+      return true;
+    }
+    if (action === 'unqueue') {
+      dequeue(a.id, Number.isInteger(index) ? index : null);
+      return true;
+    }
+    if (action === 'kill') {
+      killAgent(a);
+      return true;
+    }
+    if (action === 'remove') return removeAgent(one);
+    return false;
+  });
+  return { ok: results.some(Boolean), results };
+}
+
 const server = http.createServer(async (req, res) => {
   // Only same-origin pages may call the API: the data includes account email and project paths.
   const origin = req.headers.origin;
@@ -216,32 +244,9 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: e.message });
     }
   }
-  if (req.method === 'POST' && req.url === '/api/agents/action') {
-    const { id, action, text, key, choice, index } = await readBody(req);
-    const ids = Array.isArray(id) ? id : [id];
-    const results = ids.map((one) => {
-      const a = getAgent(one);
-      if (!a) return false;
-      if (action === 'text' && typeof text === 'string' && text.trim()) return sendText(a, text);
-      if (action === 'key') return sendKey(a, key);
-      if (action === 'answer') return answerPrompt(a, String(choice));
-      if (action === 'queue' && typeof text === 'string' && text.trim()) {
-        enqueue(a.id, text.trim());
-        return true;
-      }
-      if (action === 'unqueue') {
-        dequeue(a.id, Number.isInteger(index) ? index : null);
-        return true;
-      }
-      if (action === 'kill') {
-        killAgent(a);
-        return true;
-      }
-      if (action === 'remove') return removeAgent(one);
-      return false;
-    });
-    return send(res, 200, { ok: results.some(Boolean), results });
-  }
+  if (req.method === 'POST' && req.url === '/api/agents/action') return send(res, 200, agentAction(await readBody(req)));
+  // phone access (on / off, new key, QR): only from this computer
+  if (req.url === '/api/mobile') return send(res, 200, req.method === 'POST' ? await setMobile(await readBody(req)) : await mobileInfo());
   // Review / commit / push: only repos the git collector found (live and offline projects).
   if (req.url.startsWith('/api/git/')) {
     const url = new URL(req.url, 'http://localhost');
@@ -352,6 +357,7 @@ onAgentsChange(() => publish());
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
 export function shutdown() {
+  stopMobile();
   freezeRoster(); // keep the roster as it was, so the next start restores these agents
   killAll();
 }
@@ -390,6 +396,7 @@ export async function start() {
   setInterval(publish, config.intervals.sessions);
   setInterval(() => refreshUsage(), config.intervals.usage);
   setInterval(refreshGit, config.intervals.git);
+  await startMobile({ clients, getState: () => state, action: agentAction, screen: (id) => screenLines(getAgent(id)) });
   console.log(`FLEET//BRIDGE  ${url}`);
   return server;
 }

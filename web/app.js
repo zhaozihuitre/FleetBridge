@@ -1111,6 +1111,31 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+/* ---------- phone access: a QR code to pair a phone with the phone page ---------- */
+
+async function renderPhone(info) {
+  $('ph-toggle').textContent = info.enabled ? L('关闭手机访问') : L('开启手机访问');
+  $('ph-regen').hidden = !info.enabled;
+  $('ph-qr').innerHTML = info.qr || '';
+  if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('手机访问');
+  $('ph-tip').textContent = !info.enabled ? '' : info.running ? L('用手机相机扫码') : L('端口 {0} 没能打开，可能被占用', info.port);
+  // the key stays out of the visible list: only the QR code carries it
+  $('ph-urls').innerHTML = info.urls.map((u) => `<li><b>http://${esc(u.ip)}:${info.port}/m</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}</li>`).join('');
+}
+
+$('phone-btn').addEventListener('click', async () => {
+  $('phone').showModal();
+  renderPhone(await fetch('/api/mobile').then((r) => r.json()));
+});
+$('ph-toggle').addEventListener('click', async () => {
+  const on = $('ph-toggle').textContent === L('开启手机访问');
+  renderPhone(await post('/api/mobile', { enabled: on }));
+});
+$('ph-regen').addEventListener('click', async () => {
+  renderPhone(await post('/api/mobile', { regenerate: true }));
+  toast(L('已生成新密钥'));
+});
+
 /* ---------- change review: diff, commit and push without leaving the bridge ---------- */
 
 const review = { repo: null, files: [], file: null };

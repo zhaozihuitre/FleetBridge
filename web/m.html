@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04060c">
+<title>舰桥 · 手机</title>
+<link rel="stylesheet" href="/web/m.css">
+</head>
+<body>
+<header class="top">
+<div class="brand"><b>FLEET//BRIDGE</b><span class="conn" id="conn">●</span></div>
+<div class="quota" id="quota"></div>
+</header>
+<nav class="tabs" role="tablist">
+<button role="tab" data-view="msgs" aria-selected="true">消息 <span id="n-msgs"></span></button>
+<button role="tab" data-view="units" aria-selected="false">部队 <span id="n-units"></span></button>
+</nav>
+<main id="list" aria-live="polite"></main>
+<form class="composer" id="composer">
+<div class="c-row"><select id="target" aria-label="发给"></select><button type="button" id="queue" aria-pressed="false">⏱ 排队</button></div>
+<div class="c-row"><textarea id="text" rows="2" placeholder="输入指令…"></textarea><button type="submit" id="send">发送</button></div>
+</form>
+<div class="sheet" id="sheet" hidden>
+<div class="sheet-head"><b id="sheet-name"></b><button type="button" id="sheet-esc">Esc</button><button type="button" id="sheet-close" aria-label="关闭">✕</button></div>
+<pre class="screen" id="screen"></pre>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script type="module" src="/web/m.js"></script>
+</body>
+</html>
