@@ -118,6 +118,15 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .msg.in:not(.on) .msg-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .msg-text em { font-style: normal; color: var(--red); text-shadow: 0 0 8px rgba(255,77,109,.6); }
 .msg-acts { display: flex; gap: 6px; }
+/* a permission dialog answered from the message box */
+.msg-prompt { margin: 0; max-height: 160px; overflow: auto; padding: 6px 8px; background: #050a12; border: 1px solid var(--line); color: var(--soft); font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
+.msg-answers { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.msg.in { min-width: 0; }
+.msg-answers button { width: 100%; min-height: 28px; padding: 3px 10px; text-align: left; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-answers button.yes { border-color: var(--green); color: var(--green); background: rgba(77,255,166,.08); }
+.msg-answers button.no { border-color: var(--red); color: #ff8fa3; }
+.msg-answers button:hover:not(:disabled) { background: rgba(61,245,255,.1); color: var(--text); }
+.msg-answers button:disabled { opacity: .5; }
 .msg-acts button { height: 26px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
 .msg-acts button:first-child { border-color: var(--mc); color: var(--text); background: rgba(61,245,255,.08); }
 .msg-acts button:hover { border-color: var(--cyan); color: var(--text); }

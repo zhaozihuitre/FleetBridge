@@ -15,7 +15,7 @@ import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
-import { agentSupport, bindAgents, getAgent, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
+import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -35,6 +35,11 @@ let today = null;
 let offlineGit = {}; // git of offline projects: rescanned every 2 minutes, not every 30 s
 let offlineGitAt = 0;
 let state = null;
+const promptSeen = new Map(); // agent id -> when its current permission dialog was first seen
+function promptSince(id) {
+  if (!promptSeen.has(id)) promptSeen.set(id, Date.now());
+  return promptSeen.get(id);
+}
 let stateJson = '';
 const clients = new Set();
 
@@ -47,6 +52,19 @@ function publish() {
   const live = agents.filter((a) => a.alive);
   const byPid = new Map(live.filter((a) => a.pid).map((a) => [a.pid, a.id]));
   const bySession = new Map(live.map((a) => [a.sessionId, a.id]));
+  // Our agents waiting on a permission dialog: what it asks, read off their screens so it can be answered
+  // here. The screen alone also raises the reminder, for when no Notification hook fired (hooks can fail).
+  const prompts = new Map();
+  for (const s of sessions) {
+    const id = byPid.get(s.pid) || bySession.get(s.sessionId);
+    const prompt = id ? permissionPrompt(getAgent(id)) : null;
+    if (!prompt) {
+      promptSeen.delete(id);
+      continue;
+    }
+    prompts.set(s.sessionId, prompt);
+    s.permission ||= { at: promptSince(id), message: prompt.text.split('\n')[0] };
+  }
   const view = usage && { ...usage, limits: usage.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
   const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
@@ -54,7 +72,8 @@ function publish() {
     // "owned": launched by the command center, so we can open its terminal (agentId) and type into it
     units: base.units.map((u) => {
       const agentId = byPid.get(u.pid) || bySession.get(u.sessionId) || null;
-      return { ...u, owned: Boolean(agentId), agentId };
+      const prompt = prompts.get(u.sessionId) || null;
+      return { ...u, owned: Boolean(agentId), agentId, permission: u.permission && { ...u.permission, prompt } };
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
@@ -189,13 +208,14 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (req.method === 'POST' && req.url === '/api/agents/action') {
-    const { id, action, text, key } = await readBody(req);
+    const { id, action, text, key, choice } = await readBody(req);
     const ids = Array.isArray(id) ? id : [id];
     const results = ids.map((one) => {
       const a = getAgent(one);
       if (!a) return false;
       if (action === 'text' && typeof text === 'string' && text.trim()) return sendText(a, text);
       if (action === 'key') return sendKey(a, key);
+      if (action === 'answer') return answerPrompt(a, String(choice));
       if (action === 'kill') {
         killAgent(a);
         return true;

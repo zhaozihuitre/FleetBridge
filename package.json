@@ -29,7 +29,11 @@
       "!node_modules/**/{src,typings,test,tests,docs}/**",
       "!node_modules/**/{README,CHANGELOG,HISTORY}*"
     ],
-    "electronLanguages": ["zh-CN", "en-US", "ja"],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US",
+      "ja"
+    ],
     "asarUnpack": [
       "node_modules/@lydell/**"
     ],
@@ -67,6 +71,7 @@
     "@lydell/node-pty": "^1.2.0-beta.18",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
     "ws": "^8.22.0"
   }

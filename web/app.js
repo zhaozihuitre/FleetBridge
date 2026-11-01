@@ -144,8 +144,16 @@ function renderOperator() {
   const incoming = op.lines.map((l, i) => {
     const k = KIND[l.kind] || {};
     const text = esc(l.text).replace(/(\d+(?:\.\d+)?%)/g, l.kind === 'OVERLOAD' || l.kind === 'ALERT' ? '<em>$1</em>' : '$1');
+    // a permission dialog of one of our agents: show what it asks and answer it right here
+    const live = l.kind === 'PERMIT' && l.unit ? state.units.find((u) => u.sessionId === l.unit.sessionId) : null;
+    const pp = live?.owned ? live.permission?.prompt : null;
+    const answer = pp
+      ? `${pp.text ? `<pre class="msg-prompt">${esc(pp.text)}</pre>` : ''}<div class="msg-answers">${pp.options
+          .map((o) => `<button type="button" class="${o.key === '1' ? 'yes' : ''}" data-answer="${esc(live.agentId)}" data-choice="${esc(o.key)}" title="${esc(o.label)}">${esc(o.key)}. ${esc(o.label)}</button>`)
+          .join('')}<button type="button" class="no" data-answer="${esc(live.agentId)}" data-choice="esc">${L('拒绝（Esc）')}</button></div>`
+      : '';
     const acts = l.unit && !AMBIENT.has(l.key)
-      ? `<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? L('▶ 去终端授权') : L('▶ 跳到终端')}</button><button type="button" data-msg-snooze="${esc(l.key)}">${L('稍后')}</button></div>`
+      ? `${answer}<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? L('▶ 去终端授权') : L('▶ 跳到终端')}</button><button type="button" data-msg-snooze="${esc(l.key)}">${L('稍后')}</button></div>`
       : '';
     return `<div class="msg in ${i === ui.line ? 'on' : ''}" style="--mc:${k.c || 'var(--cyan)'}" data-line="${i}">
       <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project.toUpperCase())}</span>` : ''}<i>${k.label || ''}</i>${l.at ? `<time title="${esc(new Date(l.at).toLocaleString(locale, { hour12: false }))}">${clock(l.at, Date.now() - l.at > 86_400_000)}</time>` : ''}</div>
@@ -249,6 +257,13 @@ async function sendToTargets(body, label, ids) {
 $('msg-box').addEventListener('click', (e) => {
   const go = e.target.closest('[data-msg-go]');
   if (go) return goLine(Number(go.dataset.msgGo));
+  const an = e.target.closest('[data-answer]');
+  if (an) {
+    an.disabled = true;
+    return post('/api/agents/action', { id: an.dataset.answer, action: 'answer', choice: an.dataset.choice }).then((r) =>
+      toast(r.results?.[0] ? L('已回应授权') : L('回应失败：agent 可能已经退出')),
+    );
+  }
   const sn = e.target.closest('[data-msg-snooze]');
   if (sn) return snoozeLine(sn.dataset.msgSnooze);
   const m = e.target.closest('[data-line]');

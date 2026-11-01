@@ -1418,6 +1418,52 @@
       "updated": "2026-11-01 18:36",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-022",
+      "type": "change",
+      "title": "在舰桥里直接回应授权",
+      "summary": "新增 @xterm/headless 屏幕副本；permissionPrompt() 从屏幕读出权限对话框文本与选项，answerPrompt() 发数字键 / Esc；消息框 PERMIT 消息显示预览和选项按钮。屏幕识别也会补充授权提醒（hook 失败时）。实测：拒绝后文件未创建，选 1 后文件写入。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/agents.js",
+        "server/index.js",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js",
+        "package.json"
+      ],
+      "tags": [
+        "授权",
+        "总指令台"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:46",
+      "updated": "2026-11-01 18:46",
+      "notes": []
+    },
+    {
+      "id": "I-011",
+      "type": "issue",
+      "title": "Warp 插件的 PermissionRequest hook 在本机执行失败，非 auto 模式下所有授权被自动拒绝",
+      "summary": "claude-code-warp 插件注册了 on-permission-request.sh；在 PowerShell 下无法执行，失败被当作拒绝，manual / accept-edits 模式下权限请求还没显示就被拒。平时用 auto 模式所以少见。需要用户决定：装 Git for Windows、修插件配置或停用该插件。舰桥测试时用 MONITOR_AGENT_SETTINGS 关掉了它。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "环境",
+        "hook"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 18:46",
+      "updated": "2026-11-01 18:46",
+      "notes": [],
+      "count": 1
     }
   ]
 }

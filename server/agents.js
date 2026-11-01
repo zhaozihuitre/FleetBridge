@@ -11,6 +11,9 @@ import { L } from './i18n.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
+// A headless copy of each agent's screen, so the server can read what is on it (e.g. the command
+// a permission prompt asks about) without any terminal panel being open.
+const { Terminal: Headless } = require('@xterm/headless');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 let pty = null;
@@ -40,7 +43,14 @@ const CLAUDE = findClaude();
 // xterm palette in web/terminal.js can dress it in the command center's colors.
 const AGENT_SETTINGS = path.join(DATA_DIR, 'agent-settings.json');
 function agentSettingsFile() {
-  const body = JSON.stringify({ statusLine: { type: 'command', command: 'exit 0' }, theme: 'dark-ansi' }, null, 2);
+  // MONITOR_AGENT_SETTINGS (dev / tests only): a JSON object merged in, e.g. to switch off a plugin
+  let extra = {};
+  try {
+    extra = JSON.parse(process.env.MONITOR_AGENT_SETTINGS || '{}');
+  } catch {
+    // ignore a malformed override
+  }
+  const body = JSON.stringify({ statusLine: { type: 'command', command: 'exit 0' }, theme: 'dark-ansi', ...extra }, null, 2);
   try {
     if (!fs.existsSync(AGENT_SETTINGS) || fs.readFileSync(AGENT_SETTINGS, 'utf8') !== body) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -134,8 +144,10 @@ export function spawnAgent({ cwd, name, resume, prompt }) {
   if (settings) args.push('--settings', settings);
 
   const term = pty.spawn(CLAUDE, args, { name: 'xterm-256color', cols: 120, rows: 32, cwd, env: agentEnv() });
-  const agent = { id: sessionId, sessionId, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt: Date.now(), term, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
+  const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
+  const agent = { id: sessionId, sessionId, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   term.onData((d) => {
+    screen.write(d);
     agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
     agent.lastOutputAt = Date.now();
     for (const ws of agent.clients) ws.send(d);
@@ -181,6 +193,53 @@ export function sendKey(agent, key) {
   return true;
 }
 
+/** The agent's visible screen as plain text lines (trailing blanks trimmed). */
+export function screenLines(agent) {
+  const b = agent?.screen?.buffer.active;
+  if (!b) return [];
+  const out = [];
+  for (let i = b.viewportY; i < b.viewportY + agent.screen.rows; i++) out.push(b.getLine(i)?.translateToString(true) ?? '');
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  return out;
+}
+
+/**
+ * The permission dialog Claude Code is showing, if any: its text (the tool and command asked about)
+ * and its numbered options. Found by the "❯ 1." style option list at the bottom of the screen.
+ */
+export function permissionPrompt(agent) {
+  const lines = screenLines(agent);
+  const optAt = lines.findIndex((l) => /^\s*(?:❯\s*)?1\.\s+\S/.test(l));
+  if (optAt < 0) return null;
+  const options = [];
+  for (let i = optAt; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*(?:❯\s*)?(\d)\.\s+(.+?)\s*$/);
+    if (m) options.push({ key: m[1], label: m[2] });
+    else if (options.length && lines[i].trim() && !/^\s{3,}/.test(lines[i])) break;
+  }
+  // only Claude Code's permission dialogs, whose first answer is "Yes" (not other numbered menus)
+  if (options.length < 2 || !/^yes\b/i.test(options[0].label)) return null;
+  // the question and what it is about: the lines above the options, up to the solid rule that opens
+  // the dialog (dotted rules inside it, around a file preview, are skipped)
+  const body = [];
+  for (let i = optAt - 1; i >= 0 && body.length < 14; i--) {
+    const l = lines[i];
+    if (/^[\s─━═]{8,}$/.test(l)) break;
+    if (/^[\s╌┄-]{8,}$/.test(l)) continue;
+    body.unshift(l.replace(/^[\s│╭╰╮╯]+|[\s│╭╰╮╯]+$/g, ''));
+  }
+  return { text: body.filter((l, i, a) => l || (i && a[i - 1])).join('\n').trim(), options };
+}
+
+/** Answer a permission dialog by its option number (1 = yes); Esc rejects. */
+export function answerPrompt(agent, choice) {
+  if (!agent?.alive) return false;
+  if (choice === 'esc') agent.term.write('\x1b');
+  else if (/^\d$/.test(choice)) agent.term.write(choice);
+  else return false;
+  return true;
+}
+
 export function writeRaw(agent, data) {
   if (agent?.alive) agent.term.write(data);
 }
@@ -191,6 +250,7 @@ export function resizeAgent(agent, cols, rows) {
   const r = Math.max(5, Math.min(200, rows | 0));
   try {
     agent.term.resize(c, r);
+    agent.screen.resize(c, r);
   } catch {
     // the process may be exiting
   }
