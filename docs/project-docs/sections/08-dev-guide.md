@@ -16,6 +16,8 @@
 | `MONITOR_DEMO=empty` | 无会话，预览存档 / 空状态 |
 | `http://127.0.0.1:8787/#quests` | 直接打开某个标签；`#term=<agentId>` 打开某个终端 |
 
+桌面版本地验证：开发版用独立的配置目录（`%APPDATA%/fleet-bridge-dev`），可以和安装版同时运行，配合 `MONITOR_PORT=8790 MONITOR_DATA_DIR=<测试目录> npx electron . --remote-debugging-port=9333`，再用 DevTools 协议对窗口截图（`Page.captureScreenshot`）。不要动安装版进程。
+
 截图检查界面：`chrome --headless=new --screenshot ... --timeout=8000`（页面有 SSE 长连接，用 `--timeout` 而不是 `--virtual-time-budget`）。
 
 ## 容易踩的坑

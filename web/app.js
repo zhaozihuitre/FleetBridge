@@ -137,6 +137,7 @@ function renderOperator() {
   $('operator').dataset.mood = mood;
   $('op-mood').textContent = KIND[mood]?.mood || '';
   $('op-mood').style.color = KIND[mood]?.c;
+  sayLine(line, mood);
 
   // Message box: every reminder as an incoming message (most urgent first), then the commands we sent.
   const incoming = op.lines.map((l, i) => {
@@ -160,6 +161,24 @@ function renderOperator() {
     box.innerHTML = renderOperator.last = html;
     if (atBottom && outgoing.length) box.scrollTop = box.scrollHeight;
   }
+}
+
+// NOVA: one instance, mood = the operator mood, and she reads the selected reminder when it changes.
+const nova = window.Nova?.create($('op-av'), { bubble: false });
+let novaSaid = '';
+
+function sayLine(line, mood) {
+  if (!nova) return;
+  nova.setMood(mood);
+  const k = KIND[mood] || {};
+  $('op-nova').style.setProperty('--nc', k.c || 'var(--cyan)');
+  $('op-say-tag').textContent = `${state.operator.name}${k.mood ? ' · ' + k.mood.replace('● ', '') : ''}`;
+  const text = line?.text || '';
+  if (text === novaSaid) return;
+  novaSaid = text;
+  $('op-say').textContent = text;
+  $('op-say').title = text;
+  nova.say(text); // moves her mouth; the text itself is shown beside her
 }
 
 function goLine(i) {

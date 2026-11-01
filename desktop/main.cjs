@@ -6,7 +6,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
-const WIDGET_WIDTH = 302; // the page's 300px card plus its border
+const WIDGET_WIDTH = 422; // the page's 420px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
 const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(require('node:os').homedir(), '.claude-ops');
 
@@ -210,6 +210,10 @@ ipcMain.on('ops:notify', (_e, title, body) => {
   n.on('click', () => openMain());
   n.show();
 });
+
+// The dev build gets its own profile, so it can run beside the installed app (the single-instance
+// lock is per profile) instead of quitting and raising the installed one.
+if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'fleet-bridge-dev'));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

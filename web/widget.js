@@ -1,7 +1,6 @@
-// Always-on-top status widget: quota, the most urgent thing, and every unit at a glance.
+// Always-on-top status widget: NOVA with the quota as HP bars on the left, notifications on the right.
 const $ = (id) => document.getElementById(id);
 const bridge = window.opsBridge; // present only inside the Electron widget window
-const MAX_ROWS = 8;
 
 let state = null;
 let muted = false;
@@ -41,79 +40,80 @@ function since(ms) {
   return h < 48 ? `${h}h${pad(m % 60)}` : `${Math.floor(h / 24)}天`;
 }
 
-function seg(pct, n, color) {
-  const on = Math.round((Math.max(0, Math.min(100, pct)) / 100) * n);
-  return `<div class="seg" style="--c:${color}">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</div>`;
-}
-
 const SHORT = { session: '5 小时', weekly_all: '本周' };
 
+// Quota as HP bars under NOVA: the bar shows what's left, the number what's used (like /usage).
 function renderLimits() {
   const limits = state.usage?.limits || [];
   const th = state.thresholds;
   $('limits').innerHTML = limits.length
     ? limits
         .map((l) => {
-          const low = 100 - l.usedPct <= th.energyLowPct;
-          const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
+          const used = Math.max(0, Math.min(100, l.usedPct));
+          const low = 100 - used <= th.energyLowPct;
+          const color = low ? 'var(--red)' : 100 - used <= 35 ? 'var(--amber)' : 'var(--green)';
           const label = SHORT[l.key] || l.label.replace('本周 · ', '周 · ');
           const reset = new Date(l.resetsAt);
-          return `<div class="lim ${l.active ? 'active' : ''} ${low ? 'low' : ''}" title="${esc(l.label)} 已用 ${Math.round(l.usedPct)}%，${reset.toLocaleString('zh-CN', { hour12: false })} 重置">
-            <span>${esc(label)}</span>${seg(l.usedPct, 16, color)}<span class="pct">${Math.round(l.usedPct)}%</span></div>`;
+          return `<div class="hp ${l.active ? 'active' : ''} ${low ? 'low' : ''}" title="${esc(l.label)} 已用 ${Math.round(used)}%，${reset.toLocaleString('zh-CN', { hour12: false })} 重置">
+            <div class="top"><span>${esc(label)}</span><b>${Math.round(used)}%</b></div>
+            <div class="bar" style="--hc:${color}"><i style="width:${100 - used}%"></i></div></div>`;
         })
         .join('')
-    : `<div class="lim"><span>额度</span><span>${state.usage?.error ? '读取失败' : '读取中…'}</span><span></span></div>`;
-}
-
-function unitLook(u) {
-  const th = state.thresholds;
-  const now = Date.now();
-  const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
-  if (u.permission) return { c: 'var(--red)', s: '等你授权！', blink: true };
-  if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? '执行：' + u.lastPrompt : '作战中', blink: false, hot };
-  const standby = now - u.statusSince > th.standbyMinutes * 60_000;
-  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: standby ? '休眠' : '做完了，等你指令', blink: false, hot };
-}
-
-function renderUnits() {
-  const units = [...state.units].sort((a, b) => Boolean(b.permission) - Boolean(a.permission) || (a.status === 'idle') - (b.status === 'idle'));
-  const rows = units.slice(0, MAX_ROWS).map((u) => {
-    const look = unitLook(u);
-    const ctx = u.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
-    return `<button class="row" style="--c:${look.c}" data-agent="${esc(u.agentId || '')}" data-pid="${u.pid}" title="${esc(u.cwd)}\n${u.owned ? '点击打开它的终端' : '点击切到它的终端窗口'}">
-      <span class="dot ${look.blink ? 'blink' : ''}"></span>
-      <span class="mid"><span class="p">${esc(u.project)}${u.owned ? '<i>我方</i>' : ''}</span><span class="s">${esc(look.s)}</span></span>
-      <span class="r"><span class="ctx" style="--kc:${look.hot ? 'var(--red)' : 'var(--text)'}">${ctx}</span><span>${since(Date.now() - u.statusSince)}</span></span>
-    </button>`;
-  });
-  const more = units.length > MAX_ROWS ? `<div class="more">还有 ${units.length - MAX_ROWS} 个，打开指挥中心查看</div>` : '';
-  $('units').innerHTML = rows.join('') + more || '<div class="empty-w">没有运行中的会话 · 点 ⤢ 去存档挑一个</div>';
-
-  const busy = units.filter((u) => u.status === 'busy').length;
-  const permit = units.filter((u) => u.permission).length;
-  $('chips').innerHTML = `<span>作战 <b>${busy}</b></span><span>待命 <b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">授权 <b>${permit}</b></span>` : ''}`;
+    : `<div class="hp"><div class="top"><span>额度</span><b>${state.usage?.error ? '读取失败' : '读取中…'}</b></div></div>`;
 }
 
 const LV = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
+const TAG = { PERMIT: '授权', ALERT: '警报', OVERLOAD: '负载', READY: '待命', GIT: 'GIT' };
+const MAX_NOTES = 6;
 
-function renderAlert() {
-  const q = state.quests[0];
-  const a = $('alert');
-  if (!q) {
-    a.innerHTML = '';
-    return;
-  }
-  const u = q.unit && state.units.find((x) => x.sessionId === q.unit.sessionId);
-  a.style.setProperty('--qc', LV[q.lv]);
-  a.dataset.agent = u?.agentId || '';
-  a.dataset.pid = q.unit?.pid ?? '';
-  a.innerHTML = `<b>[${q.lv}] ${esc(q.title)}</b><small>${esc(q.goal)}${state.quests.length > 1 ? ` · 另有 ${state.quests.length - 1} 项` : ''}</small>`;
+// Right side: everything that needs you (most urgent first), then the units still at work.
+function renderNotes() {
+  const now = Date.now();
+  const notes = state.quests.map((q) => {
+    const u = q.unit && state.units.find((x) => x.sessionId === q.unit.sessionId);
+    return { c: LV[q.lv], blink: q.kind === 'PERMIT', agent: u?.agentId || '', pid: q.unit?.pid ?? '', p: q.unit?.project || q.title, tag: TAG[q.kind] || q.kind, s: q.unit ? q.goal : '', title: q.title };
+  });
+  const asked = new Set(state.quests.map((q) => q.unit?.sessionId));
+  for (const u of state.units)
+    if (u.status === 'busy' && !asked.has(u.sessionId))
+      notes.push({ c: 'var(--cyan)', agent: u.agentId || '', pid: u.pid, p: u.project, tag: since(now - u.statusSince), s: u.lastPrompt ? '执行：' + u.lastPrompt : '作战中', title: u.cwd });
+  const rows = notes.slice(0, MAX_NOTES).map(
+    (n) => `<button class="nt" style="--c:${n.c}" data-agent="${esc(n.agent)}" data-pid="${n.pid}" title="${esc(n.title)}">
+      <span class="dot ${n.blink ? 'blink' : ''}"></span>
+      <span class="mid"><span class="p"><span>${esc(n.p)}</span><em>${esc(n.tag)}</em></span><span class="s">${esc(n.s)}</span></span>
+    </button>`,
+  );
+  const more = notes.length > MAX_NOTES ? `<div class="more">还有 ${notes.length - MAX_NOTES} 条，打开指挥中心查看</div>` : '';
+  $('notes').innerHTML =
+    `<div class="cap"><span>NOTICE · 通知</span><span>${state.quests.length}</span></div>` +
+    (rows.join('') + more || '<div class="empty-w">一切正常，没有需要你处理的事</div>');
+
+  const busy = state.units.filter((u) => u.status === 'busy').length;
+  const permit = state.units.filter((u) => u.permission).length;
+  $('chips').innerHTML = `<span>作战 <b>${busy}</b></span><span>待命 <b>${state.units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">授权 <b>${permit}</b></span>` : ''}`;
+}
+
+// NOVA's face follows the operator mood; she "says" the top line when it changes.
+const nova = window.Nova?.create($('w-av'), { bubble: false });
+const MOOD = { PERMIT: ['请求授权', 'var(--red)'], ALERT: ['紧张', 'var(--red)'], OVERLOAD: ['担心', 'var(--red)'], READY: ['招手', 'var(--amber)'], GIT: ['皱眉', 'var(--amber)'], SYS: ['惊讶', 'var(--muted)'], RECHARGED: ['开心', 'var(--green)'], ENGAGED: ['专注', 'var(--cyan)'], STANDBY: ['打盹', 'var(--muted)'] };
+let novaSaid = '';
+
+function renderNova() {
+  const mood = state.operator?.mood || 'ENGAGED';
+  const [zh, c] = MOOD[mood] || MOOD.ENGAGED;
+  $('w').style.setProperty('--nc', c);
+  $('w-mood').textContent = `NOVA · ${zh}`;
+  if (!nova) return;
+  nova.setMood(mood);
+  const line = state.operator?.lines?.[0]?.text || '';
+  if (line && line !== novaSaid) nova.say(line);
+  novaSaid = line;
 }
 
 function render() {
+  renderNova();
   renderLimits();
-  renderAlert();
-  renderUnits();
+  renderNotes();
   fitHeight();
 }
 
@@ -165,11 +165,10 @@ async function go(el) {
   else bridge ? bridge.openMain() : window.open('/', 'fleet-bridge');
 }
 
-$('units').addEventListener('click', (e) => {
-  const row = e.target.closest('.row');
+$('notes').addEventListener('click', (e) => {
+  const row = e.target.closest('.nt');
   if (row) go(row);
 });
-$('alert').addEventListener('click', () => go($('alert')));
 $('w-main').addEventListener('click', () => (bridge ? bridge.openMain() : window.open('/', 'fleet-bridge')));
 
 function setFolded(v) {
@@ -199,5 +198,5 @@ new EventSource('/api/stream').onmessage = (e) => {
   render();
   notifyNew();
 };
-setInterval(() => state && renderUnits(), 30_000); // keep the "waiting for" times fresh
+setInterval(() => state && renderNotes(), 30_000); // keep the "at work for" times fresh
 setInterval(() => state && notifyNew(), 5_000); // READY toasts come due without a new state push

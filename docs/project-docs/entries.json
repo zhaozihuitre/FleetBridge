@@ -1081,6 +1081,54 @@
       "created": "2026-10-31 10:19",
       "updated": "2026-10-31 10:19",
       "notes": []
+    },
+    {
+      "id": "C-014",
+      "type": "change",
+      "title": "接入副官 NOVA；小窗改为形象 + 额度血条 + 通知（0.6.0）",
+      "summary": "NOVA（纯 SVG 的 Q 版形象，来自 ideas/nova 原型）放在总指令台顶部，表情跟随最急的提醒并读出当前提醒。小窗加宽到 420px：左侧 NOVA 与额度血条，右侧通知列表（提醒 + 作战中部队）。动画限 30 帧、不可见时停止。开发版改用独立 userData，可与安装版并行验证。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/nova.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/widget.html",
+        "web/widget.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "NOVA",
+        "小窗",
+        "UI"
+      ],
+      "sections": [
+        "02-features",
+        "08-dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-11-01 16:38",
+      "updated": "2026-11-01 16:38",
+      "notes": []
+    },
+    {
+      "id": "D-008",
+      "type": "decision",
+      "title": "NOVA 放在总指令台顶部与小窗左侧",
+      "summary": "消息框里的提醒本来就署名 NOVA，放在总指令台顶部最自然，不遮挡终端和部队；小窗作为桌宠式补充。不放终端区角落（会挡内容）。",
+      "detail": "",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "NOVA",
+        "UI"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 16:38",
+      "updated": "2026-11-01 16:38",
+      "notes": []
     }
   ]
 }
