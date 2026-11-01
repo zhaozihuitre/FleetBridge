@@ -192,6 +192,7 @@ function setFolded(v) {
   fitHeight();
 }
 $('w-fold').addEventListener('click', () => setFolded(!$('w').classList.contains('folded')));
+$('w-tuck').addEventListener('click', () => bridge?.action('tuck-widget'));
 try {
   setFolded(Boolean(localStorage.getItem('ops-widget-folded')));
 } catch {

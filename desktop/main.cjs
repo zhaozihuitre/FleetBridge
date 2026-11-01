@@ -1,6 +1,6 @@
 // Electron shell: runs the monitor server in-process, shows the always-on-top status widget
 // and opens the main screen (command center) on demand.
-const { app, BrowserWindow, ipcMain, Notification, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Notification, screen, shell, Tray } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -28,6 +28,8 @@ let serverModule = null;
 let widget = null;
 let mainWin = null;
 let muted = false;
+let tray = null;
+let widgetTucked = false; // minimized to the tray by the user: stays hidden until the tray brings it back
 
 function loadPrefs() {
   try {
@@ -91,7 +93,7 @@ function createWidget() {
   placeWidget(120);
   widget.loadURL(`${baseUrl}/widget`);
   widget.webContents.on('did-finish-load', sendSettings);
-  widget.once('ready-to-show', () => widget.showInactive());
+  widget.once('ready-to-show', () => !widgetTucked && widget.showInactive());
   widget.on('moved', () => {
     const b = widget.getBounds();
     savePrefs({ right: b.x + b.width, bottom: b.y + b.height });
@@ -136,7 +138,7 @@ function openMain(term) {
     return { action: 'deny' };
   });
   // The widget would cover the command center: hide it while the command center is on screen.
-  const showWidget = (on) => widget && (on ? widget.showInactive() : widget.hide());
+  const showWidget = (on) => widget && (on && !widgetTucked ? widget.showInactive() : widget.hide());
   mainWin.on('show', () => showWidget(false));
   mainWin.on('restore', () => showWidget(false));
   mainWin.on('minimize', () => showWidget(true));
@@ -172,8 +174,33 @@ function sendSettings() {
   widget?.webContents.send('ops:settings', widgetSettings());
 }
 
+// The tray icon: brings a minimized widget back (click), or opens the command center / quits.
+function setWidgetTucked(on) {
+  widgetTucked = on;
+  savePrefs({ tucked: on });
+  if (!widget) return;
+  const mainOnScreen = mainWin && mainWin.isVisible() && !mainWin.isMinimized();
+  if (on || mainOnScreen) widget.hide();
+  else widget.showInactive();
+}
+
+function createTray() {
+  tray = new Tray(ICON);
+  tray.setToolTip('舰桥 · Fleet Bridge');
+  tray.on('click', () => setWidgetTucked(!widgetTucked));
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: '显示 / 隐藏小窗', click: () => setWidgetTucked(!widgetTucked) },
+      { label: '打开指挥中心', click: () => openMain() },
+      { type: 'separator' },
+      { label: '退出', click: () => confirmQuit() },
+    ]),
+  );
+}
+
 const ACTIONS = {
   'open-main': () => openMain(),
+  'tuck-widget': () => setWidgetTucked(true),
   'toggle-mute': () => {
     muted = !muted;
     savePrefs({ muted });
@@ -230,7 +257,9 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     installHookScript();
     await startServer();
+    widgetTucked = Boolean(loadPrefs().tucked);
     createWidget();
+    createTray();
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
   app.on('before-quit', () => serverModule?.shutdown()); // agents are our child processes

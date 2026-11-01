@@ -2027,6 +2027,54 @@
       "created": "2026-11-01 20:36",
       "updated": "2026-11-01 20:36",
       "notes": []
+    },
+    {
+      "id": "I-017",
+      "type": "issue",
+      "title": "额度一直不更新：接口令牌过期后又持续限流",
+      "summary": "安装版额度停在 11/1 18:14：先是令牌过期（Claude Code 早上已刷新），之后接口持续 429（用户终端的状态栏插件也在用同一账号）。改为从我方 agent 的状态栏输入里取额度（Claude Code 自带 rate_limits），不再依赖接口。踩坑：Claude Code 不关闭状态栏 stdin，需边收边解析；Windows 上状态栏由 PowerShell 执行，改用 .cmd 启动器。实测读到 5 小时 5%、本周 14%。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/collectors/usage.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "额度"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-02 08:38",
+      "updated": "2026-11-02 08:38",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "C-033",
+      "type": "change",
+      "title": "小窗最小化到托盘（0.8.1）",
+      "summary": "小窗标题栏「—」与菜单项「最小化到托盘」；系统托盘图标：单击显示 / 隐藏小窗，右键打开指挥中心或退出；状态记在 widget.json。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "desktop/main.cjs",
+        "web/widget.html",
+        "web/widget.js",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "小窗"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-02 08:39",
+      "updated": "2026-11-02 08:39",
+      "notes": []
     }
   ]
 }

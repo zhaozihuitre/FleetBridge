@@ -4,7 +4,7 @@ import path from 'node:path';
 import { config, DATA_DIR, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
-import { collectUsage, limitLabel } from './collectors/usage.js';
+import { collectUsage, limitLabel, withStatusline } from './collectors/usage.js';
 import { getLang, L, setLang } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
@@ -22,7 +22,7 @@ import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
-import { agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -72,7 +72,9 @@ function publish() {
     prompts.set(s.sessionId, prompt);
     s.permission ||= { at: promptSince(id), message: prompt.text.split('\n')[0] };
   }
-  const view = usage && { ...usage, limits: usage.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
+  const merged = withStatusline(usage, STATUSLINE_USAGE);
+  recordUsage(merged); // readings from the status line feed the burn forecast too
+  const view = merged && { ...merged, limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
   const fc = forecast(view?.limits);
   const base = buildState({ sessions, gitByCwd, usage: view, forecast: fc });
   state = {

@@ -55,6 +55,25 @@ function window(w) {
 
 const LIMIT_LABEL = { session: ['5 小时', '5 hours', '5 時間'], weekly_all: ['本周 · 所有模型', 'Week · all models', '今週 · 全モデル'] };
 
+/**
+ * The quota as our agents' status line last saw it (see agents.js), merged over the API reading
+ * when it is newer: it is current whenever one of our agents works, and is never rate limited.
+ * It carries the 5-hour and weekly limits only; per-model ones keep the API's last value.
+ */
+export function withStatusline(usage, file) {
+  let s;
+  try {
+    s = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return usage;
+  }
+  if (!s?.at || s.at <= (usage?.fetchedAt || 0)) return usage;
+  const win = (w) => (w && Number.isFinite(w.used_percentage) ? { usedPct: w.used_percentage, resetsAt: (w.resets_at || 0) * 1000 } : null);
+  const fresh = { session: win(s.five_hour), weekly_all: win(s.seven_day) };
+  const limits = (usage?.limits?.length ? usage.limits : [{ key: 'session', active: false }, { key: 'weekly_all', active: false }]).map((l) => (fresh[l.key] ? { ...l, ...fresh[l.key] } : l));
+  return { ...usage, ok: true, error: null, retryAt: null, fetchedAt: s.at, source: 'statusline', limits };
+}
+
 // Labels are made when publishing (not cached) so they follow a language switch.
 export function limitLabel(key) {
   const [kind, model] = key.split(':');

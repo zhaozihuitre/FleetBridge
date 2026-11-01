@@ -42,6 +42,62 @@ const CLAUDE = findClaude();
 // The dark-ansi theme draws Claude Code with the 16 terminal colors only (no fixed RGB), so the
 // xterm palette in web/terminal.js can dress it in the command center's colors.
 const AGENT_SETTINGS = path.join(DATA_DIR, 'agent-settings.json');
+
+// Our agents' status line prints nothing, but Claude Code hands it the account's current quota
+// (rate_limits) on every refresh: keep that in a file, so the quota stays current without polling
+// the rate-limited usage endpoint. Runs as plain Node: this app's own executable in node mode.
+const STATUSLINE_SCRIPT = path.join(DATA_DIR, 'statusline.cjs');
+const STATUSLINE_CMD = path.join(DATA_DIR, 'statusline.cmd');
+export const STATUSLINE_USAGE = path.join(DATA_DIR, 'statusline-usage.json');
+// Claude Code does not close the status line's stdin: take the JSON as soon as it parses, and give
+// up after a few seconds either way.
+const STATUSLINE_SRC = `// Written by Fleet Bridge: saves the quota Claude Code passes to the status line; prints nothing.
+const fs = require('fs');
+let s = '';
+const save = (j) => {
+  const r = j.rate_limits;
+  if (!r || !(r.five_hour || r.seven_day)) return;
+  const out = ${JSON.stringify(STATUSLINE_USAGE)};
+  fs.writeFileSync(out + '.tmp', JSON.stringify({ at: Date.now(), five_hour: r.five_hour || null, seven_day: r.seven_day || null }));
+  fs.renameSync(out + '.tmp', out);
+};
+setTimeout(() => process.exit(0), 3000);
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (d) => {
+  s += d;
+  let j;
+  try {
+    j = JSON.parse(s);
+  } catch {
+    return; // not all of it yet
+  }
+  try {
+    save(j);
+  } catch {}
+  process.exit(0);
+});
+process.stdin.on('end', () => process.exit(0));
+`;
+
+// The status line may run in PowerShell or bash, so the command is just the path of a .cmd launcher
+// (both shells run that); the launcher sets ELECTRON_RUN_AS_NODE for this one process only.
+function writeIfChanged(file, body) {
+  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== body) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(file, body);
+  }
+}
+
+function statusLineCommand() {
+  try {
+    writeIfChanged(STATUSLINE_SCRIPT, STATUSLINE_SRC);
+    writeIfChanged(STATUSLINE_CMD, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${STATUSLINE_SCRIPT}"\r\n`);
+  } catch {
+    return 'exit 0';
+  }
+  const cmd = STATUSLINE_CMD.replace(/\\/g, '/');
+  return /\s/.test(cmd) ? `"${cmd}"` : cmd; // unquoted where possible: a quoted string is not a command in PowerShell
+}
 function agentSettingsFile() {
   // MONITOR_AGENT_SETTINGS (dev / tests only): a JSON object merged in, e.g. to switch off a plugin
   let extra = {};
@@ -50,7 +106,7 @@ function agentSettingsFile() {
   } catch {
     // ignore a malformed override
   }
-  const body = JSON.stringify({ statusLine: { type: 'command', command: 'exit 0' }, theme: 'dark-ansi', ...extra }, null, 2);
+  const body = JSON.stringify({ statusLine: { type: 'command', command: statusLineCommand() }, theme: 'dark-ansi', ...extra }, null, 2);
   try {
     if (!fs.existsSync(AGENT_SETTINGS) || fs.readFileSync(AGENT_SETTINGS, 'utf8') !== body) {
       fs.mkdirSync(DATA_DIR, { recursive: true });

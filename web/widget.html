@@ -56,12 +56,14 @@ html, body { background: transparent; overflow: hidden; }
 <span class="chips" id="chips"></span>
 <button id="w-main" title="打开指挥中心" aria-label="打开指挥中心">⤢</button>
 <button id="w-fold" title="折叠 / 展开" aria-label="折叠或展开">▾</button>
+<button id="w-tuck" title="最小化到托盘（点任务栏右下角的图标恢复）" aria-label="最小化到托盘">—</button>
 <button id="w-menu-btn" title="菜单（也可以右键）" aria-label="菜单" aria-haspopup="menu" aria-expanded="false">☰</button>
 </header>
 <nav class="w-menu" id="w-menu" role="menu" hidden>
 <button role="menuitem" data-act="open-main">打开指挥中心</button>
 <button role="menuitemcheckbox" data-act="toggle-mute" id="m-mute">静音提醒</button>
 <button role="menuitem" data-act="reset-pos">回到右下角</button>
+<button role="menuitem" data-act="tuck-widget">最小化到托盘</button>
 <button role="menuitemcheckbox" data-act="toggle-autostart" id="m-auto" hidden>开机自动启动</button>
 <button role="menuitem" data-act="quit" class="quit">退出</button>
 </nav>
