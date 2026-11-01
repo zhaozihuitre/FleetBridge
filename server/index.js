@@ -9,6 +9,7 @@ import { getLang, L, setLang } from './i18n.js';
 import { collectHistory } from './collectors/history.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
+import { forecast, recordUsage } from './forecast.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
@@ -66,7 +67,8 @@ function publish() {
     s.permission ||= { at: promptSince(id), message: prompt.text.split('\n')[0] };
   }
   const view = usage && { ...usage, limits: usage.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
-  const base = buildState({ sessions, gitByCwd, usage: view });
+  const fc = forecast(view?.limits);
+  const base = buildState({ sessions, gitByCwd, usage: view, forecast: fc });
   state = {
     ...base,
     // "owned": launched by the command center, so we can open its terminal (agentId) and type into it
@@ -81,6 +83,7 @@ function publish() {
     agents,
     agentSupport: agentSupport(),
     today,
+    forecast: fc,
     lang: getLang(),
   };
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
@@ -92,6 +95,7 @@ function publish() {
 
 async function refreshUsage(force = false) {
   usage = await collectUsage(force);
+  recordUsage(usage);
   publish();
 }
 

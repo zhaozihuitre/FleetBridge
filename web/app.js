@@ -103,7 +103,7 @@ function renderEnergy() {
           <div class="row"><span class="label">${weekly ? 'RESERVE' : 'ENERGY'} · ${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span>${L('已用')}</span><span>${L('重置 ')}<span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span> · ${clock(l.resetsAt, weekly)}</span></div>
+          <div class="row">${burnText(l)}<span>${L('重置 ')}<span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span> · ${clock(l.resetsAt, weekly)}</span></div>
         </div>`;
       })
       .join('');
@@ -111,6 +111,16 @@ function renderEnergy() {
   const a = u?.account;
   $('pilot').textContent = a ? `PILOT · ${(a.tier || a.plan || '').replace('default_claude_', '').toUpperCase()} · ${a.email || ''}` : 'PILOT';
   $('pilot').title = a ? `${a.email || ''} · ${a.org || ''}` : '';
+}
+
+// Burn rate under a quota bar: "+12%/h", or in red when it runs out before the reset.
+function burnText(l) {
+  const f = state.forecast?.[l.key];
+  if (!f || f.perHour <= 0) return `<span>${L('已用')}</span>`;
+  const tip = esc(L('最近每小时用掉 {0}%', f.perHour));
+  return f.runsOutAt
+    ? `<span class="burn hot" title="${tip}">${L('约 {0} 用完', clock(f.runsOutAt))}</span>`
+    : `<span class="burn" title="${tip}">+${f.perHour}%/h</span>`;
 }
 
 function tick() {

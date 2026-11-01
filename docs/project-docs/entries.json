@@ -1464,6 +1464,32 @@
       "updated": "2026-11-01 18:46",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-023",
+      "type": "change",
+      "title": "额度消耗速度与用完预测",
+      "summary": "新增 server/forecast.js：记录每次额度读数，按同一重置周期的近期斜率算每小时消耗与预计用完时间；额度条显示 +x%/h，重置前会用完时红字提示，2 小时内用完出 ALERT 提醒。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/forecast.js",
+        "server/index.js",
+        "server/state.js",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "额度"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-01 18:50",
+      "updated": "2026-11-01 18:50",
+      "notes": []
     }
   ]
 }
