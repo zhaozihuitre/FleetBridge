@@ -1595,6 +1595,116 @@
       "updated": "2026-11-01 19:05",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "T-008",
+      "type": "todo",
+      "title": "用量趋势：近 7 天每天的 token / 指令数，按项目",
+      "summary": "可在今日统计的基础上按天聚合；首次扫描近 7 天的会话记录约需数秒，应放进 worker 线程。还没做。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "指标"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-009",
+      "type": "todo",
+      "title": "离开时把「等你授权」推送到手机 / Slack",
+      "summary": "需要用户选择渠道并提供 webhook 或账号；可配合「多久没操作算离开」的判断。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "通知"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-010",
+      "type": "todo",
+      "title": "安装 0.7.0 并推送 / 发版",
+      "summary": "0.6.3–0.7.0 均未推送到 GitHub（Release 停在 0.6.2）。安装会结束运行在舰桥里的会话（含这个开发会话），需用户在场时进行；安装后验证：授权按钮、审查提交、队列、搜索、额度预测。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "发布"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": [],
+      "priority": "P1"
+    },
+    {
+      "id": "M-015",
+      "type": "milestone",
+      "title": "0.7.0 本地打包：授权按钮、额度预测、全文搜索、审查提交、指令队列、常用指令",
+      "summary": "用户外出期间自主完成的一批功能；终端面板配色修正（f66cbc9）也在内。未安装、未推送。",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "发布"
+      ],
+      "sections": [],
+      "refs": [
+        "v0.7.0"
+      ],
+      "created": "2026-11-01 19:05",
+      "updated": "2026-11-01 19:05",
+      "notes": []
+    },
+    {
+      "id": "T-011",
+      "type": "todo",
+      "title": "同一仓库多 agent 并行：自动开 git worktree",
+      "summary": "需要决定：worktree 放哪、分支命名、做完如何合并与清理。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "git",
+        "agent"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:06",
+      "updated": "2026-11-01 19:06",
+      "notes": [],
+      "priority": "P2"
+    },
+    {
+      "id": "T-012",
+      "type": "todo",
+      "title": "每日战报：汇总各项目当天做了什么、提交了什么",
+      "summary": "git 部分可直接统计；文字总结要调用 Claude（消耗额度），需用户确认要不要。",
+      "detail": "",
+      "status": "open",
+      "files": [],
+      "tags": [
+        "报告"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 19:06",
+      "updated": "2026-11-01 19:06",
+      "notes": [],
+      "priority": "P2"
     }
   ]
 }
