@@ -1,5 +1,6 @@
 import { createTerminal } from './terminal.js';
 import { ask } from './ui.js';
+import { L, lang, locale, setLang, translateDom } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
@@ -13,15 +14,15 @@ function pageSize(kind) {
   return Math.max(1, Math.floor((H - 30) / (ITEM.saveH + ITEM.saveGap))); // archive
 }
 const KIND = {
-  PERMIT: { label: 'PERMIT', c: 'var(--red)', mood: '● 请求授权' },
-  ALERT: { label: 'ALERT', c: 'var(--red)', mood: '● 紧张' },
-  OVERLOAD: { label: 'OVERLOAD', c: 'var(--red)', mood: '● 担心' },
-  READY: { label: 'READY', c: 'var(--amber)', mood: '● 招手' },
-  GIT: { label: 'GIT', c: 'var(--amber)', mood: '● 皱眉' },
-  SYS: { label: 'SYS', c: 'var(--muted)', mood: '● 惊讶' },
-  RECHARGED: { label: 'RECHARGED', c: 'var(--green)', mood: '● 开心' },
-  ENGAGED: { label: 'ENGAGED', c: 'var(--cyan)', mood: '● 专注' },
-  STANDBY: { label: 'STANDBY', c: 'var(--muted)', mood: '● 打盹' },
+  PERMIT: { label: 'PERMIT', c: 'var(--red)', mood: L('● 请求授权') },
+  ALERT: { label: 'ALERT', c: 'var(--red)', mood: L('● 紧张') },
+  OVERLOAD: { label: 'OVERLOAD', c: 'var(--red)', mood: L('● 担心') },
+  READY: { label: 'READY', c: 'var(--amber)', mood: L('● 招手') },
+  GIT: { label: 'GIT', c: 'var(--amber)', mood: L('● 皱眉') },
+  SYS: { label: 'SYS', c: 'var(--muted)', mood: L('● 惊讶') },
+  RECHARGED: { label: 'RECHARGED', c: 'var(--green)', mood: L('● 开心') },
+  ENGAGED: { label: 'ENGAGED', c: 'var(--cyan)', mood: L('● 专注') },
+  STANDBY: { label: 'STANDBY', c: 'var(--muted)', mood: L('● 打盹') },
   DRONE: { label: 'DRONE', c: 'var(--cyan)' },
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
@@ -40,16 +41,16 @@ function dur(ms, short = false) {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   // Orbitron draws "D" almost like "0", so days use 天
-  if (d) return short ? `${d}天` : `${d}天 ${pad(h)}:${pad(m)}`;
+  if (d) return short ? L('{0}天', d) : `${L('{0}天', d)} ${pad(h)}:${pad(m)}`;
   return short ? `${pad(h)}:${pad(m)}` : `${pad(h)}:${pad(m)}:${pad(s % 60)}`;
 }
 
 function ago(ms) {
   const m = Math.floor(ms / 60_000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return `${m} 分钟前`;
+  if (m < 1) return L('刚刚');
+  if (m < 60) return L('{0} 分钟前', m);
   const h = Math.floor(m / 60);
-  return h < 48 ? `${h} 小时前` : `${Math.floor(h / 24)} 天前`;
+  return h < 48 ? L('{0} 小时前', h) : L('{0} 天前', Math.floor(h / 24));
 }
 
 // Operator lines that are just ambience: nothing to jump to or snooze.
@@ -72,14 +73,14 @@ function kTokens(n) {
 
 /* ---------- header ---------- */
 
-const ERROR_TEXT = { rate_limited: '接口限流，稍后自动重试', token_expired: '登录过期，打开一次 Claude Code 即可' };
+const ERROR_TEXT = { rate_limited: L('接口限流，稍后自动重试'), token_expired: L('登录过期，打开一次 Claude Code 即可') };
 
 // The API's limit list (5h, weekly, per-model weekly); caches from older versions only had two windows.
 function usageLimits(u) {
   if (u?.limits?.length) return u.limits;
   return [
-    u?.fiveHour && { key: 'session', label: '5 小时', ...u.fiveHour },
-    u?.sevenDay && { key: 'weekly_all', label: '本周 · 所有模型', ...u.sevenDay },
+    u?.fiveHour && { key: 'session', label: L('5 小时'), ...u.fiveHour },
+    u?.sevenDay && { key: 'weekly_all', label: L('本周 · 所有模型'), ...u.sevenDay },
   ].filter(Boolean);
 }
 
@@ -88,7 +89,7 @@ function renderEnergy() {
   const limits = usageLimits(u);
   const errText = u?.error ? ERROR_TEXT[u.error] || u.error : '';
   if (!limits.length) {
-    $('energy').innerHTML = `<div class="energy box cut"><div class="row"><span class="label">ENERGY · 额度</span><span>${errText ? '读取失败：' + esc(errText) : '读取中…'}</span></div>${seg(0, 30, 'var(--cyan)')}</div>`;
+    $('energy').innerHTML = `<div class="energy box cut"><div class="row"><span class="label">ENERGY · ${L('额度')}</span><span>${errText ? L('读取失败：') + esc(errText) : L('读取中…')}</span></div>${seg(0, 30, 'var(--cyan)')}</div>`;
   } else {
     $('energy').innerHTML = limits
       .map((l) => {
@@ -97,12 +98,12 @@ function renderEnergy() {
         const low = 100 - used <= state.thresholds.energyLowPct;
         const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
         const weekly = l.key !== 'session';
-        const stale = u.error ? `<span class="stale" title="${esc(errText)}${u.retryAt ? ' · ' + clock(u.retryAt) + ' 重试' : ''}">缓存 ${clock(u.fetchedAt)}</span>` : '';
-        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${l.active ? '当前起作用的限额' : ''}">
+        const stale = u.error ? `<span class="stale" title="${esc(errText)}${u.retryAt ? ' · ' + clock(u.retryAt) + L(' 重试') : ''}">${L('缓存 {0}', clock(u.fetchedAt))}</span>` : '';
+        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${l.active ? L('当前起作用的限额') : ''}">
           <div class="row"><span class="label">${weekly ? 'RESERVE' : 'ENERGY'} · ${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span>已用</span><span>重置 <span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span> · ${clock(l.resetsAt, weekly)}</span></div>
+          <div class="row"><span>${L('已用')}</span><span>${L('重置 ')}<span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span> · ${clock(l.resetsAt, weekly)}</span></div>
         </div>`;
       })
       .join('');
@@ -113,7 +114,7 @@ function renderEnergy() {
 }
 
 function tick() {
-  $('clock').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  $('clock').textContent = new Date().toLocaleTimeString(locale, { hour12: false });
   document.querySelectorAll('[data-reset]').forEach((el) => (el.textContent = dur(+el.dataset.reset - Date.now())));
   document.querySelectorAll('[data-since]').forEach((el) => (el.textContent = 'T+' + dur(Date.now() - +el.dataset.since)));
 }
@@ -144,7 +145,7 @@ function renderOperator() {
     const k = KIND[l.kind] || {};
     const text = esc(l.text).replace(/(\d+(?:\.\d+)?%)/g, l.kind === 'OVERLOAD' || l.kind === 'ALERT' ? '<em>$1</em>' : '$1');
     const acts = l.unit && !AMBIENT.has(l.key)
-      ? `<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? '▶ 去终端授权' : '▶ 跳到终端'}</button><button type="button" data-msg-snooze="${esc(l.key)}">稍后</button></div>`
+      ? `<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? L('▶ 去终端授权') : L('▶ 跳到终端')}</button><button type="button" data-msg-snooze="${esc(l.key)}">${L('稍后')}</button></div>`
       : '';
     return `<div class="msg in ${i === ui.line ? 'on' : ''}" style="--mc:${k.c || 'var(--cyan)'}" data-line="${i}">
       <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project.toUpperCase())}</span>` : ''}<i>${k.label || ''}</i></div>
@@ -153,8 +154,8 @@ function renderOperator() {
   const outgoing = sentLog
     .slice(0, 8)
     .reverse()
-    .map((s) => `<div class="msg out"><div class="msg-text">${esc(s.text)}</div><div class="msg-meta">${clock(s.t)} · 发给 ${s.n} 个</div></div>`);
-  const html = incoming.join('') + (outgoing.length ? '<div class="msg-sep">已发送</div>' + outgoing.join('') : '');
+    .map((s) => `<div class="msg out"><div class="msg-text">${esc(s.text)}</div><div class="msg-meta">${clock(s.t)} · ${L('发给 {0} 个', s.n)}</div></div>`);
+  const html = incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '');
   if (renderOperator.last !== html) {
     const box = $('msg-box');
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
@@ -173,10 +174,10 @@ function renderStats() {
   const permit = waiting.filter((u) => u.permission).length;
   const hit = t?.cacheHitPct;
   const tiles = [
-    { c: 'var(--cyan)', v: t ? kTokens(t.total) : '--', k: '今日 token', s: t ? `输出 ${kTokens(t.output)} · ${t.sessions} 个会话` : '统计中…', tip: t ? `输入 ${t.input.toLocaleString()} · 缓存读 ${t.cacheRead.toLocaleString()} · 缓存写 ${t.cacheWrite.toLocaleString()} · 输出 ${t.output.toLocaleString()}` : '' },
-    { c: hit == null ? 'var(--dim)' : hit >= 80 ? 'var(--green)' : hit >= 50 ? 'var(--amber)' : 'var(--red)', v: hit == null ? '--' : `${Math.round(hit)}%`, k: '缓存命中', s: '越高越省额度', tip: '缓存读取 ÷ 全部输入 token' },
-    { c: 'var(--cyan)', v: t ? String(t.prompts) : '--', k: '今日指令', s: '你发出的指令数', tip: '今天所有会话里你输入的指令（不含工具结果和斜杠命令）' },
-    { c: permit ? 'var(--red)' : waiting.length ? 'var(--amber)' : 'var(--dim)', v: String(waiting.length), k: permit ? `等你 · ${permit} 个授权` : '等你', s: waiting.length ? `最久 ${ago(longest).replace(' 前', '').replace('前', '')}` : '没有会话在等', tip: waiting.map((u) => u.project).join('、') },
+    { c: 'var(--cyan)', v: t ? kTokens(t.total) : '--', k: L('今日 token'), s: t ? L('输出 {0} · {1} 个会话', kTokens(t.output), t.sessions) : L('统计中…'), tip: t ? L('输入 {0} · 缓存读 {1} · 缓存写 {2} · 输出 {3}', t.input.toLocaleString(), t.cacheRead.toLocaleString(), t.cacheWrite.toLocaleString(), t.output.toLocaleString()) : '' },
+    { c: hit == null ? 'var(--dim)' : hit >= 80 ? 'var(--green)' : hit >= 50 ? 'var(--amber)' : 'var(--red)', v: hit == null ? '--' : `${Math.round(hit)}%`, k: L('缓存命中'), s: L('越高越省额度'), tip: L('缓存读取 ÷ 全部输入 token') },
+    { c: 'var(--cyan)', v: t ? String(t.prompts) : '--', k: L('今日指令'), s: L('你发出的指令数'), tip: L('今天所有会话里你输入的指令（不含工具结果和斜杠命令）') },
+    { c: permit ? 'var(--red)' : waiting.length ? 'var(--amber)' : 'var(--dim)', v: String(waiting.length), k: permit ? L('等你 · {0} 个授权', permit) : L('等你'), s: waiting.length ? L('最久 {0}', ago(longest).replace(/ ?(前|ago)$/, '')) : L('没有会话在等'), tip: waiting.map((u) => u.project).join('、') },
   ];
   const html = tiles
     .map((x) => `<div class="stat-box ${x.v === '0' || x.v === '--' ? 'zero' : ''}" style="--sc:${x.c}" title="${esc(x.tip)}"><b>${esc(x.v)}</b><span>${esc(x.k)}</span><small>${esc(x.s)}</small></div>`)
@@ -230,7 +231,7 @@ function parseMentions(raw) {
 // Without an @mention a command goes to every live agent of ours.
 function renderConsole() {
   const n = liveAgents().length;
-  $('cmd-to').textContent = n ? `发给全部 ${n} 个 · @ 指定` : '还没有我方 agent';
+  $('cmd-to').textContent = n ? L('发给全部 {0} 个 · @ 指定', n) : L('还没有我方 agent');
   $('cmd-send').disabled = !n;
 }
 
@@ -240,7 +241,7 @@ async function sendToTargets(body, label, ids) {
   const ok = (r.results || []).filter(Boolean).length;
   spotlight(ids.filter((_, i) => r.results?.[i]));
   sentLog.unshift({ t: Date.now(), text: label, n: ok });
-  toast(ok === ids.length ? `已发给 ${ok} 个 agent` : `发出 ${ok} / ${ids.length}，有的 agent 可能已经退出`);
+  toast(ok === ids.length ? L('已发给 {0} 个 agent', ok) : L('发出 {0} / {1}，有的 agent 可能已经退出', ok, ids.length));
   renderOperator();
   $('msg-box').scrollTop = $('msg-box').scrollHeight;
 }
@@ -260,11 +261,11 @@ $('msg-box').addEventListener('click', (e) => {
 $('cmd-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const raw = $('cmd-text').value.trim();
-  if (!raw) return ($('cmd-err').textContent = '先输入指令');
+  if (!raw) return ($('cmd-err').textContent = L('先输入指令'));
   // @mentions pick the recipients for this one message; without any, the checked agents get it
   const m = parseMentions(raw);
-  if (m.unknown.length) return ($('cmd-err').textContent = `找不到 ${m.unknown.join(' ')}`);
-  if (!m.text) return ($('cmd-err').textContent = '@ 后面还要写指令内容');
+  if (m.unknown.length) return ($('cmd-err').textContent = L('找不到 {0}', m.unknown.join(' ')));
+  if (!m.text) return ($('cmd-err').textContent = L('@ 后面还要写指令内容'));
   $('cmd-err').textContent = '';
   const ids = m.ids.length ? m.ids : liveAgents().map((a) => a.id);
   const who = m.ids.length ? raw.match(/@[^\s@]+/g).join(' ') + ' ' : '';
@@ -344,7 +345,7 @@ $('cmd-text').addEventListener('keydown', (e) => {
 const NOT_PROJECT = /\\AppData\\|^[A-Za-z]:\\Users\\[^\\]+\\?$/i;
 
 async function deployAll() {
-  if (!state?.agentSupport?.ok) return toast(state?.agentSupport?.error || '无法启动 agent');
+  if (!state?.agentSupport?.ok) return toast(state?.agentSupport?.error || L('无法启动 agent'));
   const picks = [];
   const external = [];
   for (const f of folders()) {
@@ -355,14 +356,14 @@ async function deployAll() {
     else if (s.pid) external.push(f.project); // running in an outside terminal: can't be commanded from here
     else picks.push({ project: f.project, resume: s.sessionId, title: s.title || s.lastPrompt || '' });
   }
-  if (!picks.length) return toast('没有可以出击的项目会话');
-  const lines = picks.map((p) => `◆ ${p.project.toUpperCase()}${p.open ? '　已在指挥中心' : '　' + p.title.slice(0, 40)}`);
+  if (!picks.length) return toast(L('没有可以出击的项目会话'));
+  const lines = picks.map((p) => `◆ ${p.project.toUpperCase()}${p.open ? L('　已在指挥中心') : '　' + p.title.slice(0, 40)}`);
   const go = await ask({
     tag: 'FULL DEPLOY',
-    title: `全军出击：${picks.length} 个项目`,
-    message: '打开这些项目最新的会话，分屏排开。',
-    detail: external.length ? [...lines, '', `跳过（正在外部终端运行）：${external.join('、')}`] : lines,
-    ok: '⚡ 出击',
+    title: L('全军出击：{0} 个项目', picks.length),
+    message: L('打开这些项目最新的会话，分屏排开。'),
+    detail: external.length ? [...lines, '', L('跳过（正在外部终端运行）：{0}', external.join(lang === 'en' ? ', ' : '、'))] : lines,
+    ok: L('⚡ 出击'),
   });
   if (!go) return;
 
@@ -377,7 +378,7 @@ async function deployAll() {
     if (r.ok) openTerm(r.id);
     else failed++;
   }
-  toast(failed ? `出击 ${picks.length - failed} 个，${failed} 个失败` : `全军出击！${picks.length} 个终端已就位`);
+  toast(failed ? L('出击 {0} 个，{1} 个失败', picks.length - failed, failed) : L('全军出击！{0} 个终端已就位', picks.length));
 }
 $('deploy-all').addEventListener('click', deployAll);
 
@@ -388,47 +389,47 @@ function unitCard(u) {
   const now = Date.now();
   const standby = u.status === 'idle' && now - u.statusSince > th.standbyMinutes * 60_000;
   const cls = u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
-  const label = u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
+  const label = lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
-  const drones = !u.agents.length ? '无' : running.length ? `${running.length} 架出击：${running.map((a) => a.description).join('、')}` : `${u.agents.length} 架 · 全部返航`;
+  const drones = !u.agents.length ? L('无') : running.length ? L('{0} 架出击：{1}', running.length, running.map((a) => a.description).join(lang === 'en' ? ', ' : '、')) : L('{0} 架 · 全部返航', u.agents.length);
   const repos = u.repos.slice(0, 4).map(repoRow).join('');
-  const more = u.repos.length > 4 ? `<div class="empty">还有 ${u.repos.length - 4} 个仓库…</div>` : '';
+  const more = u.repos.length > 4 ? `<div class="empty">${L('还有 {0} 个仓库…', u.repos.length - 4)}</div>` : '';
   const oldestFetch = u.repos.reduce((m, r) => (r.fetchedAt && (!m || r.fetchedAt < m) ? r.fetchedAt : m), null);
   const action = u.owned
-    ? `<button class="mini" data-term="${esc(u.agentId)}" title="打开它的终端，直接下指令">▶ 终端</button>`
-    : `<button class="mini ghost" data-focus="${u.pid}" title="在外部终端里运行，只能切过去">跳过去</button>`;
+    ? `<button class="mini" data-term="${esc(u.agentId)}" title="${L('打开它的终端，直接下指令')}">${L('▶ 终端')}</button>`
+    : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
   <article class="unit ${cls}">
-    <div class="top"><span>◆ ${label}${u.owned ? ' <i class="ours">我方</i>' : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
-    <div><h3 title="${esc(u.cwd)}">${esc(u.project)}</h3><div class="call">呼号 ${esc(u.name)} · ${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
+    <div class="top"><span>◆ ${label}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
+    <div><h3 title="${esc(u.cwd)}">${esc(u.project)}</h3><div class="call">${L('呼号')} ${esc(u.name)} · ${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
-    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? '请求授权：' + (u.permission.message || '需要你确认') : u.status === 'busy' && u.lastPrompt ? '执行中：' + u.lastPrompt : u.lastText || '（还没有汇报）')}</div>
+    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || L('（还没有汇报）'))}</div>
     <div class="stats">
-      <div class="stat" style="--kc:${loadColor}"><div class="k"><span>LOAD 记忆负载</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
-      <div class="stat"><div class="k"><span>DRONES 僚机</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
+      <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('LOAD 记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
+      <div class="stat"><div class="k"><span>${L('DRONES 僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
     </div>
     <div class="repos">
-      <div class="k"><span>REPOS 仓库 ×${u.repos.length}</span><span>${oldestFetch ? '最早 fetch 在 ' + ago(now - oldestFetch) : ''}</span></div>
-      ${!u.gitScanned ? '<div class="empty">扫描中…</div>' : u.repos.length ? repos + more : '<div class="empty">这个目录下没有 git 仓库</div>'}
+      <div class="k"><span>${L('REPOS 仓库')} ×${u.repos.length}</span><span>${oldestFetch ? L('最早 fetch 在 ') + ago(now - oldestFetch) : ''}</span></div>
+      ${!u.gitScanned ? `<div class="empty">${L('扫描中…')}</div>` : u.repos.length ? repos + more : `<div class="empty">${L('这个目录下没有 git 仓库')}</div>`}
     </div>
   </article>`;
 }
 
 function repoRow(r) {
-  if (r.error) return `<div class="repo" style="--rc:var(--red)"><div class="r1"><span class="name">${esc(r.name)}</span></div><div class="chg">读取失败：${esc(r.error)}</div></div>`;
+  if (r.error) return `<div class="repo" style="--rc:var(--red)"><div class="r1"><span class="name">${esc(r.name)}</span></div><div class="chg">${L('读取失败：{0}', esc(r.error))}</div></div>`;
   const th = state.thresholds;
   const now = Date.now();
   const stale = r.oldestChangeAt && now - r.oldestChangeAt >= th.staleDirtyDays * 86_400_000;
   const rc = r.conflicts || r.operation || stale ? 'var(--red)' : r.changedCount ? 'var(--amber)' : 'var(--line-hi)';
-  const sync = !r.upstream ? ['无上游', 'var(--amber)'] : r.ahead || r.behind ? [`↑${r.ahead} ↓${r.behind}`, 'var(--amber)'] : ['↑0 ↓0', 'var(--green)'];
-  let chg = '工作区干净';
-  if (r.operation) chg = `卡在 ${r.operation} 中途${r.conflicts ? `，${r.conflicts} 个冲突` : ''}`;
+  const sync = !r.upstream ? [L('无上游'), 'var(--amber)'] : r.ahead || r.behind ? [`↑${r.ahead} ↓${r.behind}`, 'var(--amber)'] : ['↑0 ↓0', 'var(--green)'];
+  let chg = L('工作区干净');
+  if (r.operation) chg = L('卡在 {0} 中途', r.operation) + (r.conflicts ? L('，{0} 个冲突', r.conflicts) : '');
   else if (r.changedCount)
-    chg = `${r.changedCount} 个文件未提交${r.untracked ? `（${r.untracked} 新）` : ''} · +${r.insertions} −${r.deletions}${r.oldestChangeAt ? ' · 已放 ' + dur(now - r.oldestChangeAt, true).replace(/^(\d\d):(\d\d)$/, '$1h$2m') : ''}`;
+    chg = `${L('{0} 个文件未提交', r.changedCount)}${r.untracked ? L('（{0} 新）', r.untracked) : ''} · +${r.insertions} −${r.deletions}${r.oldestChangeAt ? L(' · 已放 ') + dur(now - r.oldestChangeAt, true).replace(/^(\d\d):(\d\d)$/, '$1h$2m') : ''}`;
   if (r.stash) chg += ` · stash ${r.stash}`;
-  const touched = r.claudeTouchedAt ? `<span class="claude" title="Claude 最后一次修改这个仓库的时间">CLAUDE ${clock(r.claudeTouchedAt, now - r.claudeTouchedAt > 86_400_000)}</span>` : '';
+  const touched = r.claudeTouchedAt ? `<span class="claude" title="${L('Claude 最后一次修改这个仓库的时间')}">CLAUDE ${clock(r.claudeTouchedAt, now - r.claudeTouchedAt > 86_400_000)}</span>` : '';
   return `<div class="repo" style="--rc:${rc}" title="${esc(r.head ? `${r.head.hash} · ${r.head.subject} · ${r.head.author}` : r.path)}">
     <div class="r1"><span class="name">${esc(r.name)}</span>${touched}<span class="branch">${esc(r.branch || '(detached)')}</span><span class="sync" style="color:${sync[1]}">${sync[0]}</span></div>
     ${remoteLine(r)}
@@ -438,14 +439,14 @@ function repoRow(r) {
 // Where this repo pushes to, so commits don't land in the wrong repository.
 function remoteLine(r) {
   const icon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v6m0 8v6M5 12h14"/><circle cx="12" cy="12" r="3"/></svg>';
-  if (!r.remote) return `<div class="rmt warn">${icon}${r.remotes?.length ? '有多个远程，没有默认推送目标' : '没有远程仓库，只在本地'}</div>`;
+  if (!r.remote) return `<div class="rmt warn">${icon}${r.remotes?.length ? L('有多个远程，没有默认推送目标') : L('没有远程仓库，只在本地')}</div>`;
   const label = `${r.remote.host}/${r.remote.slug}`;
   const others = (r.remotes || []).filter((x) => x.name !== r.remote.name);
   const more = others.length
-    ? `<span class="more-rmt" title="${esc(others.map((x) => `${x.name} → ${x.host}/${x.slug}`).join('\n'))}">另有 ${others.map((x) => esc(x.name)).join('、')}</span>`
+    ? `<span class="more-rmt" title="${esc(others.map((x) => `${x.name} → ${x.host}/${x.slug}`).join('\n'))}">${L('另有 {0}', others.map((x) => esc(x.name)).join(lang === 'en' ? ', ' : '、'))}</span>`
     : '';
   const link = r.remote.web
-    ? `<a href="${esc(r.remote.web)}" target="_blank" rel="noopener" title="推送到 ${esc(r.remote.name)}：${esc(label)}（点击打开）">${esc(label)}</a>`
+    ? `<a href="${esc(r.remote.web)}" target="_blank" rel="noopener" title="${L('推送到 {0}：{1}（点击打开）', esc(r.remote.name), esc(label))}">${esc(label)}</a>`
     : `<span>${esc(label)}</span>`;
   return `<div class="rmt">${icon}<span class="rname">${esc(r.remote.name)}</span>${link}${more}</div>`;
 }
@@ -459,9 +460,9 @@ function activeRepo(u) {
 
 function repoBadge(u) {
   const r = activeRepo(u);
-  const all = (u?.repos || []).map((x) => `${x.name} → ${x.remote ? x.remote.host + '/' + x.remote.slug : '无远程'}`).join('\n');
-  if (!r) return u?.repos?.length ? `<span class="t-repo" title="${esc(all)}">${u.repos.length} 个仓库</span>` : '';
-  const target = r.remote ? r.remote.slug : '无远程';
+  const all = (u?.repos || []).map((x) => `${x.name} → ${x.remote ? x.remote.host + '/' + x.remote.slug : L('无远程')}`).join('\n');
+  if (!r) return u?.repos?.length ? `<span class="t-repo" title="${esc(all)}">${L('{0} 个仓库', u.repos.length)}</span>` : '';
+  const target = r.remote ? r.remote.slug : L('无远程');
   return `<span class="t-repo ${r.remote ? '' : 'warn'}" title="${esc(all)}">⎇ ${esc(target)} · ${esc(r.branch || '')}</span>`;
 }
 
@@ -469,11 +470,11 @@ function questCard(q) {
   const since = q.since ? `T+${dur(Date.now() - q.since, true)}` : '';
   return `<article class="quest" style="--qc:${LV_COLOR[q.lv]}">
     <span class="lv">${q.lv}</span>
-    <div class="body"><span class="type">${q.kind}${q.unit ? ' · 部队 ' + esc(q.unit.project.toUpperCase()) : ''}</span>
-      <span class="title">${esc(q.title)}</span><span class="goal" title="${esc(q.goal)}">目标：${esc(q.goal)}</span></div>
+    <div class="body"><span class="type">${q.kind}${q.unit ? L(' · 部队 ') + esc(q.unit.project.toUpperCase()) : ''}</span>
+      <span class="title">${esc(q.title)}</span><span class="goal" title="${esc(q.goal)}">${L('目标：')}${esc(q.goal)}</span></div>
     <div class="side"><span class="mono">${since}</span><div>
-      <button class="btn ghost" data-snooze="${esc(q.key)}">稍后</button>
-      ${q.unit ? `<button class="btn" data-focus="${q.unit.pid}">▶ 前往</button>` : ''}</div></div>
+      <button class="btn ghost" data-snooze="${esc(q.key)}">${L('稍后')}</button>
+      ${q.unit ? `<button class="btn" data-focus="${q.unit.pid}">${L('▶ 前往')}</button>` : ''}</div></div>
   </article>`;
 }
 
@@ -485,16 +486,16 @@ function msgRow(e) {
 function archiveRow(h) {
   const now = Date.now();
   const action = h.owned
-    ? `<button class="btn" data-term="${esc(h.agentId)}">▶ 终端</button>`
+    ? `<button class="btn" data-term="${esc(h.agentId)}">${L('▶ 终端')}</button>`
     : h.pid
-      ? `<button class="btn" data-focus="${h.pid}" title="正在外部终端里运行">▶ 跳过去</button>`
-      : `<div class="save-actions"><button class="btn" data-takeover="${esc(h.sessionId)}" title="在指挥中心里继续，可以直接下指令">▶ 在此继续</button>
-         <button class="btn ghost" data-resume="${esc(h.sessionId)}" title="在新的 Windows Terminal 里继续">外部终端</button></div>`;
+      ? `<button class="btn" data-focus="${h.pid}" title="${L('正在外部终端里运行')}">▶ ${L('跳过去')}</button>`
+      : `<div class="save-actions"><button class="btn" data-takeover="${esc(h.sessionId)}" title="${L('在指挥中心里继续，可以直接下指令')}">${L('▶ 在此继续')}</button>
+         <button class="btn ghost" data-resume="${esc(h.sessionId)}" title="${L('在新的 Windows Terminal 里继续')}">${L('外部终端')}</button></div>`;
   return `<article class="save ${h.pid ? 'live' : ''}">
     <div class="when"><span class="mono">${clock(h.updatedAt, true)}</span><small>${ago(now - h.updatedAt)}</small></div>
     <div class="info">
-      <div class="r1"><b>${esc(h.project.toUpperCase())}</b>${h.pid ? '<span class="running">运行中</span>' : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
-      <div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? '最后指令：' + esc(h.lastPrompt) : ''}</div>
+      <div class="r1"><b>${esc(h.project.toUpperCase())}</b>${h.pid ? `<span class="running">${L('运行中')}</span>` : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
+      <div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>
       <div class="path">${esc(h.cwd)}</div>
     </div>
     ${action}
@@ -526,8 +527,8 @@ function folderList(list, sel) {
   const now = Date.now();
   return list
     .map((f) => `<button class="folder ${f.key === sel?.key ? 'on' : ''}" data-folder="${esc(f.key)}" title="${esc(f.cwd)}">
-      <span class="fname">${esc(f.project)}</span>${f.running ? `<span class="running">${f.running} 运行中</span>` : ''}
-      <span class="fmeta">${f.sessions.length} 个会话 · ${ago(now - f.latest)}</span></button>`)
+      <span class="fname">${esc(f.project)}</span>${f.running ? `<span class="running">${L('{0} 运行中', f.running)}</span>` : ''}
+      <span class="fmeta">${L('{0} 个会话 · {1}', f.sessions.length, ago(now - f.latest))}</span></button>`)
     .join('');
 }
 
@@ -555,15 +556,15 @@ function renderPage() {
     const sel = currentFolder(fl);
     const scroll = document.querySelector('.folders')?.scrollTop || 0;
     html = `<div class="archive">
-      <nav class="folders" aria-label="项目文件夹"><div class="archive-head"><span class="mono">FOLDERS</span><span>${fl.length} 个 · ↑↓ 切换</span></div>${folderList(fl, sel)}</nav>
-      <div class="saves"><div class="archive-head"><span class="mono">SAVE DATA</span><span>${ui.tab === 'units' ? '没有活动的会话 · ' : ''}${esc(sel?.cwd || '')} · ${list.length} 个</span></div>
-      ${items.map(archiveRow).join('') || '<div class="blank">没有找到会话</div>'}</div></div>`;
+      <nav class="folders" aria-label="${L('项目文件夹')}"><div class="archive-head"><span class="mono">FOLDERS</span><span>${L('{0} 个 · ↑↓ 切换', fl.length)}</span></div>${folderList(fl, sel)}</nav>
+      <div class="saves"><div class="archive-head"><span class="mono">SAVE DATA</span><span>${ui.tab === 'units' ? L('没有活动的会话 · ') : ''}${esc(sel?.cwd || '')}${L(' · {0} 个', list.length)}</span></div>
+      ${items.map(archiveRow).join('') || `<div class="blank">${L('没有找到会话')}</div>`}</div></div>`;
     $('page').innerHTML = html;
     document.querySelector('.folders').scrollTop = scroll; // keep the folder list where it was across live refreshes
   }
   else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${size}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
-  else if (ui.tab === 'quests') html = items.length ? `<div class="quests">${items.map(questCard).join('')}</div>` : '<div class="blank">没有待处理的任务，指挥官可以喝杯咖啡</div>';
-  else html = `<div class="comms">${items.map(msgRow).join('') || '<div class="msg"><span class="m">还没有通讯记录。部队状态变化时会出现在这里。</span></div>'}</div>`;
+  else if (ui.tab === 'quests') html = items.length ? `<div class="quests">${items.map(questCard).join('')}</div>` : `<div class="blank">${L('没有待处理的任务，指挥官可以喝杯咖啡')}</div>`;
+  else html = `<div class="comms">${items.map(msgRow).join('') || `<div class="msg"><span class="m">${L('还没有通讯记录。部队状态变化时会出现在这里。')}</span></div>`}</div>`;
   if (kind !== 'archive') $('page').innerHTML = html;
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
@@ -572,7 +573,7 @@ function renderPage() {
   $('n-comms').textContent = state.comms.length;
   $('n-archive').textContent = (state.history || []).length;
   const busy = state.units.filter((u) => u.status === 'busy').length;
-  $('summary').textContent = `◆ 作战 ${busy}　◆ 待命 ${state.units.length - busy}`;
+  $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
   $('dots').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i === ui.page ? 'on' : ''}"></i>`).join('') + `<span>${pad(ui.page + 1)} / ${pad(total)}</span>`;
   $('prev').disabled = ui.page === 0;
   $('next').disabled = ui.page >= total - 1;
@@ -586,7 +587,7 @@ function render() {
   renderPage();
   renderTermHeads();
   $('deploy-open').disabled = !state.agentSupport?.ok;
-  $('deploy-open').title = state.agentSupport?.ok ? '在指挥中心里启动一个新的 Claude Code（N）' : state.agentSupport?.error || '';
+  $('deploy-open').title = state.agentSupport?.ok ? L('在指挥中心里启动一个新的 Claude Code（N）') : state.agentSupport?.error || '';
   tick();
 }
 
@@ -610,7 +611,7 @@ async function focus(pid) {
   const u = state.units.find((x) => x.pid === Number(pid));
   if (u?.owned) return openTerm(u.agentId);
   const r = await post('/api/focus', { pid: Number(pid) });
-  toast(r.ok ? `已切到 ${r.window} 窗口` : '没找到这个会话的终端窗口');
+  toast(r.ok ? L('已切到 {0} 窗口', r.window) : L('没找到这个会话的终端窗口'));
 }
 
 /* ---------- agents launched by the command center ---------- */
@@ -627,11 +628,11 @@ const MAX_PANES = 4;
 const panes = new Map(); // agent id -> { el, t }
 
 const PANE_ACTIONS = `
-  <button data-tkey="esc" title="打断当前操作">Esc</button>
-  <button data-tact="pop" title="弹出成独立窗口">⧉</button>
-  <button data-tact="kill" class="danger" title="结束这个 Claude 进程">结束</button>
-  <button data-tact="remove" class="ghost" hidden>移除</button>
-  <button data-tact="close" title="收起这个终端（agent 继续运行）" aria-label="收起这个终端">✕</button>`;
+  <button data-tkey="esc" title="${L('打断当前操作')}">Esc</button>
+  <button data-tact="pop" title="${L('弹出成独立窗口')}">⧉</button>
+  <button data-tact="kill" class="danger" title="${L('结束这个 Claude 进程')}">${L('结束')}</button>
+  <button data-tact="remove" class="ghost" hidden>${L('移除')}</button>
+  <button data-tact="close" title="${L('收起这个终端（agent 继续运行）')}" aria-label="${L('收起这个终端')}">✕</button>`;
 
 function renderTermHeads() {
   for (const [id, { el }] of panes) {
@@ -648,8 +649,8 @@ function renderTermHeads() {
     const st = el.querySelector('.t-state');
     const u = state?.units.find((x) => x.agentId === id);
     const [label, cls] = !alive
-      ? [`● 已退出${a?.exitCode != null ? '（' + a.exitCode + '）' : ''}`, 'off']
-      : u?.permission ? ['● 等你授权', 'permit'] : u?.status === 'busy' ? ['● 作战中', 'busy'] : ['● 待命', 'on'];
+      ? [a?.exitCode != null ? L('● 已退出（{0}）', a.exitCode) : L('● 已退出'), 'off']
+      : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
     st.textContent = label;
     st.className = 't-state ' + cls;
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
@@ -661,8 +662,8 @@ function renderTermHeads() {
   // Our other agents, one click away from joining the split view (the panel hides the unit cards).
   const others = (state?.agents || []).filter((a) => a.alive && !panes.has(a.id));
   const html = others.length
-    ? others.map((a) => `<button data-add="${esc(a.id)}" title="${esc(a.cwd)}">＋ ${esc(agentLabel(a.id).name)}</button>`).join('') + '<button data-add-new title="启动新的 Claude（N）">＋ 出击</button>'
-    : '<span class="hint">没有其他我方 agent · </span><button data-add-new>＋ 出击</button>';
+    ? others.map((a) => `<button data-add="${esc(a.id)}" title="${esc(a.cwd)}">＋ ${esc(agentLabel(a.id).name)}</button>`).join('') + `<button data-add-new title="${L('启动新的 Claude（N）')}">${L('＋ 出击')}</button>`
+    : `<span class="hint">${L('没有其他我方 agent · ')}</span><button data-add-new>${L('＋ 出击')}</button>`;
   if (renderTermHeads.last !== html) $('term-add').innerHTML = renderTermHeads.last = html;
 }
 
@@ -672,7 +673,7 @@ function ctxBadge(u) {
   const pct = Math.round(u.contextPct);
   const hot = pct >= state.thresholds.contextWarnPct;
   const color = hot ? 'var(--red)' : 'var(--cyan)';
-  return `<span class="ctx-badge" style="--cc:${color}" title="记忆负载 ${pct}%：${(u.contextTokens || 0).toLocaleString()} / ${(u.contextWindow || 0).toLocaleString()} tokens${hot ? '，建议 /compact' : ''}">
+  return `<span class="ctx-badge" style="--cc:${color}" title="${L('记忆负载 {0}%：{1} / {2} tokens', pct, (u.contextTokens || 0).toLocaleString(), (u.contextWindow || 0).toLocaleString())}${hot ? L('，建议 /compact') : ''}">
     <i style="width:${Math.min(100, pct)}%"></i></span><span class="ctx-num" style="color:${color}">${pct}% · ${kTokens(u.contextTokens)}</span>`;
 }
 
@@ -783,19 +784,19 @@ function popOut(id) {
 
 async function agentAction(body) {
   const r = await post('/api/agents/action', body);
-  if (!r.ok) toast('操作没有生效：这个 agent 可能已经退出');
+  if (!r.ok) toast(L('操作没有生效：这个 agent 可能已经退出'));
   return r;
 }
 
 async function takeover(sessionId) {
   const r = await post('/api/agents', { resume: sessionId });
-  if (!r.ok) return toast('接管失败：' + r.error);
-  toast('已在指挥中心里继续这个会话');
+  if (!r.ok) return toast(L('接管失败：') + r.error);
+  toast(L('已在指挥中心里继续这个会话'));
   openTerm(r.id);
 }
 
 function openDeploy() {
-  if (state && !state.agentSupport?.ok) return toast(state.agentSupport?.error || '无法启动 agent');
+  if (state && !state.agentSupport?.ok) return toast(state.agentSupport?.error || L('无法启动 agent'));
   const cwds = new Map();
   for (const u of state?.units || []) cwds.set(u.cwd.toLowerCase(), u.cwd);
   for (const h of state?.history || []) cwds.set(h.cwd.toLowerCase(), h.cwd);
@@ -818,10 +819,10 @@ function updateDeployMode() {
   const s = latestSessionIn($('dp-cwd').value);
   const resumable = s && !s.pid; // a session running in an outside terminal can't be taken over
   $('dp-mode').hidden = !s || (Boolean(s.pid) && !s.owned);
-  $('dp-note').textContent = s?.pid && !s.owned ? '这个文件夹最新的会话正在外部终端运行，将开新会话。' : '';
+  $('dp-note').textContent = s?.pid && !s.owned ? L('这个文件夹最新的会话正在外部终端运行，将开新会话。') : '';
   if (s && (resumable || s.owned)) {
     const title = (s.title || s.lastPrompt || s.sessionId.slice(0, 8)).slice(0, 36);
-    $('dp-latest').textContent = `${s.owned ? '打开' : '继续'}最新会话：${title} · ${ago(Date.now() - s.updatedAt)}`;
+    $('dp-latest').textContent = L('{0}最新会话：{1} · {2}', s.owned ? L('打开') : L('继续'), title, ago(Date.now() - s.updatedAt));
   }
   $('dp-name').disabled = Boolean(s && (resumable || s.owned) && $('deploy-form').elements['dp-mode'].value === 'resume');
 }
@@ -850,11 +851,11 @@ $('deploy-form').addEventListener('submit', async (e) => {
     const body = wantResume ? { resume: s.sessionId, prompt } : { cwd: $('dp-cwd').value, name: $('dp-name').value, prompt };
     const r = await post('/api/agents', body);
     if (!r.ok) {
-      $('dp-err').textContent = r.error || '启动失败';
+      $('dp-err').textContent = r.error || L('启动失败');
       return;
     }
     $('deploy').close();
-    toast(wantResume ? '部队归队，继续最新会话' : '部队出击！');
+    toast(wantResume ? L('部队归队，继续最新会话') : L('部队出击！'));
     openTerm(r.id);
   } finally {
     $('dp-go').disabled = false;
@@ -879,7 +880,7 @@ $('term-grid').addEventListener('click', async (e) => {
   if (b.dataset.tkey) await agentAction({ id, action: 'key', key: b.dataset.tkey });
   else if (b.dataset.tcmd) await agentAction({ id, action: 'text', text: b.dataset.tcmd });
   else if (b.dataset.tact === 'kill') {
-    const yes = await ask({ danger: true, title: `结束「${agentLabel(id).name}」？`, message: '进程会退出，会话记录保留，可以从存档继续。', ok: '结束' });
+    const yes = await ask({ danger: true, title: L('结束「{0}」？', agentLabel(id).name), message: L('进程会退出，会话记录保留，可以从存档继续。'), ok: L('结束') });
     if (!yes) return;
     await agentAction({ id, action: 'kill' });
   } else if (b.dataset.tact === 'remove') {
@@ -893,13 +894,13 @@ $('term-grid').addEventListener('click', async (e) => {
 
 async function resume(sessionId) {
   const r = await post('/api/resume', { sessionId });
-  if (r.focused) toast(r.ok ? `已经在运行，切到 ${r.window} 窗口` : '这个会话在运行，但没找到它的终端窗口');
-  else toast(r.ok ? `已在 ${r.terminal} 里打开，部队即将上线` : '打开失败：' + r.error);
+  if (r.focused) toast(r.ok ? L('已经在运行，切到 {0} 窗口', r.window) : L('这个会话在运行，但没找到它的终端窗口'));
+  else toast(r.ok ? L('已在 {0} 里打开，部队即将上线', r.terminal) : L('打开失败：') + r.error);
 }
 
 async function snoozeLine(key, minutes = 30) {
   await post('/api/snooze', { key, minutes });
-  toast(`${minutes} 分钟后再提醒`);
+  toast(L('{0} 分钟后再提醒', minutes));
 }
 
 function setTab(tab) {
@@ -931,9 +932,9 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
 $('prev').addEventListener('click', () => turn(-1));
 $('next').addEventListener('click', () => turn(1));
 $('refresh').addEventListener('click', async () => {
-  toast('正在刷新…');
+  toast(L('正在刷新…'));
   await post('/api/refresh');
-  toast('已刷新');
+  toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
   const fo = e.target.closest('[data-folder]');
@@ -984,6 +985,28 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+/* ---------- language: the globe in the top bar ---------- */
+
+translateDom();
+document.body.appendChild($('lang-menu')); // out of the top bar, whose clip-path would cut it off
+function toggleLangMenu(open = $('lang-menu').hidden) {
+  const r = $('lang-btn').getBoundingClientRect();
+  Object.assign($('lang-menu').style, { top: `${r.bottom + 6}px`, right: `${innerWidth - r.right}px` });
+  $('lang-menu').hidden = !open;
+  $('lang-btn').setAttribute('aria-expanded', String(open));
+}
+for (const b of document.querySelectorAll('#lang-menu [data-lang]')) b.setAttribute('aria-checked', String(b.dataset.lang === lang));
+$('lang-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleLangMenu();
+});
+$('lang-menu').addEventListener('click', (e) => {
+  const next = e.target.closest('[data-lang]')?.dataset.lang;
+  toggleLangMenu(false);
+  if (next && next !== lang) setLang(next);
+});
+document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMenu(false));
+
 /* ---------- boot ---------- */
 
 // Page sizes depend on the window size, so re-paginate when it changes.
@@ -999,10 +1022,10 @@ window.opsConfirmQuit = async (names) => {
   const yes = await ask({
     danger: true,
     tag: 'QUIT',
-    title: '退出舰桥？',
-    message: `还有 ${names.length} 支部队在指挥中心里运行，退出会结束它们。会话记录会保留，下次启动时自动恢复阵容。`,
+    title: L('退出舰桥？'),
+    message: L('还有 {0} 支部队在指挥中心里运行，退出会结束它们。会话记录会保留，下次启动时自动恢复阵容。', names.length),
     detail: names.map((n) => '◆ ' + n),
-    ok: '退出',
+    ok: L('退出'),
   });
   if (yes) window.opsBridge?.quit();
 };
@@ -1035,12 +1058,12 @@ function connect() {
       const ids = deep[1].split(',').filter((id) => state.agents?.some((a) => a.id === id));
       setTimeout(() => ids.forEach((id) => openTerm(id)), 0);
     }
-    $('conn').textContent = '● 已连接';
+    $('conn').textContent = L('● 已连接');
     $('conn').classList.remove('bad');
     render();
   };
   es.onerror = () => {
-    $('conn').textContent = '● 连接断开，重连中…';
+    $('conn').textContent = L('● 连接断开，重连中…');
     $('conn').classList.add('bad');
   };
 }

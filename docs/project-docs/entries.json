@@ -1197,6 +1197,59 @@
       "created": "2026-11-01 17:00",
       "updated": "2026-11-01 17:00",
       "notes": []
+    },
+    {
+      "id": "C-016",
+      "type": "change",
+      "title": "中英文切换；安装包瘦身（0.6.2）",
+      "summary": "顶栏地球按钮切换中文 / English：前端 web/i18n.js 词典 + translateDom，后端 server/i18n.js 生成提醒与通讯，语言存 settings.json，各窗口同步。安装包只保留中英两个语言包并排除依赖的源码映射等：安装包 118.0 → 约 108.6 MB，安装后 367 → 313 MB。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/i18n.js",
+        "server/i18n.js",
+        "web/app.js",
+        "web/widget.js",
+        "web/term.js",
+        "web/ui.js",
+        "web/terminal.js",
+        "web/index.html",
+        "web/style.css",
+        "server/state.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/collectors/usage.js",
+        "package.json"
+      ],
+      "tags": [
+        "i18n",
+        "打包"
+      ],
+      "sections": [
+        "02-features",
+        "08-dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-11-01 17:27",
+      "updated": "2026-11-01 17:27",
+      "notes": []
+    },
+    {
+      "id": "D-010",
+      "type": "decision",
+      "title": "不做前端内存优化（实测无效）",
+      "summary": "试过：小终端退回 DOM 渲染、窗口隐藏时释放 WebGL、暂停动画。4 终端实测窗口打开 514→511 MB 基本无变化，最小化后反而 453→517 MB、CPU 0.2%→3.6%（切换渲染器触发重绘），已撤回。后台堆只有约 9 MB，主进程约 150 MB 是 Electron 本身。真正有效的是关闭窗口时释放页面（待用户决定）。",
+      "detail": "",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "性能"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 17:27",
+      "updated": "2026-11-01 17:27",
+      "notes": []
     }
   ]
 }

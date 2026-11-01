@@ -79,6 +79,17 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .win-ctl .close:hover { color: #fff; background: #c42b3c; border-color: #c42b3c; }
 .frameless .hud { -webkit-app-region: drag; }
 .frameless .hud button { -webkit-app-region: no-drag; }
+/* language: a globe in the top bar with a small themed menu */
+.lang-wrap { position: relative; }
+/* fixed, placed by JS: the top bar's cut corners (clip-path) would clip an absolute menu */
+.lang-menu { position: fixed; z-index: 60; min-width: 132px; display: flex; flex-direction: column; padding: 4px; background: #050a12; border: 1px solid var(--cyan); box-shadow: 0 0 16px rgba(61,245,255,.2); }
+.lang-menu[hidden] { display: none; }
+.lang-menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--soft); font-family: var(--body); font-size: 13px; text-align: left; }
+.lang-menu button::before { content: ''; width: 14px; color: var(--cyan); }
+.lang-menu button[aria-checked="true"]::before { content: '✓'; }
+.lang-menu button:hover, .lang-menu button:focus-visible { background: rgba(61,245,255,.1); color: var(--text); outline: none; }
+.pilot .lang-wrap + .icon-btn { margin-left: 6px; }
+html[lang="en"] .tab .cn { display: none; }
 .icon-btn { width: 44px; height: 44px; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); display: flex; align-items: center; justify-content: center; }
 
 /* Body */

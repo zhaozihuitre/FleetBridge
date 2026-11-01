@@ -1,6 +1,9 @@
 // Popped-out terminal window: one agent, full window.
 import { createTerminal } from './terminal.js';
 import { ask } from './ui.js';
+import { L, translateDom } from './i18n.js';
+
+translateDom();
 
 const id = location.hash.slice(1);
 const pane = document.getElementById('pane');
@@ -15,7 +18,7 @@ function render(state) {
   const name = a?.name || u?.name || id.slice(0, 8);
   q('.t-name').textContent = name;
   q('.t-cwd').textContent = a?.cwd || u?.cwd || '';
-  const [label, cls] = !a?.alive ? ['● 已退出', 'off'] : u?.permission ? ['● 等你授权', 'permit'] : u?.status === 'busy' ? ['● 作战中', 'busy'] : ['● 待命', 'on'];
+  const [label, cls] = !a?.alive ? [L('● 已退出'), 'off'] : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
   q('.t-state').textContent = label;
   q('.t-state').className = 't-state ' + cls;
   q('.t-ctx').innerHTML = ''; // rebuilt every update: load badge, then the repo tag
@@ -31,12 +34,12 @@ function render(state) {
   if (active) {
     const tag = document.createElement('span');
     tag.className = 't-repo' + (active.remote ? '' : ' warn');
-    tag.textContent = `⎇ ${active.remote ? active.remote.slug : '无远程'} · ${active.branch || ''}`;
-    tag.title = repos.map((r) => `${r.name} → ${r.remote ? r.remote.host + '/' + r.remote.slug : '无远程'}`).join('\n');
+    tag.textContent = `⎇ ${active.remote ? active.remote.slug : L('无远程')} · ${active.branch || ''}`;
+    tag.title = repos.map((r) => `${r.name} → ${r.remote ? r.remote.host + '/' + r.remote.slug : L('无远程')}`).join('\n');
     q('.t-ctx').appendChild(tag);
   }
   pane.querySelectorAll('button').forEach((b) => (b.disabled = !a?.alive));
-  document.title = `${name} · 舰桥`;
+  document.title = `${name} · ${L('舰桥 · 终端').split(' · ')[0]}`;
 }
 
 new EventSource('/api/stream').onmessage = (e) => render(JSON.parse(e.data));
@@ -46,7 +49,7 @@ pane.querySelector('.term-actions').addEventListener('click', async (e) => {
   if (!b) return;
   if (b.dataset.tkey) await post('/api/agents/action', { id, action: 'key', key: b.dataset.tkey });
   else if (b.dataset.tcmd) await post('/api/agents/action', { id, action: 'text', text: b.dataset.tcmd });
-  else if (b.dataset.tact === 'kill' && (await ask({ danger: true, title: '结束这个 Claude？', message: '进程会退出，会话记录保留，可以从存档继续。', ok: '结束' })))
+  else if (b.dataset.tact === 'kill' && (await ask({ danger: true, title: L('结束这个 Claude？'), message: L('进程会退出，会话记录保留，可以从存档继续。'), ok: L('结束') })))
     await post('/api/agents/action', { id, action: 'kill' });
   t.focus();
 });

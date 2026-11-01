@@ -1,4 +1,5 @@
 // Themed confirm dialog used instead of the browser's confirm().
+import { L } from './i18n.js';
 
 let dialog = null;
 
@@ -36,8 +37,8 @@ export function ask(o) {
     q('.ask-detail').appendChild(div);
   }
   q('.ask-detail').hidden = !lines.length;
-  q('.ask-ok').textContent = o.ok || '确定';
-  q('.ask-cancel').textContent = o.cancel || '取消';
+  q('.ask-ok').textContent = o.ok || L('确定');
+  q('.ask-cancel').textContent = o.cancel || L('取消');
   dialog.classList.toggle('danger', Boolean(o.danger));
   dialog.returnValue = '';
   return new Promise((resolve) => {

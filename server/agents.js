@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { DATA_DIR } from './config.js';
+import { L } from './i18n.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -78,7 +79,7 @@ export function onAgentsChange(fn) {
 }
 
 export function agentSupport() {
-  return { ok: Boolean(pty && CLAUDE), error: !pty ? `终端组件加载失败：${ptyError}` : !CLAUDE ? '找不到 claude 命令' : null };
+  return { ok: Boolean(pty && CLAUDE), error: !pty ? L(`终端组件加载失败：${ptyError}`, `Terminal component failed to load: ${ptyError}`) : !CLAUDE ? L('找不到 claude 命令', 'claude command not found') : null };
 }
 
 export function listAgents() {
@@ -116,8 +117,8 @@ export function getAgent(id) {
 export function spawnAgent({ cwd, name, resume, prompt }) {
   const support = agentSupport();
   if (!support.ok) throw new Error(support.error);
-  if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error('文件夹不存在');
-  if (resume && !UUID.test(resume)) throw new Error('会话 ID 无效');
+  if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error(L('文件夹不存在', 'Folder does not exist'));
+  if (resume && !UUID.test(resume)) throw new Error(L('会话 ID 无效', 'Invalid session id'));
   // Already under our command (also after /clear or a fork changed its id): never attach a second
   // process to the same session, both would write into one transcript.
   const existing = resume && [...agents.values()].find((a) => a.alive && (a.id === resume || a.sessionId === resume));
@@ -140,7 +141,7 @@ export function spawnAgent({ cwd, name, resume, prompt }) {
   term.onExit(({ exitCode }) => {
     agent.alive = false;
     agent.exitCode = exitCode;
-    const note = `\r\n\x1b[33m[进程已退出，代码 ${exitCode}。会话记录还在，可以从存档继续]\x1b[0m\r\n`;
+    const note = `\r\n\x1b[33m${L(`[进程已退出，代码 ${exitCode}。会话记录还在，可以从存档继续]`, `[Process exited with code ${exitCode}. The session is kept; continue it from the archive]`)}\x1b[0m\r\n`;
     agent.buffer += note;
     for (const ws of agent.clients) ws.send(note);
     onChange();

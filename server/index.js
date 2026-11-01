@@ -4,7 +4,8 @@ import path from 'node:path';
 import { config, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
-import { collectUsage } from './collectors/usage.js';
+import { collectUsage, limitLabel } from './collectors/usage.js';
+import { getLang, L, setLang } from './i18n.js';
 import { collectHistory } from './collectors/history.js';
 import { collectToday } from './collectors/today.js';
 import { demoSessions } from './demo.js';
@@ -43,7 +44,8 @@ function publish() {
   const live = agents.filter((a) => a.alive);
   const byPid = new Map(live.filter((a) => a.pid).map((a) => [a.pid, a.id]));
   const bySession = new Map(live.map((a) => [a.sessionId, a.id]));
-  const base = buildState({ sessions, gitByCwd, usage });
+  const view = usage && { ...usage, limits: usage.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
+  const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
     ...base,
     // "owned": launched by the command center, so we can open its terminal (agentId) and type into it
@@ -55,6 +57,7 @@ function publish() {
     agents,
     agentSupport: agentSupport(),
     today,
+    lang: getLang(),
   };
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
@@ -163,8 +166,8 @@ const server = http.createServer(async (req, res) => {
       if (resume) {
         // resume only sessions from our own scan, in the folder the transcript says
         const h = history.find((x) => x.sessionId === resume);
-        if (!h) return send(res, 400, { error: '未知会话' });
-        if (h.pid && !getAgent(resume)?.alive) return send(res, 409, { error: '这个会话正在外部终端里运行' });
+        if (!h) return send(res, 400, { error: L('未知会话', 'Unknown session') });
+        if (h.pid && !getAgent(resume)?.alive) return send(res, 409, { error: L('这个会话正在外部终端里运行', 'This session is running in an outside terminal') });
         agent = spawnAgent({ cwd: h.cwd, resume, name, prompt });
       } else {
         agent = spawnAgent({ cwd: String(cwd || '').trim(), name: name ? String(name).trim() : undefined, prompt: prompt ? String(prompt) : undefined });
@@ -191,6 +194,12 @@ const server = http.createServer(async (req, res) => {
       return false;
     });
     return send(res, 200, { ok: results.some(Boolean), results });
+  }
+  if (req.method === 'POST' && req.url === '/api/lang') {
+    const { lang } = await readBody(req);
+    setLang(lang);
+    publish(); // reminders and operator lines are rebuilt in the new language
+    return send(res, 200, { ok: true, lang: getLang() });
   }
   if (req.method === 'POST' && req.url === '/api/snooze') {
     const { key, minutes } = await readBody(req);

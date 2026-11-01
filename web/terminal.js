@@ -2,6 +2,7 @@
 // Several can be open at once (split view, pop-out windows); each call makes an independent one.
 import { Terminal } from '/lib/xterm/lib/xterm.mjs';
 import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
+import { L } from './i18n.js';
 import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 
 const THEME = {
@@ -54,7 +55,7 @@ export function createTerminal(host, id, opts = {}) {
     sendResize();
   };
   ws.onmessage = (e) => term.write(e.data);
-  ws.onclose = () => term.write('\r\n\x1b[90m[与终端的连接已断开]\x1b[0m\r\n');
+  ws.onclose = () => term.write(`\r\n\x1b[90m${L('[与终端的连接已断开]')}\x1b[0m\r\n`);
   term.onData((data) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data })));
   term.onResize(sendResize);
 

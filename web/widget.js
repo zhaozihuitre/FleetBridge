@@ -1,5 +1,8 @@
 // Always-on-top status widget: quota, the most urgent thing, and every unit at a glance.
 const $ = (id) => document.getElementById(id);
+import { L, locale, translateDom } from './i18n.js';
+
+translateDom();
 const bridge = window.opsBridge; // present only inside the Electron widget window
 const MAX_ROWS = 8;
 
@@ -38,7 +41,7 @@ function since(ms) {
   const m = Math.floor(ms / 60_000);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
-  return h < 48 ? `${h}h${pad(m % 60)}` : `${Math.floor(h / 24)}天`;
+  return h < 48 ? `${h}h${pad(m % 60)}` : L('{0}天', Math.floor(h / 24));
 }
 
 function seg(pct, n, color) {
@@ -46,7 +49,7 @@ function seg(pct, n, color) {
   return `<div class="seg" style="--c:${color}">${Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</div>`;
 }
 
-const SHORT = { session: '5 小时', weekly_all: '本周' };
+const SHORT = { session: L('5 小时'), weekly_all: L('本周') };
 
 function renderLimits() {
   const limits = state.usage?.limits || [];
@@ -56,23 +59,23 @@ function renderLimits() {
         .map((l) => {
           const low = 100 - l.usedPct <= th.energyLowPct;
           const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
-          const label = SHORT[l.key] || l.label.replace('本周 · ', '周 · ');
+          const label = SHORT[l.key] || l.label.replace('本周 · ', '周 · ').replace('Week · ', 'Wk · ');
           const reset = new Date(l.resetsAt);
-          return `<div class="lim ${l.active ? 'active' : ''} ${low ? 'low' : ''}" title="${esc(l.label)} 已用 ${Math.round(l.usedPct)}%，${reset.toLocaleString('zh-CN', { hour12: false })} 重置">
+          return `<div class="lim ${l.active ? 'active' : ''} ${low ? 'low' : ''}" title="${esc(L('{0} 已用 {1}%，{2} 重置', l.label, Math.round(l.usedPct), reset.toLocaleString(locale, { hour12: false })))}">
             <span>${esc(label)}</span>${seg(l.usedPct, 16, color)}<span class="pct">${Math.round(l.usedPct)}%</span></div>`;
         })
         .join('')
-    : `<div class="lim"><span>额度</span><span>${state.usage?.error ? '读取失败' : '读取中…'}</span><span></span></div>`;
+    : `<div class="lim"><span>${L('额度')}</span><span>${state.usage?.error ? L('读取失败') : L('读取中…')}</span><span></span></div>`;
 }
 
 function unitLook(u) {
   const th = state.thresholds;
   const now = Date.now();
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
-  if (u.permission) return { c: 'var(--red)', s: '等你授权！', blink: true };
-  if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? '执行：' + u.lastPrompt : '作战中', blink: false, hot };
+  if (u.permission) return { c: 'var(--red)', s: L('等你授权！'), blink: true };
+  if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? L('执行：') + u.lastPrompt : L('作战中'), blink: false, hot };
   const standby = now - u.statusSince > th.standbyMinutes * 60_000;
-  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: standby ? '休眠' : '做完了，等你指令', blink: false, hot };
+  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: standby ? L('休眠') : L('做完了，等你指令'), blink: false, hot };
 }
 
 function renderUnits() {
@@ -80,18 +83,18 @@ function renderUnits() {
   const rows = units.slice(0, MAX_ROWS).map((u) => {
     const look = unitLook(u);
     const ctx = u.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
-    return `<button class="row" style="--c:${look.c}" data-agent="${esc(u.agentId || '')}" data-pid="${u.pid}" title="${esc(u.cwd)}\n${u.owned ? '点击打开它的终端' : '点击切到它的终端窗口'}">
+    return `<button class="row" style="--c:${look.c}" data-agent="${esc(u.agentId || '')}" data-pid="${u.pid}" title="${esc(u.cwd)}\n${u.owned ? L('点击打开它的终端') : L('点击切到它的终端窗口')}">
       <span class="dot ${look.blink ? 'blink' : ''}"></span>
-      <span class="mid"><span class="p">${esc(u.project)}${u.owned ? '<i>我方</i>' : ''}</span><span class="s">${esc(look.s)}</span></span>
+      <span class="mid"><span class="p">${esc(u.project)}${u.owned ? `<i>${L('我方')}</i>` : ''}</span><span class="s">${esc(look.s)}</span></span>
       <span class="r"><span class="ctx" style="--kc:${look.hot ? 'var(--red)' : 'var(--text)'}">${ctx}</span><span>${since(Date.now() - u.statusSince)}</span></span>
     </button>`;
   });
-  const more = units.length > MAX_ROWS ? `<div class="more">还有 ${units.length - MAX_ROWS} 个，打开指挥中心查看</div>` : '';
-  $('units').innerHTML = rows.join('') + more || '<div class="empty-w">没有运行中的会话 · 点 ⤢ 去存档挑一个</div>';
+  const more = units.length > MAX_ROWS ? `<div class="more">${L('还有 {0} 个，打开指挥中心查看', units.length - MAX_ROWS)}</div>` : '';
+  $('units').innerHTML = rows.join('') + more || `<div class="empty-w">${L('没有运行中的会话 · 点 ⤢ 去存档挑一个')}</div>`;
 
   const busy = units.filter((u) => u.status === 'busy').length;
   const permit = units.filter((u) => u.permission).length;
-  $('chips').innerHTML = `<span>作战 <b>${busy}</b></span><span>待命 <b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">授权 <b>${permit}</b></span>` : ''}`;
+  $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('授权 ')}<b>${permit}</b></span>` : ''}`;
 }
 
 const LV = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
@@ -107,7 +110,7 @@ function renderAlert() {
   a.style.setProperty('--qc', LV[q.lv]);
   a.dataset.agent = u?.agentId || '';
   a.dataset.pid = q.unit?.pid ?? '';
-  a.innerHTML = `<b>[${q.lv}] ${esc(q.title)}</b><small>${esc(q.goal)}${state.quests.length > 1 ? ` · 另有 ${state.quests.length - 1} 项` : ''}</small>`;
+  a.innerHTML = `<b>[${q.lv}] ${esc(q.title)}</b><small>${esc(q.goal)}${state.quests.length > 1 ? L(' · 另有 {0} 项', state.quests.length - 1) : ''}</small>`;
 }
 
 function render() {
@@ -124,9 +127,9 @@ function fitHeight() {
 /* ---------- notifications: each new "needs you" quest raises one Windows toast ---------- */
 
 const NOTIFY = {
-  PERMIT: (q) => [`${q.unit.project} 等你授权`, q.goal],
-  READY: (q) => [`${q.unit.project} 做完了，等你指令`, q.goal],
-  OVERLOAD: (q) => [`${q.unit.project} 记忆负载过高`, q.title],
+  PERMIT: (q) => [L('{0} 等你授权', q.unit.project), q.goal],
+  READY: (q) => [L('{0} 做完了，等你指令', q.unit.project), q.goal],
+  OVERLOAD: (q) => [L('{0} 记忆负载过高', q.unit.project), q.title],
 };
 // PERMIT blocks work and is told at once. READY waits until the session has stayed idle a while
 // (the short pauses between turns are not "done"); OVERLOAD is told once an hour per session.

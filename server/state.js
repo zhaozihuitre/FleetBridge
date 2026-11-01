@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, DATA_DIR } from './config.js';
+import { L } from './i18n.js';
 
 const DAY = 86_400_000;
 const LOG_FILE = path.join(DATA_DIR, process.env.MONITOR_DEMO ? 'comms.demo.jsonl' : 'comms.jsonl');
@@ -41,17 +42,17 @@ const remaining = (w) => (w ? Math.max(0, 100 - w.usedPct) : null);
 function limitsOf(usage) {
   if (usage?.limits?.length) return usage.limits;
   return [
-    usage?.fiveHour && { key: 'session', label: '5 小时', ...usage.fiveHour },
-    usage?.sevenDay && { key: 'weekly_all', label: '本周 · 所有模型', ...usage.sevenDay },
+    usage?.fiveHour && { key: 'session', label: L('5 小时', '5 hours'), ...usage.fiveHour },
+    usage?.sevenDay && { key: 'weekly_all', label: L('本周 · 所有模型', 'Week · all models'), ...usage.sevenDay },
   ].filter(Boolean);
 }
 
 function ago(ms) {
   const m = Math.floor(ms / 60_000);
-  if (m < 60) return `${m} 分钟`;
+  if (m < 60) return L(`${m} 分钟`, `${m} min`);
   const h = Math.floor(m / 60);
-  if (h < 48) return `${h} 小时 ${m % 60} 分`;
-  return `${Math.floor(h / 24)} 天`;
+  if (h < 48) return L(`${h} 小时 ${m % 60} 分`, `${h}h ${m % 60}m`);
+  return L(`${Math.floor(h / 24)} 天`, `${Math.floor(h / 24)} days`);
 }
 
 // Map Claude's edited file paths onto the repos under a session's cwd.
@@ -100,23 +101,23 @@ function buildQuests(units, usage, now) {
   for (const l of limitsOf(usage)) {
     const left = remaining(l);
     if (left !== null && left <= th.energyLowPct)
-      q.push({ key: `energy:${l.key}`, kind: 'ALERT', lv: 'S', title: `额度（${l.label}）只剩 ${pct(left)}`, goal: `放慢节奏，或等 ${new Date(l.resetsAt).toLocaleString('zh-CN', { hour12: false })} 回充`, since: usage.fetchedAt });
+      q.push({ key: `energy:${l.key}`, kind: 'ALERT', lv: 'S', title: L(`额度（${l.label}）只剩 ${pct(left)}`, `Quota (${l.label}) down to ${pct(left)}`), goal: L(`放慢节奏，或等 ${new Date(l.resetsAt).toLocaleString('zh-CN', { hour12: false })} 回充`, `Slow down, or wait for the refill at ${new Date(l.resetsAt).toLocaleString('en-US', { hour12: false })}`), since: usage.fetchedAt });
   }
   for (const u of units) {
     if (u.permission)
-      q.push({ key: `permit:${u.sessionId}:${u.permission.at}`, kind: 'PERMIT', lv: 'S', unit: u, title: `${u.project} 等你授权`, goal: u.permission.message || '回到终端确认权限请求', since: u.permission.at });
+      q.push({ key: `permit:${u.sessionId}:${u.permission.at}`, kind: 'PERMIT', lv: 'S', unit: u, title: L(`${u.project} 等你授权`, `${u.project} needs your approval`), goal: u.permission.message || L('回到终端确认权限请求', 'Go to the terminal and answer the permission prompt'), since: u.permission.at });
     if (u.contextPct !== null && u.contextPct >= th.contextWarnPct)
-      q.push({ key: `ctx:${u.sessionId}`, kind: 'OVERLOAD', lv: 'S', unit: u, title: `${u.name} 记忆负载 ${pct(u.contextPct)}`, goal: '执行 /compact，或开新会话', since: u.lastActivity });
+      q.push({ key: `ctx:${u.sessionId}`, kind: 'OVERLOAD', lv: 'S', unit: u, title: L(`${u.name} 记忆负载 ${pct(u.contextPct)}`, `${u.name} context at ${pct(u.contextPct)}`), goal: L('执行 /compact，或开新会话', 'Run /compact, or start a new session'), since: u.lastActivity });
     if (u.status === 'idle')
-      q.push({ key: `ready:${u.sessionId}:${u.statusSince}`, kind: 'READY', lv: 'A', unit: u, title: `${u.project} 待命，等你下一步指令`, goal: u.lastText ? `最后汇报：${u.lastText}` : '回到终端查看结果', since: u.statusSince });
+      q.push({ key: `ready:${u.sessionId}:${u.statusSince}`, kind: 'READY', lv: 'A', unit: u, title: L(`${u.project} 待命，等你下一步指令`, `${u.project} is done, awaiting orders`), goal: u.lastText ? L(`最后汇报：${u.lastText}`, `Last report: ${u.lastText}`) : L('回到终端查看结果', 'Check the result in the terminal'), since: u.statusSince });
     for (const r of u.repos) {
       if (r.error) continue;
       if (r.conflicts || r.operation)
-        q.push({ key: `op:${r.path}`, kind: 'GIT', lv: 'A', unit: u, title: `${r.name} 卡在 ${r.operation || 'merge'} 中途`, goal: '解决冲突后继续或中止', since: now });
+        q.push({ key: `op:${r.path}`, kind: 'GIT', lv: 'A', unit: u, title: L(`${r.name} 卡在 ${r.operation || 'merge'} 中途`, `${r.name} is stuck mid-${r.operation || 'merge'}`), goal: L('解决冲突后继续或中止', 'Resolve the conflicts, then continue or abort'), since: now });
       if (r.oldestChangeAt && now - r.oldestChangeAt >= th.staleDirtyDays * DAY)
-        q.push({ key: `stale:${r.path}`, kind: 'GIT', lv: 'B', unit: u, title: `${r.name} 有 ${r.changedCount} 个改动 ${ago(now - r.oldestChangeAt)}未提交`, goal: r.upstream ? '提交并推送' : `提交，并为 ${r.branch} 设置上游`, since: r.oldestChangeAt });
+        q.push({ key: `stale:${r.path}`, kind: 'GIT', lv: 'B', unit: u, title: L(`${r.name} 有 ${r.changedCount} 个改动 ${ago(now - r.oldestChangeAt)}未提交`, `${r.name} has ${r.changedCount} changes uncommitted for ${ago(now - r.oldestChangeAt)}`), goal: r.upstream ? L('提交并推送', 'Commit and push') : L(`提交，并为 ${r.branch} 设置上游`, `Commit, and set an upstream for ${r.branch}`), since: r.oldestChangeAt });
       if (r.ahead > 0)
-        q.push({ key: `ahead:${r.path}:${r.head?.hash}`, kind: 'GIT', lv: 'B', unit: u, title: `${r.name} 有 ${r.ahead} 个提交没推送`, goal: `git push（${r.branch}）`, since: r.head?.at || now });
+        q.push({ key: `ahead:${r.path}:${r.head?.hash}`, kind: 'GIT', lv: 'B', unit: u, title: L(`${r.name} 有 ${r.ahead} 个提交没推送`, `${r.name} has ${r.ahead} unpushed commits`), goal: L(`git push（${r.branch}）`, `git push (${r.branch})`), since: r.head?.at || now });
     }
   }
   return q
@@ -134,57 +135,57 @@ function detectEvents(units, usage) {
 
   const pa = prev.usage?.account?.fingerprint;
   const na = usage?.account?.fingerprint;
-  if (pa && na && pa !== na) emit('SYS', `检测到账号切换：${usage.account.email || '新账号'}，档位 ${usage.account.tier || '?'}。`);
+  if (pa && na && pa !== na) emit('SYS', L(`检测到账号切换：${usage.account.email || '新账号'}，档位 ${usage.account.tier || '?'}。`, `Account switched: ${usage.account.email || 'new account'}, tier ${usage.account.tier || '?'}.`));
   if (usage?.error && !prev.usage?.error)
-    emit('SYS', usage.error === 'token_expired' ? '能量数据读取失败：登录令牌过期，打开一次 Claude Code 即可刷新。' : `能量数据读取失败（${usage.error}）。`);
+    emit('SYS', usage.error === 'token_expired' ? L('能量数据读取失败：登录令牌过期，打开一次 Claude Code 即可刷新。', 'Could not read the quota: the login token expired. Open Claude Code once to refresh it.') : L(`能量数据读取失败（${usage.error}）。`, `Could not read the quota (${usage.error}).`));
 
   const prevLimits = new Map(limitsOf(prev.usage).map((l) => [l.key, l]));
   for (const b of limitsOf(usage)) {
     const a = prevLimits.get(b.key);
     if (!a) continue;
-    if (b.resetsAt > a.resetsAt + 60_000 && b.usedPct < a.usedPct) emit('RECHARGED', `额度（${b.label}）回充完毕，剩余 ${pct(100 - b.usedPct)}。`);
+    if (b.resetsAt > a.resetsAt + 60_000 && b.usedPct < a.usedPct) emit('RECHARGED', L(`额度（${b.label}）回充完毕，剩余 ${pct(100 - b.usedPct)}。`, `Quota (${b.label}) refilled, ${pct(100 - b.usedPct)} left.`));
     const la = 100 - a.usedPct;
     const lb = 100 - b.usedPct;
-    if (la > th.energyLowPct && lb <= th.energyLowPct) emit('ALERT', `额度（${b.label}）只剩 ${pct(lb)}，${new Date(b.resetsAt).toLocaleString('zh-CN', { hour12: false })} 回充。`);
+    if (la > th.energyLowPct && lb <= th.energyLowPct) emit('ALERT', L(`额度（${b.label}）只剩 ${pct(lb)}，${new Date(b.resetsAt).toLocaleString('zh-CN', { hour12: false })} 回充。`, `Quota (${b.label}) down to ${pct(lb)}, refills at ${new Date(b.resetsAt).toLocaleString('en-US', { hour12: false })}.`));
   }
 
   for (const u of units) {
     const p = before.get(u.sessionId);
     if (!p) {
-      emit('ENGAGED', `新部队上线：${u.project}（${u.name}）。`, u.project);
+      emit('ENGAGED', L(`新部队上线：${u.project}（${u.name}）。`, `New unit online: ${u.project} (${u.name}).`), u.project);
       continue;
     }
     if (u.permission && u.permission.at !== p.permission?.at)
-      emit('PERMIT', `${u.project} 请求授权：${u.permission.message || '需要你确认'}`, u.project);
-    if (p.status === 'busy' && u.status === 'idle') emit('READY', `${u.project} 任务完成，等你下一步指令。${u.lastText ? '「' + u.lastText + '」' : ''}`, u.project);
-    if (p.status === 'idle' && u.status === 'busy') emit('ENGAGED', `${u.project} 出击。${u.lastPrompt ? '指令：「' + u.lastPrompt + '」' : ''}`, u.project);
+      emit('PERMIT', L(`${u.project} 请求授权：${u.permission.message || '需要你确认'}`, `${u.project} asks for approval: ${u.permission.message || 'needs your confirmation'}`), u.project);
+    if (p.status === 'busy' && u.status === 'idle') emit('READY', L(`${u.project} 任务完成，等你下一步指令。${u.lastText ? '「' + u.lastText + '」' : ''}`, `${u.project} finished, awaiting orders.${u.lastText ? ' "' + u.lastText + '"' : ''}`), u.project);
+    if (p.status === 'idle' && u.status === 'busy') emit('ENGAGED', L(`${u.project} 出击。${u.lastPrompt ? '指令：「' + u.lastPrompt + '」' : ''}`, `${u.project} engaged.${u.lastPrompt ? ' Order: "' + u.lastPrompt + '"' : ''}`), u.project);
     if ((p.contextPct ?? 0) < th.contextWarnPct && (u.contextPct ?? 0) >= th.contextWarnPct)
-      emit('OVERLOAD', `${u.name} 记忆负载 ${pct(u.contextPct)}，建议 /compact。`, u.project);
+      emit('OVERLOAD', L(`${u.name} 记忆负载 ${pct(u.contextPct)}，建议 /compact。`, `${u.name} context at ${pct(u.contextPct)}, consider /compact.`), u.project);
     if (p.contextPct !== null && u.contextPct !== null && p.contextPct - u.contextPct > 20)
-      emit('SYS', `${u.name} 记忆已压缩：${pct(p.contextPct)} → ${pct(u.contextPct)}。`, u.project);
+      emit('SYS', L(`${u.name} 记忆已压缩：${pct(p.contextPct)} → ${pct(u.contextPct)}。`, `${u.name} context compacted: ${pct(p.contextPct)} → ${pct(u.contextPct)}.`), u.project);
     const pr = p.agents.filter((a) => a.running).length;
     const nr = u.agents.filter((a) => a.running).length;
-    if (nr > pr) emit('DRONE', `${u.project} 派出 ${nr - pr} 架僚机：${u.agents.filter((a) => a.running).map((a) => a.description).join('、')}。`, u.project);
-    if (pr > 0 && nr === 0) emit('DRONE', `${u.project} 的 ${pr} 架僚机全部返航。`, u.project);
+    if (nr > pr) emit('DRONE', L(`${u.project} 派出 ${nr - pr} 架僚机：${u.agents.filter((a) => a.running).map((a) => a.description).join('、')}。`, `${u.project} launched ${nr - pr} subagent(s): ${u.agents.filter((a) => a.running).map((a) => a.description).join(', ')}.`), u.project);
+    if (pr > 0 && nr === 0) emit('DRONE', L(`${u.project} 的 ${pr} 架僚机全部返航。`, `All ${pr} subagent(s) of ${u.project} are back.`), u.project);
 
     const prevRepos = new Map(p.repos.map((r) => [r.path, r]));
     for (const r of u.repos) {
       const o = prevRepos.get(r.path);
       if (!o || !r.head || !o.head) continue;
-      if (r.head.hash !== o.head.hash) emit('GIT', `${r.name} 新提交 ${r.head.hash}「${r.head.subject}」${r.ahead ? '，还没推送' : ''}。`, u.project);
-      else if (o.ahead > 0 && r.ahead === 0) emit('GIT', `${r.name} 已推送到 ${r.upstream}。`, u.project);
+      if (r.head.hash !== o.head.hash) emit('GIT', L(`${r.name} 新提交 ${r.head.hash}「${r.head.subject}」${r.ahead ? '，还没推送' : ''}。`, `${r.name} new commit ${r.head.hash} "${r.head.subject}"${r.ahead ? ', not pushed yet' : ''}.`), u.project);
+      else if (o.ahead > 0 && r.ahead === 0) emit('GIT', L(`${r.name} 已推送到 ${r.upstream}。`, `${r.name} pushed to ${r.upstream}.`), u.project);
     }
   }
-  for (const [id, p] of before) if (!now.has(id)) emit('SYS', `部队撤离：${p.project}（${p.name}）的会话已结束。`, p.project);
+  for (const [id, p] of before) if (!now.has(id)) emit('SYS', L(`部队撤离：${p.project}（${p.name}）的会话已结束。`, `Unit withdrawn: the session of ${p.project} (${p.name}) ended.`), p.project);
 }
 
 function operatorLine(q) {
   switch (q.kind) {
-    case 'PERMIT': return `指挥官！${q.unit.project} 卡在授权确认上，等你批准才能继续。「${q.goal}」`;
-    case 'ALERT': return `指挥官，${q.title}。${q.goal}。`;
-    case 'OVERLOAD': return `指挥官，${q.title}，再打几轮就会自动压缩。要不要先下令 /compact？`;
-    case 'READY': return `${q.unit.project} 做完了，等你下一步指令。${q.goal.startsWith('最后汇报') ? q.goal + '。' : ''}`;
-    case 'GIT': return `${q.title}。建议：${q.goal}。`;
+    case 'PERMIT': return L(`指挥官！${q.unit.project} 卡在授权确认上，等你批准才能继续。「${q.goal}」`, `Commander! ${q.unit.project} is blocked on a permission prompt and needs your approval. "${q.goal}"`);
+    case 'ALERT': return L(`指挥官，${q.title}。${q.goal}。`, `Commander, ${q.title}. ${q.goal}.`);
+    case 'OVERLOAD': return L(`指挥官，${q.title}，再打几轮就会自动压缩。要不要先下令 /compact？`, `Commander, ${q.title}; a few more rounds and it auto-compacts. Order /compact first?`);
+    case 'READY': return L(`${q.unit.project} 做完了，等你下一步指令。${q.unit.lastText ? q.goal + '。' : ''}`, `${q.unit.project} is done, awaiting your next order.${q.unit.lastText ? ' ' + q.goal : ''}`);
+    case 'GIT': return L(`${q.title}。建议：${q.goal}。`, `${q.title}. Suggested: ${q.goal}.`);
     default: return q.title;
   }
 }
@@ -200,13 +201,13 @@ function operatorState(units, quests, now) {
     };
   }
   if (!units.length)
-    return { mood: 'STANDBY', lines: [{ key: 'empty', kind: 'STANDBY', text: '现在没有活动的部队。要从最近的存档里挑一个继续吗？' }] };
+    return { mood: 'STANDBY', lines: [{ key: 'empty', kind: 'STANDBY', text: L('现在没有活动的部队。要从最近的存档里挑一个继续吗？', 'No active units. Pick a recent save to continue?') }] };
   const busy = units.filter((u) => u.status === 'busy');
-  if (busy.length) return { mood: 'ENGAGED', lines: [{ key: 'engaged', kind: 'ENGAGED', text: `${busy.length} 支部队在推进，我帮你盯着。` }] };
+  if (busy.length) return { mood: 'ENGAGED', lines: [{ key: 'engaged', kind: 'ENGAGED', text: L(`${busy.length} 支部队在推进，我帮你盯着。`, `${busy.length} unit(s) advancing, I'm keeping an eye on them.`) }] };
   const quiet = units.every((u) => now - (u.statusSince || 0) > standbyMs);
   return quiet
-    ? { mood: 'STANDBY', lines: [{ key: 'standby', kind: 'STANDBY', text: '没人找我……我先进休眠模式。' }] }
-    : { mood: 'ENGAGED', lines: [{ key: 'calm', kind: 'ENGAGED', text: '一切正常，随时待命。' }] };
+    ? { mood: 'STANDBY', lines: [{ key: 'standby', kind: 'STANDBY', text: L('没人找我……我先进休眠模式。', 'Nobody needs me… going to standby.') }] }
+    : { mood: 'ENGAGED', lines: [{ key: 'calm', kind: 'ENGAGED', text: L('一切正常，随时待命。', 'All quiet, standing by.') }] };
 }
 
 export function buildState({ sessions, gitByCwd, usage }) {

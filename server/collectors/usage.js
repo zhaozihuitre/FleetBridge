@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { L } from '../i18n.js';
 import { config, DATA_DIR } from '../config.js';
 
 const API = 'https://api.anthropic.com/api/oauth';
@@ -52,7 +53,13 @@ function window(w) {
   return w ? { usedPct: w.utilization, resetsAt: Date.parse(w.resets_at) } : null;
 }
 
-const LIMIT_LABEL = { session: '5 小时', weekly_all: '本周 · 所有模型' };
+const LIMIT_LABEL = { session: ['5 小时', '5 hours'], weekly_all: ['本周 · 所有模型', 'Week · all models'] };
+
+// Labels are made when publishing (not cached) so they follow a language switch.
+export function limitLabel(key) {
+  const [kind, model] = key.split(':');
+  return LIMIT_LABEL[kind] ? L(...LIMIT_LABEL[kind]) : model ? L(`本周 · ${model}`, `Week · ${model}`) : kind;
+}
 
 // The API's own list of limits, so per-model weekly caps (e.g. Fable) show up without code changes.
 function limitsOf(u) {
@@ -61,7 +68,7 @@ function limitsOf(u) {
     return {
       key: l.kind + (model ? ':' + model : ''),
       group: l.group,
-      label: LIMIT_LABEL[l.kind] || (model ? `本周 · ${model}` : l.kind),
+      label: limitLabel(l.kind + (model ? ':' + model : '')),
       usedPct: l.percent,
       resetsAt: Date.parse(l.resets_at),
       severity: l.severity,
