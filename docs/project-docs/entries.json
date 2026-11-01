@@ -1250,6 +1250,25 @@
       "created": "2026-11-01 17:27",
       "updated": "2026-11-01 17:27",
       "notes": []
+    },
+    {
+      "id": "M-014",
+      "type": "milestone",
+      "title": "发布 0.6.2（中英文切换、安装包瘦身）",
+      "summary": "main 与 v0.6.2 已推送，GitHub Release 已发布并上传安装包（约 109 MB）。",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [
+        "发布"
+      ],
+      "sections": [],
+      "refs": [
+        "v0.6.2"
+      ],
+      "created": "2026-11-01 17:30",
+      "updated": "2026-11-01 17:30",
+      "notes": []
     }
   ]
 }
