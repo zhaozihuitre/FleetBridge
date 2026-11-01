@@ -1269,6 +1269,38 @@
       "created": "2026-11-01 17:30",
       "updated": "2026-11-01 17:30",
       "notes": []
+    },
+    {
+      "id": "C-017",
+      "type": "change",
+      "title": "新增日语（0.6.3）",
+      "summary": "地球菜单加日本語：前端 JA 词典（与 EN 同 237 条、占位符一致），后端 L() 增加日语参数（提醒、通讯、领航员台词、额度名称、错误提示），打包保留 Chromium 的 ja 语言包。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/i18n.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/widget.js",
+        "server/i18n.js",
+        "server/state.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/collectors/usage.js",
+        "package.json"
+      ],
+      "tags": [
+        "i18n"
+      ],
+      "sections": [
+        "02-features",
+        "08-dev-guide"
+      ],
+      "refs": [],
+      "created": "2026-11-01 17:39",
+      "updated": "2026-11-01 17:39",
+      "notes": []
     }
   ]
 }

@@ -53,12 +53,12 @@ function window(w) {
   return w ? { usedPct: w.utilization, resetsAt: Date.parse(w.resets_at) } : null;
 }
 
-const LIMIT_LABEL = { session: ['5 小时', '5 hours'], weekly_all: ['本周 · 所有模型', 'Week · all models'] };
+const LIMIT_LABEL = { session: ['5 小时', '5 hours', '5 時間'], weekly_all: ['本周 · 所有模型', 'Week · all models', '今週 · 全モデル'] };
 
 // Labels are made when publishing (not cached) so they follow a language switch.
 export function limitLabel(key) {
   const [kind, model] = key.split(':');
-  return LIMIT_LABEL[kind] ? L(...LIMIT_LABEL[kind]) : model ? L(`本周 · ${model}`, `Week · ${model}`) : kind;
+  return LIMIT_LABEL[kind] ? L(...LIMIT_LABEL[kind]) : model ? L(`本周 · ${model}`, `Week · ${model}`, `今週 · ${model}`) : kind;
 }
 
 // The API's own list of limits, so per-model weekly caps (e.g. Fable) show up without code changes.

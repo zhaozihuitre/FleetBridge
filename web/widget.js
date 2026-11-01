@@ -59,7 +59,7 @@ function renderLimits() {
         .map((l) => {
           const low = 100 - l.usedPct <= th.energyLowPct;
           const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
-          const label = SHORT[l.key] || l.label.replace('本周 · ', '周 · ').replace('Week · ', 'Wk · ');
+          const label = SHORT[l.key] || l.label.replace('本周 · ', '周 · ').replace('Week · ', 'Wk · ').replace('今週 · ', '週 · ');
           const reset = new Date(l.resetsAt);
           return `<div class="lim ${l.active ? 'active' : ''} ${low ? 'low' : ''}" title="${esc(L('{0} 已用 {1}%，{2} 重置', l.label, Math.round(l.usedPct), reset.toLocaleString(locale, { hour12: false })))}">
             <span>${esc(label)}</span>${seg(l.usedPct, 16, color)}<span class="pct">${Math.round(l.usedPct)}%</span></div>`;

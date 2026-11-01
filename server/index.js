@@ -166,8 +166,8 @@ const server = http.createServer(async (req, res) => {
       if (resume) {
         // resume only sessions from our own scan, in the folder the transcript says
         const h = history.find((x) => x.sessionId === resume);
-        if (!h) return send(res, 400, { error: L('未知会话', 'Unknown session') });
-        if (h.pid && !getAgent(resume)?.alive) return send(res, 409, { error: L('这个会话正在外部终端里运行', 'This session is running in an outside terminal') });
+        if (!h) return send(res, 400, { error: L('未知会话', 'Unknown session', '不明なセッション') });
+        if (h.pid && !getAgent(resume)?.alive) return send(res, 409, { error: L('这个会话正在外部终端里运行', 'This session is running in an outside terminal', 'このセッションは外部ターミナルで実行中です') });
         agent = spawnAgent({ cwd: h.cwd, resume, name, prompt });
       } else {
         agent = spawnAgent({ cwd: String(cwd || '').trim(), name: name ? String(name).trim() : undefined, prompt: prompt ? String(prompt) : undefined });

@@ -3,7 +3,7 @@
 ## 代码风格
 
 - 后端 ESM，无框架；前端原生模块，无构建步骤。改完前端刷新页面（`Ctrl+R`）即可生效，改 `server/` 或 `desktop/` 要重启程序。
-- 注释写「为什么」，不写「做了什么」；用户可见文字在代码里写中文，前端用 `L()` 包起来并在 `web/i18n.js` 词典里补英文，后端用 `L(中文, English)`。
+- 注释写「为什么」，不写「做了什么」；用户可见文字在代码里写中文，前端用 `L()` 包起来并在 `web/i18n.js` 的 `EN`、`JA` 词典里补译文，后端用 `L(中文, English, 日本語)`。
 - 页面样式统一用 `web/style.css` 里的 CSS 变量；**不要用浏览器默认控件外观**：确认框用 `web/ui.js` 的 `ask()`，不用 `confirm()`；滚动条、菜单都已主题化。
 - 状态推送是完整 JSON，前端每次重绘；会打断交互的部分（总指令台消息框、分屏顶栏）只在内容变化时重建。
 
@@ -31,6 +31,6 @@
 
 ## 打包体积
 
-- `electronLanguages` 只保留 zh-CN / en-US 两个 Chromium 语言包（原来 55 个，约 47 MB）。
+- `electronLanguages` 只保留 zh-CN / en-US / ja 三个 Chromium 语言包（原来 55 个，约 47 MB）。
 - `files` 里排除依赖的 `*.map`、`*.d.ts`、`src/` 等运行用不到的文件（app.asar 8.2 MB → 1.5 MB）。
 - Electron 本体（exe 238 MB、显卡相关 dll）无法再减。

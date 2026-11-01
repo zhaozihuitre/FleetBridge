@@ -5,7 +5,7 @@ import { DATA_DIR } from './config.js';
 // Server-side texts (reminders, comms, operator lines, errors) follow the language picked in the
 // command center. Kept in settings.json so the next start speaks the same language.
 const FILE = path.join(DATA_DIR, 'settings.json');
-export const LANGS = ['zh', 'en'];
+export const LANGS = ['zh', 'en', 'ja'];
 
 function load() {
   try {
@@ -34,7 +34,7 @@ export function setLang(next) {
   return true;
 }
 
-/** Pick the text for the current language: L('中文', 'English'). */
-export const L = (zh, en) => (lang === 'en' ? en : zh);
+/** Pick the text for the current language: L('中文', 'English', '日本語'). */
+export const L = (zh, en, ja) => (lang === 'en' ? en : lang === 'ja' ? ja ?? en : zh);
 
-export const locale = () => (lang === 'en' ? 'en-US' : 'zh-CN');
+export const locale = () => ({ en: 'en-US', ja: 'ja-JP' })[lang] || 'zh-CN';

@@ -389,7 +389,7 @@ function unitCard(u) {
   const now = Date.now();
   const standby = u.status === 'idle' && now - u.statusSince > th.standbyMinutes * 60_000;
   const cls = u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
-  const label = lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
+  const label = lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : lang === 'ja' ? (u.permission ? 'PERMIT · 承認待ち' : u.status === 'busy' ? 'ENGAGED · 作業中' : standby ? 'STANDBY · 休止' : 'AWAITING · 待機') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
