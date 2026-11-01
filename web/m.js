@@ -42,11 +42,24 @@ function renderQuota() {
       const low = 100 - used <= state.thresholds.energyLowPct;
       const fc = f[l.key];
       const c = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
-      const v = fc?.runsOutAt ? L('约 {0} 用完', hhmm(fc.runsOutAt)) : `${Math.round(used)}%`;
-      return `<div class="q" style="--c:${c}"><span>${esc(l.label)}</span><span class="bar"><i style="width:${used}%"></i></span><span class="v ${fc?.runsOutAt ? 'hot' : ''}">${esc(v)}</span></div>`;
+      const on = Math.round(used / 5);
+      const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
+      const v = fc?.runsOutAt
+        ? `<span class="v hot">${esc(L('约 {0} 用完', hhmm(fc.runsOutAt)))}</span>`
+        : `<span class="v">${Math.round(used)}%${fc?.perHour > 0 ? `<small>+${fc.perHour}/h</small>` : ''}</span>`;
+      return `<div class="q" style="--c:${c}"><span class="k">${esc(l.label)}</span>${seg}${v}</div>`;
     })
     .join('');
 }
+
+function renderChips() {
+  const busy = state.units.filter((u) => u.status === 'busy').length;
+  const permit = state.units.filter((u) => u.permission).length;
+  const chip = (n, label, c, alarm) => `<span class="chip ${n ? '' : 'zero'} ${alarm && n ? 'alarm' : ''}" style="--c:${c}"><b>${n}</b>${esc(label)}</span>`;
+  $('chips').innerHTML = chip(busy, L('作战中'), 'var(--cyan)') + chip(state.units.length - busy, L('待命'), 'var(--amber)') + chip(permit, L('等你授权'), 'var(--red)', true);
+}
+
+const EMPTY = '<svg width="40" height="40" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="#4f7a90" stroke-width="1.4"/><path d="M11 17l4 4 8-8" stroke="#4dffa6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function renderMsgs() {
   const lines = state.operator?.lines || [];
@@ -59,15 +72,15 @@ function renderMsgs() {
         const pp = l.kind === 'PERMIT' && live?.owned ? live.permission?.prompt : null;
         const answer = pp
           ? `${pp.text ? `<pre>${esc(pp.text)}</pre>` : ''}<div class="acts">${pp.options
-              .map((o) => `<button type="button" class="${o.key === '1' ? 'yes' : ''}" data-answer="${esc(live.agentId)}" data-choice="${esc(o.key)}">${esc(o.key)}. ${esc(o.label)}</button>`)
-              .join('')}<button type="button" class="no" data-answer="${esc(live.agentId)}" data-choice="esc">${L('拒绝（Esc）')}</button></div>`
+              .map((o) => `<button type="button" class="${o.key === '1' ? 'yes' : ''}" data-answer="${esc(live.agentId)}" data-choice="${esc(o.key)}"><span class="n">${esc(o.key)}</span>${esc(o.label)}</button>`)
+              .join('')}<button type="button" class="no" data-answer="${esc(live.agentId)}" data-choice="esc"><span class="n">✕</span>${L('拒绝（Esc）')}</button></div>`
           : '';
-        const look = live?.owned && !pp ? `<div class="acts row"><button type="button" data-screen="${esc(live.agentId)}">${L('看屏幕')}</button><button type="button" data-to="${esc(live.agentId)}">${L('发指令')}</button></div>` : '';
-        return `<article class="card" style="--c:${KIND[l.kind] || 'var(--cyan)'}">
-          <div class="head"><b>${esc(l.kind)}</b>${l.unit ? `<span class="p">${esc(l.unit.project.toUpperCase())}</span>` : ''}${l.at ? `<time>${hhmm(l.at)}</time>` : ''}</div>
+        const look = live?.owned && !pp ? `<div class="acts row"><button type="button" class="go" data-screen="${esc(live.agentId)}">▣ ${L('看屏幕')}</button><button type="button" data-to="${esc(live.agentId)}">✎ ${L('发指令')}</button></div>` : '';
+        return `<article class="card ${l.kind === 'PERMIT' ? 'permit' : ''}" style="--c:${KIND[l.kind] || 'var(--cyan)'}">
+          <div class="head"><span class="tag">${esc(l.kind)}</span>${l.unit ? `<span class="p">${esc(l.unit.project.toUpperCase())}</span>` : ''}${l.at ? `<time>${hhmm(l.at)}</time>` : ''}</div>
           <div class="text">${esc(l.text)}</div>${answer}${look}</article>`;
       })
-      .join('') || `<div class="empty">${L('一切正常，没有需要你处理的事')}</div>`;
+      .join('') || `<div class="empty">${EMPTY}${L('一切正常，没有需要你处理的事')}</div>`;
 }
 
 function renderUnits() {
@@ -80,12 +93,15 @@ function renderUnits() {
         const st = u.permission ? [L('等你授权'), 'var(--red)'] : u.status === 'busy' ? [L('作战中'), 'var(--cyan)'] : [L('待命'), 'var(--amber)'];
         const mins = Math.max(0, Math.round((now - u.statusSince) / 60_000));
         const text = u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
-        const acts = u.owned ? `<div class="acts row"><button type="button" data-screen="${esc(u.agentId)}">${L('看屏幕')}</button><button type="button" data-to="${esc(u.agentId)}">${L('发指令')}</button></div>` : '';
-        return `<article class="card" style="--c:${st[1]}">
-          <div class="head"><span class="p">${esc(u.project.toUpperCase())}</span>${u.owned ? `<span class="ours">${L('我方')}</span>` : ''}<b>${esc(st[0])}</b><time>${mins}m · <span class="ctx">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'}</span></time></div>
-          ${text ? `<div class="sub">${esc(text)}</div>` : ''}${acts}</article>`;
+        const acts = u.owned ? `<div class="acts row"><button type="button" class="go" data-screen="${esc(u.agentId)}">▣ ${L('看屏幕')}</button><button type="button" data-to="${esc(u.agentId)}">✎ ${L('发指令')}</button></div>` : '';
+        const pct = u.contextPct == null ? null : Math.round(u.contextPct);
+        const kc = pct != null && pct >= state.thresholds.contextWarnPct ? 'var(--red)' : 'var(--cyan)';
+        const ctx = `<div class="ctxbar" style="--kc:${kc}"><span>LOAD</span><span class="bar"><i style="width:${Math.min(100, pct ?? 0)}%"></i></span><b>${pct == null ? '--' : pct + '%'}</b></div>`;
+        return `<article class="card ${u.permission ? 'permit' : ''}" style="--c:${st[1]}">
+          <div class="head"><span class="dot ${u.permission ? 'blink' : ''}"></span><span class="p">${esc(u.project.toUpperCase())}</span>${u.owned ? `<span class="ours">${L('我方')}</span>` : ''}<span class="st">${esc(st[0])}</span><time>${mins}m</time></div>
+          ${text ? `<div class="sub">${esc(text)}</div>` : ''}${ctx}${acts}</article>`;
       })
-      .join('') || `<div class="empty">${L('没有运行中的会话')}</div>`;
+      .join('') || `<div class="empty">${EMPTY}${L('没有运行中的会话')}</div>`;
 }
 
 function renderTargets() {
@@ -103,6 +119,7 @@ function renderTargets() {
 function render() {
   if (!state) return;
   renderQuota();
+  renderChips();
   renderMsgs();
   renderUnits();
   renderTargets();
@@ -209,11 +226,17 @@ $('sheet-menu').addEventListener('click', (e) => {
 
 function connect() {
   const es = new EventSource('/api/stream');
-  es.onopen = () => $('conn').classList.remove('bad');
+  es.onopen = () => {
+    $('conn').classList.remove('bad');
+    $('conn-text').textContent = L('在线');
+  };
   es.onmessage = (e) => {
     state = JSON.parse(e.data);
     render();
   };
-  es.onerror = () => $('conn').classList.add('bad'); // EventSource reconnects by itself
+  es.onerror = () => {
+    $('conn').classList.add('bad'); // EventSource reconnects by itself
+    $('conn-text').textContent = L('离线');
+  };
 }
 connect();

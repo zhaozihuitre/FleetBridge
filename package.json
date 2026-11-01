@@ -1,6 +1,6 @@
 {
   "name": "fleet-bridge",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "private": true,
   "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
