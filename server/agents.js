@@ -227,7 +227,8 @@ export function menuOptions(agent) {
     const m = lines[i].match(/^\s*(❯\s*)?(\d)\.\s+(.+?)\s*$/);
     if (m) out.push({ key: m[2], label: m[3], current: Boolean(m[1]) });
   }
-  return out.length >= 2 ? out : [];
+  // a live menu always marks its current option with the cursor; numbered lists in Claude's text do not
+  return out.length >= 2 && out.some((o) => o.current) ? out : [];
 }
 
 export function permissionPrompt(agent) {

@@ -1872,6 +1872,26 @@
       "updated": "2026-11-01 19:57",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-014",
+      "type": "issue",
+      "title": "手机上把回复里的编号列表误显示成选项按钮",
+      "summary": "menuOptions 只看「1. 2.」格式，Claude 回复里的编号列表也会被当成菜单（0.7.5 跳过空行后更容易发生）。改为必须有当前项光标「❯」才算菜单。模拟验证：编号列表 → 无按钮；选择题 → 识别全部选项。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/agents.js"
+      ],
+      "tags": [
+        "手机"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-01 20:01",
+      "updated": "2026-11-01 20:01",
+      "notes": [],
+      "count": 1
     }
   ]
 }
