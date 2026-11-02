@@ -99,8 +99,8 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 
 /* Body */
 .main { flex: 1; min-height: 0; display: flex; gap: 16px; }
-/* the master console sits on the right (typing side); units / terminals on the left */
-.main .operator { order: 2; width: 340px; }
+/* the master console sits on the left; units / terminals to its right */
+.main .operator { order: 0; width: 340px; }
 
 /* Left column: overview numbers, latest activity, operator dialog (top to bottom) */
 .operator { position: relative; width: 420px; flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 12px; background: var(--panel-deep); border: 1px solid var(--line); overflow: hidden; clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px); }

@@ -805,7 +805,7 @@ function setActivePane(id) {
 }
 
 // Dynamic split: the active pane fills the main area (3/4 wide, full height) and the others
-// stack in a narrow column on its left. Off: equal sizes.
+// stack in a narrow column on its right. Off: equal sizes.
 let dynamicSplit = true;
 try {
   dynamicSplit = localStorage.getItem('fb-dynamic-split') !== '0';
@@ -825,11 +825,11 @@ function layoutPanes() {
     grid.style.gridTemplateRows = '';
     for (const { el } of panes.values()) el.style.gridArea = '';
   } else {
-    // the others stack top to bottom in a narrow left column, in the order they were opened
-    grid.style.gridTemplateColumns = 'minmax(0, 1fr) minmax(0, 3fr)';
+    // the active one on the left; the others stack top to bottom in a narrow right column
+    grid.style.gridTemplateColumns = 'minmax(0, 3fr) minmax(0, 1fr)';
     grid.style.gridTemplateRows = `repeat(${n - 1}, minmax(0, 1fr))`;
     let row = 1;
-    for (const [id, { el }] of panes) el.style.gridArea = id === ui.term ? '1 / 2 / -1 / 3' : `${row++} / 1 / ${row} / 2`;
+    for (const [id, { el }] of panes) el.style.gridArea = id === ui.term ? '1 / 1 / -1 / 2' : `${row++} / 2 / ${row} / 3`;
   }
   // the big pane gets a normal font, small ones a smaller one to keep enough columns
   for (const [id, { t }] of panes) t.setFontSize(n === 1 ? 13 : act >= 0 && id === ui.term ? 13 : act >= 0 ? 11 : 12);

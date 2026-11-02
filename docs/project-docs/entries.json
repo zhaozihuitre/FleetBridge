@@ -2099,6 +2099,29 @@
       "created": "2026-11-02 16:18",
       "updated": "2026-11-02 16:18",
       "notes": []
+    },
+    {
+      "id": "C-035",
+      "type": "change",
+      "title": "布局：总指令台移到最左，大终端在左、小终端在右（0.8.3）",
+      "summary": "从左到右：总指令台 → 当前终端（3/4 宽、全高）→ 其他终端竖排。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/style.css",
+        "web/app.js"
+      ],
+      "tags": [
+        "UI",
+        "终端"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-02 16:23",
+      "updated": "2026-11-02 16:23",
+      "notes": []
     }
   ]
 }
