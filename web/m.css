@@ -116,7 +116,7 @@ main { flex: 1; padding: 8px 12px calc(178px + var(--kb, 0px)); display: flex; f
 .live { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 10px; letter-spacing: 1px; color: var(--green); }
 .live i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: pulse 1.6s ease-in-out infinite; }
 .screen-wrap { flex: 1; min-height: 0; margin: 8px 10px 0; border: 1px solid var(--line-hi); box-shadow: inset 0 0 24px rgba(61,245,255,.06); background: #050a12; display: flex; }
-.screen { flex: 1; margin: 0; overflow: auto; padding: 10px; font: 11px/1.45 var(--mono); color: #9fd4ff; white-space: pre; }
+.screen { flex: 1; margin: 0; overflow: auto; padding: 10px; font: 11px/1.45 var(--mono); color: #a6e8c0; white-space: pre; }
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 10px 0; max-height: 34vh; overflow-y: auto; }
 .menu:empty { display: none; }
 .menu button { min-height: 42px; padding: 6px 12px; text-align: left; background: var(--panel); border: 1px solid var(--line-hi); color: var(--soft); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }

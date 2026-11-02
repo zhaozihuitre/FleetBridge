@@ -2075,6 +2075,30 @@
       "created": "2026-11-02 08:39",
       "updated": "2026-11-02 08:39",
       "notes": []
+    },
+    {
+      "id": "C-034",
+      "type": "change",
+      "title": "终端正文改为薄荷绿（0.8.2）",
+      "summary": "用户希望普通字体用绿色、对眼睛更友好：正文 #a6e8c0，次要文字 #86b89c，强调 #dcf8e8；电脑终端与手机屏幕视图（screenhtml）一致。差异里新增行仍是更亮的 #4dffa6，可区分。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/terminal.js",
+        "server/screenhtml.js",
+        "web/m.css"
+      ],
+      "tags": [
+        "终端",
+        "配色"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-02 16:18",
+      "updated": "2026-11-02 16:18",
+      "notes": []
     }
   ]
 }

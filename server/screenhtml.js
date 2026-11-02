@@ -1,10 +1,10 @@
 // An agent's screen as colored HTML for the phone page, read from its headless terminal copy.
 // The 16 colors mirror the xterm theme in web/terminal.js (dark-ansi Claude draws with these).
 const PALETTE = [
-  '#0a1120', '#ff4d6d', '#4dffa6', '#ffb020', '#4d9fff', '#c77dff', '#3df5ff', '#7fb2d0',
-  '#24384a', '#3df5ff', '#8affc4', '#ffd166', '#82bcff', '#dcaaff', '#b8fcff', '#d6f0ff',
+  '#0a1120', '#ff4d6d', '#4dffa6', '#ffb020', '#4d9fff', '#c77dff', '#3df5ff', '#86b89c',
+  '#24384a', '#3df5ff', '#8affc4', '#ffd166', '#82bcff', '#dcaaff', '#b8fcff', '#dcf8e8',
 ];
-const FG = '#9fd4ff';
+const FG = '#a6e8c0';
 const BG = '#050a12';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');

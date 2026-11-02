@@ -9,7 +9,7 @@ import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 // theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from these.
 export const THEME = {
   background: '#050a12',
-  foreground: '#9fd4ff', // body text: a soft sky blue, easier on the eyes than white for long reads
+  foreground: '#a6e8c0', // body text: a soft mint green, easy on the eyes for long reads
   cursor: '#3df5ff',
   cursorAccent: '#050a12',
   selectionBackground: 'rgba(61,245,255,.3)',
@@ -20,7 +20,7 @@ export const THEME = {
   blue: '#4d9fff',
   magenta: '#c77dff',
   cyan: '#3df5ff',
-  white: '#7fb2d0',
+  white: '#86b89c',
   // dark-ansi paints panels (diff review, the highlighted prompt) with this as background, and dim
   // text with it as foreground: a dark slate, with minimumContrastRatio lifting the dim text
   brightBlack: '#24384a',
@@ -30,7 +30,7 @@ export const THEME = {
   brightBlue: '#82bcff',
   brightMagenta: '#dcaaff',
   brightCyan: '#b8fcff',
-  brightWhite: '#d6f0ff',
+  brightWhite: '#dcf8e8',
 };
 
 /**
