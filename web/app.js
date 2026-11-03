@@ -9,7 +9,7 @@ function pageSize(kind) {
   const W = $('page').clientWidth || 900;
   const H = $('page').clientHeight || 600;
   if (kind === 'units') return Math.max(1, Math.floor((W + ITEM.unitGap) / (ITEM.unitW + ITEM.unitGap)));
-  if (kind === 'quests') return Math.max(1, Math.floor((H + ITEM.questGap) / (ITEM.questH + ITEM.questGap)));
+  if (kind === 'agents') return Math.max(1, Math.floor((H - 46 + ITEM.questGap) / (ITEM.questH + ITEM.questGap))); // minus the header row
   if (kind === 'comms') return Math.max(3, Math.floor((H - 40) / ITEM.msgH));
   return Math.max(1, Math.floor((H - 30) / (ITEM.saveH + ITEM.saveGap))); // archive
 }
@@ -27,7 +27,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
-const TABS = ['units', 'quests', 'comms', 'archive'];
+const TABS = ['units', 'agents', 'comms', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -567,15 +567,20 @@ function repoBadge(u) {
   return `<span class="t-repo ${r.remote ? '' : 'warn'}" title="${esc(all)}">⎇ ${esc(target)} · ${esc(r.branch || '')}</span>`;
 }
 
-function questCard(q) {
-  const since = q.since ? `T+${dur(Date.now() - q.since, true)}` : '';
-  return `<article class="quest" style="--qc:${LV_COLOR[q.lv]}">
-    <span class="lv">${q.lv}</span>
-    <div class="body"><span class="type">${q.kind}${q.unit ? L(' · 部队 ') + esc(q.unit.project.toUpperCase()) : ''}</span>
-      <span class="title">${esc(q.title)}</span><span class="goal" title="${esc(q.goal)}">${L('目标：')}${esc(q.goal)}</span></div>
-    <div class="side"><span class="mono">${since}</span><div>
-      <button class="btn ghost" data-snooze="${esc(q.key)}">${L('稍后')}</button>
-      ${q.unit ? `<button class="btn" data-focus="${q.unit.pid}">${L('▶ 前往')}</button>` : ''}</div></div>
+// One of our live terminals on the Agents page: status, project, load, last report; open it into the split.
+function agentRow(a) {
+  const u = state.units.find((x) => x.agentId === a.id);
+  const [code, c] = u?.permission ? ['PERMIT', 'var(--red)'] : u?.status === 'busy' ? ['ENGAGED', 'var(--cyan)'] : u ? ['AWAITING', 'var(--amber)'] : ['BOOT', 'var(--muted)'];
+  const st = u?.permission ? L('等你授权') : u?.status === 'busy' ? L('作战中') : u ? L('待命') : L('启动中');
+  const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u?.lastText || L('（还没有汇报）');
+  const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
+  const open = panes.has(a.id);
+  return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}">
+    <span class="lv">◆</span>
+    <div class="body"><span class="type">${code} · ${esc(st)} · ${esc((u?.project || a.cwd.split(/[\\/]/).pop() || '').toUpperCase())}</span>
+      <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
+    <div class="side"><span class="mono">LOAD ${pct}</span><div>
+      ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
   </article>`;
 }
 
@@ -636,7 +641,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
-  return { kind: ui.tab, list: { units: state.units, quests: state.quests, comms: state.comms }[ui.tab] };
+  return { kind: ui.tab, list: { units: state.units, agents: liveAgents(), comms: state.comms }[ui.tab] };
 }
 
 function folderList(list, sel) {
@@ -683,13 +688,16 @@ function renderPage() {
     document.querySelector('.folders').scrollTop = scroll; // keep the folder list where it was across live refreshes
   }
   else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${size}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
-  else if (ui.tab === 'quests') html = items.length ? `<div class="quests">${items.map(questCard).join('')}</div>` : `<div class="blank">${L('没有待处理的任务，指挥官可以喝杯咖啡')}</div>`;
+  else if (ui.tab === 'agents')
+    html = items.length
+      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></div>${items.map(agentRow).join('')}</div>`
+      : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
   else html = `<div class="comms">${items.map(msgRow).join('') || `<div class="msg"><span class="m">${L('还没有通讯记录。部队状态变化时会出现在这里。')}</span></div>`}</div>`;
   if (kind !== 'archive') $('page').innerHTML = html;
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
   $('n-units').textContent = state.units.length;
-  $('n-quests').textContent = state.quests.length;
+  $('n-agents').textContent = liveAgents().length;
   $('n-comms').textContent = state.comms.length;
   $('n-archive').textContent = (state.history || []).length;
   const busy = state.units.filter((u) => u.status === 'busy').length;
@@ -1060,6 +1068,12 @@ $('refresh').addEventListener('click', async () => {
   toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
+  if (e.target.closest('[data-open-all]')) {
+    const ids = liveAgents().map((a) => a.id);
+    for (const id of ids.slice(0, MAX_PANES)) openTerm(id);
+    if (ids.length > MAX_PANES) toast(L('分屏最多 {0} 个，已打开前 {0} 个', MAX_PANES));
+    return renderPage();
+  }
   const rv = e.target.closest('[data-review]');
   if (rv) return openReview(rv.dataset.review);
   const fo = e.target.closest('[data-folder]');
