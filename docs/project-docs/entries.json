@@ -2357,6 +2357,30 @@
       "created": "2026-11-03 13:40",
       "updated": "2026-11-03 13:40",
       "notes": []
+    },
+    {
+      "id": "C-044",
+      "type": "change",
+      "title": "主控操作指挥中心界面（0.9.1）",
+      "summary": "主控新增 fleet_ui 工具：切标签页、翻页、选存档文件夹、在分屏里打开/关闭终端、切换分屏模式、搜索会话、打开审查改动、全屏/最大化/最小化、切换主控/输入框；每次返回界面当前显示内容",
+      "detail": "服务端 POST /api/ui 把指令作为 SSE 命名事件 ui 发给指挥中心页面（/api/stream?main=1），页面执行后 POST /api/ui/done 回报 view；8 秒超时。没有打开的页面时由桌面端 setUiOpener 打开窗口，指令排队等页面连上（超过 8 秒的丢弃）。主控终端有焦点时，执行完把键盘焦点还给主控。主控 CLAUDE.md 默认内容更新（用户改过的不覆盖）。",
+      "status": "done",
+      "files": [
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "desktop/main.cjs",
+        "web/app.js"
+      ],
+      "tags": [
+        "master",
+        "mcp"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 13:55",
+      "updated": "2026-11-03 13:55",
+      "notes": []
     }
   ]
 }

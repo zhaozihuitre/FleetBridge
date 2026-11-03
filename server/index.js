@@ -234,6 +234,39 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
   return { ok: results.some(Boolean), results };
 }
 
+// UI commands for the command center page, sent as a named SSE event; the page runs it and posts
+// back what it did and what it now shows. With no page open the desktop app opens the window and
+// the command waits for its stream.
+const uiWaiters = new Map();
+const uiPending = [];
+let uiSeq = 0;
+let uiOpener = null;
+export function setUiOpener(fn) {
+  uiOpener = fn;
+}
+function uiCommand(cmd) {
+  return new Promise((resolve) => {
+    const id = ++uiSeq;
+    const timer = setTimeout(() => {
+      uiWaiters.delete(id);
+      resolve({ ok: false, error: L('指挥中心没有响应（窗口没打开？）', 'The command center did not answer (window closed?)', '指揮センターが応答しません（ウィンドウが閉じている？）') });
+    }, 8000);
+    uiWaiters.set(id, (r) => {
+      clearTimeout(timer);
+      uiWaiters.delete(id);
+      resolve(r);
+    });
+    const payload = `event: ui\ndata: ${JSON.stringify({ ...cmd, id })}\n\n`;
+    const pages = [...clients].filter((c) => c.main);
+    if (pages.length) for (const c of pages) c.write(payload);
+    else {
+      uiPending.push({ payload, at: Date.now() });
+      if (uiPending.length > 20) uiPending.shift();
+      uiOpener?.();
+    }
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   // Only same-origin pages may call the API: the data includes account email and project paths.
   const origin = req.headers.origin;
@@ -243,10 +276,14 @@ const server = http.createServer(async (req, res) => {
     if (!state) publish(); // first request can arrive before the initial refresh finishes
     return send(res, 200, state);
   }
-  if (req.method === 'GET' && req.url === '/api/stream') {
+  if (req.method === 'GET' && (req.url === '/api/stream' || req.url === '/api/stream?main=1')) {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     res.write(`data: ${JSON.stringify(state)}\n\n`);
     clients.add(res);
+    if (req.url.endsWith('main=1')) {
+      res.main = true; // the command center page: takes UI commands from the master
+      for (const p of uiPending.splice(0)) if (Date.now() - p.at < 8000) res.write(p.payload); // not the ones already given up on
+    }
     const ping = setInterval(() => res.write(': ping\n\n'), 20_000);
     req.on('close', () => {
       clearInterval(ping);
@@ -307,6 +344,13 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       return send(res, 400, { error: e.message });
     }
+  }
+  // the master drives the command center page: switch tabs, open terminals... (fleet_ui)
+  if (req.method === 'POST' && req.url === '/api/ui') return send(res, 200, await uiCommand(await readBody(req)));
+  if (req.method === 'POST' && req.url === '/api/ui/done') {
+    const r = await readBody(req);
+    uiWaiters.get(r.id)?.(r);
+    return send(res, 200, { ok: true });
   }
   // an agent's screen as text (the master's fleet_read_screen)
   if (req.method === 'GET' && req.url.startsWith('/api/agents/screen?')) {

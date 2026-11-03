@@ -15,9 +15,24 @@ const MCP_CONFIG = path.join(DATA_DIR, 'master-mcp.json');
 
 // fleet tools the master may use without asking; answering another agent's permission prompt is
 // left out on purpose: that approves something on the user's behalf, so Claude Code asks first
-const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn'].map((t) => `mcp__fleet__${t}`);
+const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui'].map((t) => `mcp__fleet__${t}`);
 
 const GUIDE = `# 主控 · Fleet Bridge master console
+
+你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
+
+- 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
+- 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
+- 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕。
+- agent 在等授权时，把它问的内容告诉用户；用户同意后再用 fleet_answer 回应。明显无害的只读操作可以直接同意。
+- 需要新的 agent 时用 fleet_projects 找文件夹，再用 fleet_spawn 启动。
+- 用户说「打开 / 切到 / 看看 某个终端或页面」时，用 fleet_ui 操作指挥中心：切标签页（部队 units / 活动终端 agents / 指令 orders / 存档 archive）、翻页、在分屏里打开或关闭终端、搜索会话、看某个项目的存档、打开审查改动、全屏等。每次调用都会返回界面当前显示的内容。
+- 你自己不要去改项目代码：具体工作交给对应项目的 agent，你负责拆分任务、分派、跟进和汇总。
+- 回答用户时用用户使用的语言，简洁地说结果。
+`;
+
+// the 0.9.0 default: replaced by the new one unless the user edited it
+const GUIDE_V1 = `# 主控 · Fleet Bridge master console
 
 你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
 
@@ -76,7 +91,14 @@ function transcriptExists(sessionId) {
 function prepare(url) {
   fs.mkdirSync(MASTER_DIR, { recursive: true });
   const guide = path.join(MASTER_DIR, 'CLAUDE.md');
-  if (!fs.existsSync(guide)) fs.writeFileSync(guide, GUIDE); // the user may edit it; never overwritten
+  // the user may edit it: only a missing file or an untouched older default is (re)written
+  let current = null;
+  try {
+    current = fs.readFileSync(guide, 'utf8');
+  } catch {
+    // none yet
+  }
+  if (current === null || current === GUIDE_V1) fs.writeFileSync(guide, GUIDE);
   // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
   fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
   // Electron's own binary runs it as node; under plain node, execPath is node itself

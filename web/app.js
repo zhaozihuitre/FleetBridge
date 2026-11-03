@@ -1528,8 +1528,120 @@ window.addEventListener('hashchange', () => {
   if (m && state?.agents?.some((a) => a.id === m[1])) openTerm(m[1]);
 });
 
+/* ---------- UI commands from the master (fleet_ui) ---------- */
+
+// What the page shows right now, reported back to the master after each command.
+function uiView() {
+  const { kind, list } = currentList();
+  const size = pageSize(kind);
+  const pages = kind === 'orders' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
+  const shown = kind === 'orders' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
+  const label = (x) => x.name || x.title || x.project || x.cwd || x.id;
+  return {
+    tab: ui.tab,
+    showing: kind,
+    page: ui.page + 1,
+    pages,
+    onPage: shown.map(label).slice(0, 12),
+    archiveFolder: kind === 'archive' ? currentFolder()?.cwd || null : null,
+    search: ui.search?.q || null,
+    terminals: [...panes.keys()].map((id) => ({ id, name: agentLabel(id).name, active: id === ui.term })),
+    split: dynamicSplit ? 'dynamic' : 'equal',
+    operator: opMode,
+    fullscreen: document.body.classList.contains('fullscreen'),
+  };
+}
+
+async function runUi(c) {
+  const ids = (c.ids || []).filter((id) => typeof id === 'string');
+  switch (c.action) {
+    case 'state':
+      return;
+    case 'tab':
+      if (!TABS.includes(c.tab)) throw new Error(`tab: ${TABS.join(' | ')}`);
+      if (c.tab !== 'archive' && ui.search) clearSearch(false);
+      return setTab(c.tab);
+    case 'page': {
+      if (c.to === 'next' || c.to === 'prev') return turn(c.to === 'next' ? 1 : -1);
+      const n = Number(c.to) - 1;
+      const { kind, list } = currentList();
+      if (!Number.isInteger(n) || n < 0 || n * pageSize(kind) >= Math.max(list.length, 1)) throw new Error('no such page');
+      ui.page = n;
+      return renderPage();
+    }
+    case 'folder': {
+      const want = String(c.cwd || '').toLowerCase().replace(/[\/]+$/, '');
+      const f = folders().find((x) => x.key.replace(/[\/]+$/, '') === want) || folders().find((x) => x.project.toLowerCase() === want || x.key.includes(want));
+      if (!f) throw new Error('no such folder in the archive');
+      if (ui.search) clearSearch(false);
+      ui.tab = 'archive';
+      ui.folder = f.key;
+      ui.page = 0;
+      return renderPage();
+    }
+    case 'open':
+      if (!ids.length) throw new Error('no terminals given');
+      for (const id of ids.slice(0, MAX_PANES)) openTerm(id);
+      return;
+    case 'close':
+      if (c.all) return closeAllPanes();
+      return ids.forEach(closePane);
+    case 'split':
+      return setDynamicSplit(c.mode !== 'equal');
+    case 'search':
+      if (String(c.q || '').trim().length < 2) throw new Error('at least 2 characters');
+      $('search-q').value = c.q;
+      await runSearch(String(c.q).trim());
+      return;
+    case 'clear_search':
+      return clearSearch();
+    case 'operator':
+      return document.querySelector(`[data-opmode="${c.mode === 'input' ? 'input' : 'master'}"]`)?.click();
+    case 'window':
+      if (!winBridge?.win || !['fullscreen', 'maximize', 'minimize'].includes(c.op)) throw new Error('window: fullscreen | maximize | minimize (desktop app only)');
+      return winBridge.win(c.op);
+    case 'shell': {
+      const r = await post('/api/agents', { shell: true, cwd: c.cwd || agentLabel(ui.term || '').cwd || folders()[0]?.cwd || '' });
+      if (!r.id) throw new Error(r.error || 'could not open a shell');
+      // the pane opens once the state lists the new shell
+      for (let i = 0; i < 20 && !state.agents?.some((a) => a.id === r.id); i++) await new Promise((ok) => setTimeout(ok, 150));
+      return openTerm(r.id);
+    }
+    case 'review':
+      if (!c.path) throw new Error('path (a repo folder) is required');
+      return openReview(c.path);
+    case 'close_dialog':
+      document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+      return;
+    default:
+      throw new Error(`unknown action ${c.action}`);
+  }
+}
+
+async function onUiCommand(c) {
+  // keep typing in the master: opening a terminal would otherwise take the keyboard
+  const typingInMaster = $('master-term').contains(document.activeElement);
+  let error = null;
+  try {
+    await runUi(c);
+  } catch (e) {
+    error = e.message;
+  }
+  if (typingInMaster && c.action !== 'operator') setTimeout(() => masterTerm?.focus(), 50);
+  await new Promise((ok) => setTimeout(ok, 120)); // let the page settle before reporting it
+  post('/api/ui/done', { id: c.id, ok: !error, error, view: uiView() }).catch(() => {});
+}
+
 function connect() {
-  const es = new EventSource('/api/stream');
+  const es = new EventSource('/api/stream?main=1');
+  es.addEventListener('ui', (e) => {
+    if (!state) return;
+    try {
+      onUiCommand(JSON.parse(e.data));
+    } catch {
+      // malformed: ignore
+    }
+  });
   es.onmessage = (e) => {
     const first = !state;
     state = JSON.parse(e.data);

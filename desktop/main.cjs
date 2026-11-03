@@ -52,6 +52,7 @@ async function startServer() {
   try {
     await server.start();
     serverModule = server;
+    server.setUiOpener?.(() => openMain()); // the master's UI commands open the command center if needed
   } catch (e) {
     if (e.code !== 'EADDRINUSE') throw e; // a standalone `npm start` is already serving: just use it
   }

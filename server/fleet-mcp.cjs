@@ -129,6 +129,59 @@ const TOOLS = [
     },
   },
   {
+    name: 'fleet_ui',
+    description: [
+      'Drive the Fleet Bridge command center window the user is looking at, and see what it shows. Every call returns the current view (tab, page, terminals open in the split, ...). Actions:',
+      '- state: just report the view',
+      '- tab {tab: units | agents | orders | archive}: units = cards of every session; agents = our live terminals; orders = the order log and queues; archive = past sessions by folder',
+      '- page {to: next | prev | <number>}',
+      '- folder {cwd}: show that project folder in the archive (cwd or project name)',
+      '- open {agents: [...]}: open these agents\' terminals in the split view (max 4; the last one becomes the big, active one)',
+      '- close {agents: [...]} or {all: true}: close terminal panes (the agents keep running)',
+      '- split {mode: dynamic | equal}',
+      '- search {q} / clear_search: full-text search of past sessions (shows in archive)',
+      '- shell {cwd?}: open a plain PowerShell pane',
+      '- review {path}: open the commit review dialog of a git repo folder; close_dialog closes dialogs',
+      '- window {op: fullscreen | maximize | minimize}',
+      '- operator {mode: master | input}: switch the left column between you (master) and the classic input box',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['state', 'tab', 'page', 'folder', 'open', 'close', 'split', 'search', 'clear_search', 'shell', 'review', 'close_dialog', 'window', 'operator'] },
+        tab: { type: 'string' },
+        to: { type: 'string' },
+        cwd: { type: 'string' },
+        agents: { type: 'array', items: { type: 'string' } },
+        all: { type: 'boolean' },
+        mode: { type: 'string' },
+        q: { type: 'string' },
+        path: { type: 'string' },
+        op: { type: 'string' },
+      },
+      required: ['action'],
+    },
+    async run({ agents, ...cmd }) {
+      if (agents?.length) {
+        const { ours } = await fleet();
+        cmd.ids = (agents.length === 1 && String(agents[0]).toLowerCase() === 'all' ? ours : agents.map((r) => resolve(ours, r))).map((x) => x.a.id);
+      }
+      const r = await api('/api/ui', cmd);
+      const v = r.view;
+      const view = v
+        ? [
+            `tab: ${v.tab}${v.showing !== v.tab ? ` (showing ${v.showing})` : ''} · page ${v.page}/${v.pages}${v.archiveFolder ? ` · folder ${v.archiveFolder}` : ''}${v.search ? ` · search "${v.search}"` : ''}`,
+            v.onPage?.length ? `on this page: ${v.onPage.join(', ')}` : null,
+            `terminals open: ${v.terminals?.length ? v.terminals.map((t) => `${t.name}${t.active ? ' (active)' : ''}`).join(', ') : 'none'} · split ${v.split}`,
+            `left column: ${v.operator}${v.fullscreen ? ' · fullscreen' : ''}`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : '';
+      return `${r.ok ? 'done' : `failed: ${r.error}`}${view ? '\n' + view : ''}`;
+    },
+  },
+  {
     name: 'fleet_projects',
     description: 'Project folders Claude Code has been used in (most recent first), to pick a cwd for fleet_spawn or a session to resume.',
     inputSchema: { type: 'object', properties: {} },
