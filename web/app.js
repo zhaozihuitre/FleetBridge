@@ -194,13 +194,14 @@ function renderStats() {
   const permit = waiting.filter((u) => u.permission).length;
   const hit = t?.cacheHitPct;
   const tiles = [
-    { c: 'var(--cyan)', v: t ? kTokens(t.total) : '--', k: L('今日 token'), s: t ? L('输出 {0} · {1} 个会话', kTokens(t.output), t.sessions) : L('统计中…'), tip: t ? L('输入 {0} · 缓存读 {1} · 缓存写 {2} · 输出 {3}', t.input.toLocaleString(), t.cacheRead.toLocaleString(), t.cacheWrite.toLocaleString(), t.output.toLocaleString()) : '' },
+    { c: 'var(--cyan)', v: t ? kTokens(t.total) : '--', full: t ? t.total.toLocaleString() : null, k: L('今日 token'), s: t ? L('输出 {0} · {1} 个会话', kTokens(t.output), t.sessions) : L('统计中…'), tip: t ? L('输入 {0} · 缓存读 {1} · 缓存写 {2} · 输出 {3}', t.input.toLocaleString(), t.cacheRead.toLocaleString(), t.cacheWrite.toLocaleString(), t.output.toLocaleString()) : '' },
     { c: hit == null ? 'var(--dim)' : hit >= 80 ? 'var(--green)' : hit >= 50 ? 'var(--amber)' : 'var(--red)', v: hit == null ? '--' : `${Math.round(hit)}%`, k: L('缓存命中'), s: L('越高越省额度'), tip: L('缓存读取 ÷ 全部输入 token') },
     { c: 'var(--cyan)', v: t ? String(t.prompts) : '--', k: L('今日指令'), s: L('你发出的指令数'), tip: L('今天所有会话里你输入的指令（不含工具结果和斜杠命令）') },
     { c: permit ? 'var(--red)' : waiting.length ? 'var(--amber)' : 'var(--dim)', v: String(waiting.length), k: permit ? L('等你 · {0} 个授权', permit) : L('等你'), s: waiting.length ? L('最久 {0}', ago(longest).replace(/ ?(前|ago)$/, '')) : L('没有会话在等'), tip: waiting.map((u) => u.project).join('、') },
   ];
   const html = tiles
-    .map((x) => `<div class="stat-box ${x.v === '0' || x.v === '--' ? 'zero' : ''}" style="--sc:${x.c}" title="${esc(x.tip)}"><b>${esc(x.v)}</b><span>${esc(x.k)}</span><small>${esc(x.s)}</small></div>`)
+    // one compact row: the number and its name; the details (and the unabbreviated number) on hover
+    .map((x) => `<div class="stat-box ${x.v === '0' || x.v === '--' ? 'zero' : ''}" style="--sc:${x.c}" title="${esc([`${x.k}：${x.full || x.v}`, x.s, x.tip].filter(Boolean).join('\n'))}"><b>${esc(x.v)}</b><span>${esc(x.k)}</span></div>`)
     .join('');
   if (renderStats.last !== html) $('op-stats').innerHTML = renderStats.last = html;
 }

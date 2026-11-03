@@ -183,12 +183,12 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .cmd-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .cmd-row .btn { height: 36px; }
 .cmd-err { font-family: var(--body); font-size: 12px; color: var(--red); }
-.op-stats { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.stat-box { text-align: left; padding: 7px 10px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sc); color: var(--text); display: flex; flex-direction: column; gap: 2px; }
+.op-stats { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+/* compact: one row of four, about 50px tall; details in the tooltip */
+.stat-box { text-align: left; padding: 5px 8px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sc); color: var(--text); display: flex; flex-direction: column; gap: 1px; cursor: default; }
 .stat-box:hover { border-color: var(--line-hi); border-left-color: var(--sc); }
-.stat-box b { font-family: var(--display); font-size: 22px; font-weight: 900; line-height: 1.1; color: var(--sc); text-shadow: 0 0 12px var(--sc); }
-.stat-box span { font-family: var(--body); font-size: 12px; font-weight: 700; }
-.stat-box small { font-family: var(--body); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-box b { font-family: var(--display); font-size: 18px; font-weight: 900; line-height: 1.15; color: var(--sc); text-shadow: 0 0 10px var(--sc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-box span { font-family: var(--body); font-size: 11px; font-weight: 700; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-box.zero b { color: var(--dim); text-shadow: none; }
 .op-feed { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #050a12; border: 1px solid var(--line); overflow: hidden; }
 .op-feed-head { font-family: var(--body); font-size: 12px; color: var(--muted); }
