@@ -24,8 +24,8 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
-import { isMasterCwd, masterInfo, masterWanted, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { isMasterCwd, masterInfo, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -80,16 +80,22 @@ function publish() {
   // Our agents waiting on a permission dialog: what it asks, read off their screens so it can be answered
   // here. The screen alone also raises the reminder, for when no Notification hook fired (hooks can fail).
   const prompts = new Map();
+  const asks = [];
   for (const s of sessions) {
     const id = byPid.get(s.pid) || bySession.get(s.sessionId);
-    const prompt = id ? permissionPrompt(getAgent(id)) : null;
+    // a permission dialog, or any other question with a numbered menu (AskUserQuestion, plan approval)
+    const a = id && getAgent(id);
+    const prompt = a ? permissionPrompt(a) || questionPrompt(a) : null;
     if (!prompt) {
       promptSeen.delete(id);
       continue;
     }
     prompts.set(s.sessionId, prompt);
-    s.permission ||= { at: promptSince(id), message: prompt.text.split('\n')[0] };
+    s.permission ||= { at: promptSince(id), message: prompt.text.split('\n').find((l) => l.trim()) || prompt.options.map((o) => o.label).join(' / ') };
+    asks.push({ agentId: id, name: a.name || s.name || s.project, project: s.project, prompt });
   }
+  // the master hears about every one of them without having to look (once per question)
+  notifyMaster(asks);
   const merged = withStatusline(usage, STATUSLINE_USAGE);
   recordUsage(merged); // readings from the status line feed the burn forecast too
   const view = merged && { ...merged, limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
@@ -463,7 +469,10 @@ server.on('upgrade', (req, socket, head) => {
       } catch {
         return;
       }
-      if (msg.type === 'input' && typeof msg.data === 'string') writeRaw(agent, msg.data);
+      if (msg.type === 'input' && typeof msg.data === 'string') {
+        writeRaw(agent, msg.data);
+        agent.typedAt = Date.now(); // someone is typing here: the master's notices wait for a pause
+      }
       else if (msg.type === 'resize') resizeAgent(agent, msg.cols, msg.rows);
     });
     ws.on('close', () => agent.clients.delete(ws));

@@ -30,7 +30,7 @@ async function fleet() {
     .filter((a) => a.alive && a.kind !== 'master')
     .map((a) => {
       const u = units.get(a.id);
-      const status = a.kind === 'shell' ? 'shell' : !u ? 'starting' : u.permission ? 'needs-approval' : u.status === 'busy' ? 'working' : 'idle';
+      const status = a.kind === 'shell' ? 'shell' : !u ? 'starting' : u.permission ? (u.permission.prompt?.kind === 'question' ? 'needs-answer' : 'needs-approval') : u.status === 'busy' ? 'working' : 'idle';
       return { a, u, status, name: a.name || u?.name || base(a.cwd), project: base(a.cwd) };
     });
   return { st, ours };
@@ -54,7 +54,7 @@ function resolve(ours, ref) {
 const TOOLS = [
   {
     name: 'fleet_status',
-    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval / starting / shell), queued orders, last order and its latest reply, context use. Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
+    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval = a permission dialog / needs-answer = a question or choice such as AskUserQuestion or plan approval / starting / shell), queued orders, last order and its latest reply, context use. Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
     inputSchema: { type: 'object', properties: {} },
     async run() {
       const { st, ours } = await fleet();
@@ -90,7 +90,7 @@ const TOOLS = [
       if (!list.length) throw new Error('no agents to send to');
       const out = [];
       for (const x of list) {
-        const queue = mode === 'queue' || (mode === 'auto' && (x.status === 'working' || x.status === 'needs-approval' || x.a.queue?.length));
+        const queue = mode === 'queue' || (mode === 'auto' && (x.status === 'working' || x.status === 'needs-approval' || x.status === 'needs-answer' || x.a.queue?.length));
         const r = await api('/api/agents/action', { id: x.a.id, action: queue ? 'queue' : 'text', text, via: 'master' });
         out.push(`${x.name}: ${r.ok ? (queue ? 'queued' : 'sent') : 'failed'}`);
       }
@@ -99,7 +99,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_answer',
-    description: "Answer the permission prompt an agent is waiting on, by option number (see fleet_status 'options'; usually 1 = yes, 2 = yes and don't ask again, 3 = no). Only after the user agreed, unless the request is plainly harmless.",
+    description: "Answer the permission dialog or question an agent is waiting on (needs-approval / needs-answer), by option number from fleet_status 'options' or the 【舰桥通知】 notice. For permission dialogs usually 1 = yes, 2 = yes and don't ask again, 3 = no. Only after the user agreed, unless the answer is plainly harmless.",
     inputSchema: { type: 'object', properties: { agent: { type: 'string' }, choice: { type: 'string' } }, required: ['agent', 'choice'] },
     async run({ agent, choice }) {
       const { ours } = await fleet();

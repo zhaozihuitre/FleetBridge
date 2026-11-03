@@ -2427,6 +2427,28 @@
       "created": "2026-11-03 14:19",
       "updated": "2026-11-03 14:19",
       "notes": []
+    },
+    {
+      "id": "C-047",
+      "type": "change",
+      "title": "子 agent 的提问自动回传主控（0.9.4）",
+      "summary": "除授权框外，AskUserQuestion 选择框、计划确认等带光标的编号菜单也会被识别为 needs-answer；舰桥把问题全文和选项以【舰桥通知】消息直接发进主控会话，同一问题只发一次，回答后清除",
+      "detail": "检测：agents.js questionPrompt()（menuOptions + 菜单上方到分隔线的文字），permissionPrompt 加 kind。index.js publish 里两者合并进 unit.permission（提醒、手机推送也随之覆盖选择框），收集 asks 调 master.js notifyMaster()。推送：sendText 到主控；用户 20 秒内在主控里打过字或主控输入行不为空（inputEmpty：❯ 行后只有空白或暗色占位符）时延后到下次刷新。去重：按 agent 记下问题 key，问题消失即清除。fleet_status 显示 needs-answer 及问题和选项，fleet_answer 按编号回答。主控 CLAUDE.md 说明【舰桥通知】来源。实测：asker 弹出 AskUserQuestion 后约 1 次刷新内主控收到通知并转告；fleet_answer 选 2 后 asker 回复「收到：先别操作」，状态回到 idle。注意：用户级 Warp 插件的 PermissionRequest hook 在 Windows 上报错时会让 AskUserQuestion 直接失败（框不弹出）。",
+      "status": "done",
+      "files": [
+        "server/agents.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [
+        "master"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 14:29",
+      "updated": "2026-11-03 14:29",
+      "notes": []
     }
   ]
 }

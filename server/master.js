@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DATA_DIR, ROOT } from './config.js';
-import { getAgent, killAgent, spawnAgent } from './agents.js';
+import { getAgent, inputEmpty, killAgent, sendText, spawnAgent } from './agents.js';
+import { L } from './i18n.js';
 
 // The master console: a Claude Code session in the command center's left column that commands the
 // other agents through the fleet MCP tools (server/fleet-mcp.cjs). It works in its own folder, so its
@@ -18,6 +19,23 @@ const MCP_CONFIG = path.join(DATA_DIR, 'master-mcp.json');
 const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui'].map((t) => `mcp__fleet__${t}`);
 
 const GUIDE = `# 主控 · Fleet Bridge master console
+
+你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
+
+- 用户消息里的「@名字」指对应的终端（和 fleet_status 里的名字或项目名对应，可以直接作为 agent 参数传给工具），「@all」指全部我方 agent。
+- 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
+- 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
+- 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕。
+- 以「【舰桥通知】」开头的消息是舰桥自动发来的，不是用户说的：某个 agent 弹出了授权框或选择框在等回答。把问题和选项简要转告用户（需要用户决定的就问用户），或在明显该怎么选时直接用 fleet_answer 回答，并告诉用户你选了什么。
+- agent 在等授权时，把它问的内容告诉用户；用户同意后再用 fleet_answer 回应。明显无害的只读操作可以直接同意。
+- 需要新的 agent 时用 fleet_projects 找文件夹，再用 fleet_spawn 启动。
+- 用户说「打开 / 切到 / 看看 某个终端或页面」时，用 fleet_ui 操作指挥中心：切标签页（部队 units / 活动终端 agents / 指令 orders / 存档 archive）、翻页、在分屏里打开或关闭终端、搜索会话、看某个项目的存档、打开审查改动、全屏等。每次调用都会返回界面当前显示的内容。
+- 你自己不要去改项目代码：具体工作交给对应项目的 agent，你负责拆分任务、分派、跟进和汇总。
+- 回答用户时用用户使用的语言，简洁地说结果。
+`;
+
+// the 0.9.2 default
+const GUIDE_V3 = `# 主控 · Fleet Bridge master console
 
 你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
 
@@ -114,7 +132,7 @@ function prepare(url) {
   } catch {
     // none yet
   }
-  if (current === null || current === GUIDE_V1 || current === GUIDE_V2) fs.writeFileSync(guide, GUIDE);
+  if (current === null || current === GUIDE_V1 || current === GUIDE_V2 || current === GUIDE_V3) fs.writeFileSync(guide, GUIDE);
   // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
   fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
   // Electron's own binary runs it as node; under plain node, execPath is node itself
@@ -149,3 +167,37 @@ export function trackMaster() {
 }
 
 export const masterWanted = () => Boolean(load().on);
+
+// Questions our agents wait on (permission dialogs, AskUserQuestion, plan approval) are typed into
+// the master as a message, so it hears about them without polling. Once per question: what was
+// sent is remembered per agent and forgotten when the question goes away (answered).
+const notified = new Map(); // agentId -> key of the question last sent
+const TYPING_PAUSE = 20_000;
+
+const askKey = (p) => `${p.kind}|${p.text}|${p.options.map((o) => o.label).join('|')}`;
+
+function notice(x) {
+  const kind = x.prompt.kind === 'permission' ? L('授权', 'a permission', '承認') : L('回答', 'an answer', '回答');
+  const opts = x.prompt.options.map((o) => `${o.key}. ${o.label}`).join(' / ');
+  const text = x.prompt.text.split('\n').map((l) => l.trim()).filter(Boolean).join(' ⏎ ').slice(0, 1200);
+  return L(
+    `【舰桥通知】${x.name}（${x.agentId.slice(0, 8)}）在等${kind}：${text || '（见选项）'} ｜ 选项：${opts}`,
+    `[Fleet notice] ${x.name} (${x.agentId.slice(0, 8)}) is waiting for ${kind}: ${text || '(see options)'} | Options: ${opts}`,
+    `【艦橋通知】${x.name}（${x.agentId.slice(0, 8)}）が${kind}を待っています：${text || '（選択肢を参照）'} ｜ 選択肢：${opts}`,
+  );
+}
+
+/** @param {{agentId: string, name: string, project: string, prompt: {kind: string, text: string, options: {key: string, label: string}[]}}[]} asks */
+export function notifyMaster(asks) {
+  const waiting = new Set(asks.map((x) => x.agentId));
+  for (const id of notified.keys()) if (!waiting.has(id)) notified.delete(id); // answered: a new question is new again
+  const m = masterAgent();
+  if (!m?.alive) return; // nothing sent: they go out once the master is up
+  const fresh = asks.filter((x) => notified.get(x.agentId) !== askKey(x.prompt));
+  if (!fresh.length) return;
+  // never type into the middle of what the user is writing to the master: wait for an empty input
+  if (Date.now() - (m.typedAt || 0) < TYPING_PAUSE || !inputEmpty(m)) return;
+  const body = [...fresh.map(notice), L('（舰桥自动发送。用 fleet_answer 按编号回答；该由用户决定的先问用户。）', '(Sent by Fleet Bridge. Answer with fleet_answer by number; ask the user first when it is theirs to decide.)', '（艦橋が自動送信。fleet_answer で番号を指定して回答。ユーザーが決めるべきものは先にユーザーに確認。）')].join('\n');
+  if (!sendText(m, body)) return;
+  for (const x of fresh) notified.set(x.agentId, askKey(x.prompt));
+}

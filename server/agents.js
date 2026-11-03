@@ -353,7 +353,55 @@ export function permissionPrompt(agent) {
     if (/^[\s╌┄-]{8,}$/.test(l)) continue;
     body.unshift(l.replace(/^[\s│╭╰╮╯]+|[\s│╭╰╮╯]+$/g, ''));
   }
-  return { text: body.filter((l, i, a) => l || (i && a[i - 1])).join('\n').trim(), options };
+  return { kind: 'permission', text: body.filter((l, i, a) => l || (i && a[i - 1])).join('\n').trim(), options };
+}
+
+/**
+ * Any other question waiting on a person: a live numbered menu (AskUserQuestion, plan approval, a
+ * picker) with the question text above it, up to the rule that opens the box.
+ */
+export function questionPrompt(agent) {
+  const options = menuOptions(agent);
+  if (!options.length) return null;
+  const lines = screenLines(agent);
+  // the menu is the last one on screen (a numbered list in Claude's text above it is not)
+  const optAt = lines.findLastIndex((l) => l.match(/^\s*(?:[❯›>▸]\s*)?(\d)\.\s+\S/)?.[1] === options[0].key);
+  const body = [];
+  for (let i = optAt - 1; i >= 0 && body.length < 16; i--) {
+    const l = lines[i];
+    if (/^[\s─━═]{8,}$/.test(l)) break;
+    if (/^[\s╌┄-]{8,}$/.test(l)) continue;
+    body.unshift(l.replace(/^[\s│╭╰╮╯]+|[\s│╭╰╮╯]+$/g, ''));
+  }
+  return { kind: 'question', text: body.filter((l, i, a) => l || (i && a[i - 1])).join('\n').trim(), options: options.map(({ key, label }) => ({ key, label })) };
+}
+
+/**
+ * Whether the agent's own input line is empty (Claude Code shows a dim placeholder there), so a
+ * message typed in for it won't land in the middle of what someone is writing.
+ */
+export function inputEmpty(agent) {
+  const b = agent?.screen?.buffer.active;
+  if (!b) return false;
+  const rows = agent.screen.rows;
+  for (let y = b.viewportY + rows - 1; y > b.viewportY; y--) {
+    const line = b.getLine(y);
+    const text = line?.translateToString(true) || '';
+    if (!/^❯/.test(text)) continue;
+    const above = b.getLine(y - 1)?.translateToString(true) || '';
+    if (!/^[─━]{5,}/.test(above)) continue; // the prompt box opens with a rule; menus don't
+    for (let x = 1; x < line.length; x++) {
+      const c = line.getCell(x);
+      if (!c) break;
+      const ch = c.getChars();
+      if (!ch.trim()) continue; // blanks, including the no-break space after ❯
+      // placeholder text is drawn dim or in the dim palette color
+      if (c.isDim() || (c.isFgPalette() && c.getFgColor() === 8)) continue;
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 /** Answer a permission dialog by its option number (1 = yes); Esc rejects. */
