@@ -506,3 +506,30 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; justify-content: center; }
 .cmd-row .voice-btn { padding: 0 10px; color: #a6e8c0; }
 .voice-btn svg { display: block; }
+/* Orders tab: queue per agent, then the order log */
+.orders { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding-right: 6px; font-family: var(--body); }
+.orders section { display: flex; flex-direction: column; gap: 8px; }
+.orders .o-empty { padding: 14px 16px; border: 1px dashed var(--line); color: var(--muted); font-size: 13px; }
+.o-group { border: 1px solid var(--line); border-left: 3px solid var(--amber); background: rgba(255,176,32,.04); }
+.o-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 14px; color: var(--text); border-bottom: 1px solid var(--line); }
+.o-head .o-count { color: var(--amber); font-size: 12px; margin-left: auto; }
+.o-proj { margin-left: 8px; color: var(--amber); font-size: 12px; }
+.o-group ol { list-style: none; margin: 0; padding: 4px 0; }
+.o-group li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 28px; align-items: center; gap: 10px; padding: 6px 12px; font-size: 13px; }
+.o-group li + li { border-top: 1px dashed rgba(255,255,255,.06); }
+.o-n { font-family: var(--mono, monospace); color: var(--amber); }
+.o-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.o-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.o-x { height: 24px; min-width: 24px; padding: 0 6px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 12px; cursor: pointer; }
+.o-x:hover { border-color: var(--red); color: #ff8fa3; }
+.o-row { display: grid; grid-template-columns: 92px 150px minmax(120px, 220px) minmax(0, 1fr); align-items: center; gap: 12px; padding: 7px 12px; border-left: 3px solid var(--oc); background: rgba(255,255,255,.02); font-size: 13px; }
+.o-row:nth-child(even) { background: rgba(255,255,255,.035); }
+.o-row .o-kind { color: var(--oc); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o-row .o-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); }
+.o-row .o-who b { color: var(--text); font-weight: 600; }
+.o-via { margin-left: 8px; padding: 0 5px; border: 1px solid var(--cyan); color: var(--cyan); font-size: 11px; }
+/* four tabs + search + three buttons: make room so no tab badge gets cut */
+.tabs .key { display: none; }
+.tab .en { font-size: 13px; letter-spacing: .5px; }
+.o-row { grid-template-columns: 70px 240px minmax(120px, 220px) minmax(0, 1fr); }
+@media (max-width: 1700px) { .tab .en { display: none; } }

@@ -34,13 +34,14 @@ export function enqueue(id, text) {
   save();
 }
 
+/** Takes one order (or the whole queue) off; returns what was removed. */
 export function dequeue(id, index) {
   const q = queues[id];
-  if (!q) return;
-  if (index == null) delete queues[id];
-  else q.splice(index, 1);
-  if (q && !q.length) delete queues[id];
+  if (!q) return [];
+  const removed = index == null ? q.splice(0) : q.splice(index, 1);
+  if (!q.length) delete queues[id];
   save();
+  return removed;
 }
 
 export const queueOf = (id) => queues[id] || [];
@@ -65,6 +66,6 @@ export function dispatch(units, send, now = Date.now()) {
     const next = q.shift();
     if (!q.length) delete queues[id];
     save();
-    if (send(id, next.text)) sentAt.set(id, now);
+    if (send(id, next.text, next)) sentAt.set(id, now);
   }
 }

@@ -23,6 +23,7 @@ import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
+import { recordOrder, recentOrders } from './orders.js';
 import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
@@ -104,11 +105,17 @@ function publish() {
     agents: all.map((a) => ({ ...a, queue: queueOf(a.id) })),
     agentSupport: agentSupport(),
     today,
+    orders: recentOrders(),
     forecast: fc,
     lang: getLang(),
   };
   // queued orders: the next one goes to each of our agents that has finished its turn
-  dispatch(state.units.filter((u) => u.owned), (id, text) => sendText(getAgent(id), text));
+  dispatch(state.units.filter((u) => u.owned), (id, text, item) => {
+    const a = getAgent(id);
+    const ok = sendText(a, text);
+    if (ok) recordOrder({ kind: 'dispatched', ...orderTarget(a), text, queuedAt: item?.at });
+    return ok;
+  });
   // phone push: whatever needs you, whether or not anyone is looking at a screen
   pushQuests(state.quests, phoneUrl());
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
@@ -183,21 +190,32 @@ function readBody(req) {
   });
 }
 
+// Who an order went to, for the order log: the agent's name and project folder at that moment.
+function orderTarget(a) {
+  const u = state?.units.find((x) => x.agentId === a.id);
+  return { agentId: a.id, name: a.name || u?.name || u?.title || null, project: path.basename(a.cwd || '') || null };
+}
+
 /** One action for one or more of our agents; shared by the command center and the phone page. */
-function agentAction({ id, action, text, key, choice, index }) {
+function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
   const ids = Array.isArray(id) ? id : [id];
   const results = ids.map((one) => {
     const a = getAgent(one);
     if (!a) return false;
-    if (action === 'text' && typeof text === 'string' && text.trim()) return sendText(a, text);
+    if (action === 'text' && typeof text === 'string' && text.trim()) {
+      const ok = sendText(a, text);
+      if (ok && a.kind !== 'shell') recordOrder({ kind: 'sent', ...orderTarget(a), text, via });
+      return ok;
+    }
     if (action === 'key') return sendKey(a, key);
     if (action === 'answer') return answerPrompt(a, String(choice));
     if (action === 'queue' && typeof text === 'string' && text.trim()) {
       enqueue(a.id, text.trim());
+      recordOrder({ kind: 'queued', ...orderTarget(a), text: text.trim(), via });
       return true;
     }
     if (action === 'unqueue') {
-      dequeue(a.id, Number.isInteger(index) ? index : null);
+      for (const q of dequeue(a.id, Number.isInteger(index) ? index : null)) recordOrder({ kind: 'removed', ...orderTarget(a), text: q.text, queuedAt: q.at, via });
       return true;
     }
     if (action === 'kill') {
@@ -423,7 +441,7 @@ export async function start() {
   setInterval(publish, config.intervals.sessions);
   setInterval(() => refreshUsage(), config.intervals.usage);
   setInterval(refreshGit, config.intervals.git);
-  await startMobile({ clients, getState: () => state, action: agentAction, screen: (id) => {
+  await startMobile({ clients, getState: () => state, action: (b) => agentAction({ ...b, via: 'phone' }), screen: (id) => {
     const a = getAgent(id);
     return { html: screenHtml(a?.screen), menu: a ? menuOptions(a) : [] };
   } });

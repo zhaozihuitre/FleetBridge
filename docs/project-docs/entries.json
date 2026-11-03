@@ -2279,6 +2279,32 @@
       "created": "2026-11-03 11:16",
       "updated": "2026-11-03 11:16",
       "notes": []
+    },
+    {
+      "id": "C-041",
+      "type": "change",
+      "title": "0.8.9：指令页（排队列表 + 指令记录）",
+      "summary": "新增「指令」标签：上半部分按 agent 分组列出排队中的指令（序号、排队时间，可单条移除或清空）；下半部分是指令记录：每条指令的时间、状态（已发送 / 已排队 / 排队→已发出并显示等了多久 / 已移除）、发给哪个 agent 和项目、是否来自手机。记录写在 DATA_DIR/orders.jsonl，重启后保留（内存保留 500 条，状态里带最近 150 条）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/orders.js",
+        "server/queue.js",
+        "server/index.js",
+        "web/app.js",
+        "web/index.html",
+        "web/i18n.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "排队",
+        "指令"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 11:31",
+      "updated": "2026-11-03 11:31",
+      "notes": []
     }
   ]
 }

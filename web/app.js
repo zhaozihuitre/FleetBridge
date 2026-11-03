@@ -26,7 +26,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
-const TABS = ['units', 'agents', 'archive'];
+const TABS = ['units', 'agents', 'orders', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -578,6 +578,55 @@ function repoBadge(u) {
 }
 
 // One of our live terminals on the Agents page: status, project, load, last report; open it into the split.
+/* Orders tab: what is waiting in each agent's queue, then the record of every order given. */
+const ORDER_KIND = {
+  sent: { label: () => L('已发送'), c: 'var(--cyan)' },
+  queued: { label: () => L('已排队'), c: 'var(--amber)' },
+  dispatched: { label: () => L('排队→已发出'), c: 'var(--green)' },
+  removed: { label: () => L('已移除'), c: 'var(--muted)' },
+};
+
+function orderWho(agentId, name, project) {
+  const live = (state.agents || []).find((a) => a.id === agentId);
+  const n = live ? agentLabel(agentId).name : name || agentId.slice(0, 8);
+  return `<b>${esc(n)}</b>${project && project.toLowerCase() !== String(n).toLowerCase() ? `<span class="o-proj">${esc(project)}</span>` : ''}`;
+}
+
+function ordersPage() {
+  const now = Date.now();
+  const waiting = (state.agents || []).filter((a) => a.alive && a.queue?.length);
+  const queued = waiting.length
+    ? waiting
+        .map((a) => {
+          const proj = (a.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
+          const items = a.queue
+            .map((q, i) => `<li><span class="o-n">#${i + 1}</span><span class="o-text" title="${esc(q.text)}">${esc(q.text)}</span><span class="o-time">${L('排队于 {0}', clock(q.at, now - q.at > 86_400_000))} · ${ago(now - q.at)}</span><button type="button" class="o-x" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></li>`)
+            .join('');
+          return `<div class="o-group"><div class="o-head">→ ${orderWho(a.id, a.name, proj)}<span class="o-count">${L('{0} 条待发', a.queue.length)}</span><button type="button" class="o-x" data-unqueue-all="${esc(a.id)}" title="${L('清空这个 agent 的队列')}">${L('清空')}</button></div><ol>${items}</ol></div>`;
+        })
+        .join('')
+    : `<div class="o-empty">${L('没有排队的指令。打开总指挥台的「⏱ 排队」后发出的指令会在这里等，agent 每做完一条自动发下一条。')}</div>`;
+  const log = state.orders || [];
+  const rows = log.length
+    ? log
+        .map((o) => {
+          const k = ORDER_KIND[o.kind] || ORDER_KIND.sent;
+          const waited = o.kind === 'dispatched' && o.queuedAt ? L('（排队 {0}）', waitText(o.at - o.queuedAt)) : '';
+          return `<div class="o-row" style="--oc:${k.c}"><span class="o-time">${clock(o.at, now - o.at > 86_400_000)}</span><span class="o-kind">${k.label()}${waited}</span><span class="o-who">→ ${orderWho(o.agentId, o.name, o.project)}${o.via === 'phone' ? `<span class="o-via">${L('手机')}</span>` : ''}</span><span class="o-text" title="${esc(o.text)}">${esc(o.text)}</span></div>`;
+        })
+        .join('')
+    : `<div class="o-empty">${L('还没有指令记录。')}</div>`;
+  return `<div class="orders"><section><div class="archive-head"><span class="mono">QUEUE</span><span>${L('排队中 · {0} 条', waiting.reduce((n, a) => n + a.queue.length, 0))}</span></div>${queued}</section>
+    <section><div class="archive-head"><span class="mono">LOG</span><span>${L('指令记录 · 最近 {0} 条', log.length)}</span></div>${rows}</section></div>`;
+}
+
+function waitText(ms) {
+  const m = Math.round(ms / 60_000);
+  if (m < 1) return L('不到 1 分钟');
+  if (m < 60) return L('{0} 分钟', m);
+  return L('{0} 小时 {1} 分', Math.floor(m / 60), m % 60);
+}
+
 function agentRow(a) {
   const u = state.units.find((x) => x.agentId === a.id);
   const [code, c] = u?.permission ? ['PERMIT', 'var(--red)'] : u?.status === 'busy' ? ['ENGAGED', 'var(--cyan)'] : u ? ['AWAITING', 'var(--amber)'] : ['BOOT', 'var(--muted)'];
@@ -647,6 +696,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
+  if (ui.tab === 'orders') return { kind: 'orders', list: [] }; // one scrolling page, no paging
   return { kind: ui.tab, list: { units: state.units, agents: liveAgents() }[ui.tab] };
 }
 
@@ -698,12 +748,18 @@ function renderPage() {
     html = items.length
       ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
-  if (kind !== 'archive') $('page').innerHTML = html;
+  else if (ui.tab === 'orders') html = ordersPage();
+  if (kind !== 'archive') {
+    const keep = kind === 'orders' ? document.querySelector('.orders')?.scrollTop || 0 : 0;
+    $('page').innerHTML = html;
+    if (keep) document.querySelector('.orders').scrollTop = keep; // live refreshes keep the scroll position
+  }
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
   $('n-units').textContent = state.units.length;
   $('n-agents').textContent = liveAgents().length;
   $('n-archive').textContent = (state.history || []).length;
+  $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0);
   const busy = state.units.filter((u) => u.status === 'busy').length;
   $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
   $('dots').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i === ui.page ? 'on' : ''}"></i>`).join('') + `<span>${pad(ui.page + 1)} / ${pad(total)}</span>`;
@@ -1078,6 +1134,14 @@ $('refresh').addEventListener('click', async () => {
   toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
+  // Orders tab: take one order, or a whole queue, off
+  const uq = e.target.closest('[data-unqueue]');
+  if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
+  const ua = e.target.closest('[data-unqueue-all]');
+  if (ua) {
+    const id = ua.dataset.unqueueAll;
+    return ask({ danger: true, title: L('清空「{0}」的队列？', agentLabel(id).name), message: L('排队中的指令都不会再发出，记录里会标为已移除。'), ok: L('清空') }).then((yes) => yes && post('/api/agents/action', { id, action: 'unqueue' }));
+  }
   // end every terminal of ours, after a confirmation; sessions stay and can be continued later
   if (e.target.closest('[data-end-all]')) {
     const live = liveAgents();
