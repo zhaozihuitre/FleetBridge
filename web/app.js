@@ -612,7 +612,7 @@ function ordersPage() {
         .map((o) => {
           const k = ORDER_KIND[o.kind] || ORDER_KIND.sent;
           const waited = o.kind === 'dispatched' && o.queuedAt ? L('（排队 {0}）', waitText(o.at - o.queuedAt)) : '';
-          return `<div class="o-row" style="--oc:${k.c}"><span class="o-time">${clock(o.at, now - o.at > 86_400_000)}</span><span class="o-kind">${k.label()}${waited}</span><span class="o-who">→ ${orderWho(o.agentId, o.name, o.project)}${o.via === 'phone' ? `<span class="o-via">${L('手机')}</span>` : ''}</span><span class="o-text" title="${esc(o.text)}">${esc(o.text)}</span></div>`;
+          return `<div class="o-row" style="--oc:${k.c}"><span class="o-time">${clock(o.at, now - o.at > 86_400_000)}</span><span class="o-kind">${k.label()}${waited}</span><span class="o-who">→ ${orderWho(o.agentId, o.name, o.project)}${o.via === 'phone' ? `<span class="o-via">${L('手机')}</span>` : o.via === 'master' ? `<span class="o-via">${L('主控')}</span>` : ''}</span><span class="o-text" title="${esc(o.text)}">${esc(o.text)}</span></div>`;
         })
         .join('')
     : `<div class="o-empty">${L('还没有指令记录。')}</div>`;
@@ -771,6 +771,7 @@ function render() {
   if (!state) return;
   renderEnergy();
   renderOperator();
+  renderMaster();
   renderConsole();
   renderPage();
   renderTermHeads();
@@ -778,6 +779,58 @@ function render() {
   $('deploy-open').title = state.agentSupport?.ok ? L('在指挥中心里启动一个新的 Claude Code（N）') : state.agentSupport?.error || '';
   tick();
 }
+
+/* ---------- master console ---------- */
+
+// The left column is either the master (a Claude Code terminal that commands the other agents through
+// the fleet tools) or the classic input box. The master's terminal stays connected while hidden.
+let opMode = localStorage.getItem('fb-op-mode') === 'input' ? 'input' : 'master';
+let masterTerm = null;
+
+function renderMaster() {
+  $('operator').classList.toggle('master-mode', opMode === 'master');
+  document.querySelectorAll('[data-opmode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.opmode === opMode)));
+  $('master').hidden = opMode !== 'master';
+  const m = state.master || {};
+  const alive = Boolean(m.alive && m.id);
+  $('master-off').hidden = alive;
+  $('master-term').hidden = !alive;
+  $('master-st').textContent = alive ? L('● 主控在线') : L('● 主控未启动');
+  $('master-st').classList.toggle('on', alive);
+  $('master-new').disabled = $('master-stop').disabled = $('master-voice').disabled = !alive;
+  $('master-start').disabled = !state.agentSupport?.ok;
+  if (alive && masterTerm?.id !== m.id) {
+    masterTerm?.dispose();
+    masterTerm = createTerminal($('master-term'), m.id, { fontSize: 12 });
+  } else if (!alive && masterTerm) {
+    masterTerm.dispose();
+    masterTerm = null;
+  }
+}
+
+async function masterDo(action) {
+  const r = await post('/api/master', { action });
+  if (r.error) return toast(r.error);
+  if (action !== 'stop') setTimeout(() => masterTerm?.focus(), 400);
+}
+
+document.querySelectorAll('[data-opmode]').forEach((b) =>
+  b.addEventListener('click', () => {
+    opMode = b.dataset.opmode;
+    localStorage.setItem('fb-op-mode', opMode);
+    if (state) renderMaster();
+    if (opMode === 'master') masterTerm?.focus();
+    else $('cmd-text').focus();
+  }),
+);
+$('master-start').addEventListener('click', () => masterDo('start'));
+$('master-new').addEventListener('click', async () => {
+  if (await ask({ title: L('开一个新的主控会话？'), message: L('当前对话会结束，主控从头开始。'), ok: L('新会话') })) masterDo('new');
+});
+$('master-stop').addEventListener('click', async () => {
+  if (await ask({ danger: true, title: L('结束主控？'), message: L('之后点「启动主控」会接着这次的对话。'), ok: L('结束') })) masterDo('stop');
+});
+$('master-voice').addEventListener('click', () => voiceInto(() => masterTerm?.focus()));
 
 /* ---------- actions ---------- */
 

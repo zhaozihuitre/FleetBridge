@@ -2330,6 +2330,33 @@
       "created": "2026-11-03 13:05",
       "updated": "2026-11-03 13:05",
       "notes": []
+    },
+    {
+      "id": "C-043",
+      "type": "change",
+      "title": "主控终端（0.9.0）",
+      "summary": "总指挥台可切换为「主控」：一个 Claude Code 终端，通过 fleet MCP 工具查看和指挥其他终端；原输入框保留，可随时切换",
+      "detail": "server/fleet-mcp.cjs：零依赖 stdio MCP 服务器，经本地 HTTP 接口提供 fleet_status / fleet_read_screen / fleet_send（auto 时作战中的排队）/ fleet_answer / fleet_key / fleet_unqueue / fleet_projects / fleet_spawn。server/master.js：主控在 DATA_DIR/master 下运行（CLAUDE.md 写角色说明，用户可改），--mcp-config + --strict-mcp-config + --allowedTools（除 fleet_answer 外预授权，回应别人的授权要先问用户）。会话 id 存 master.json，重启自动接着上次；主控的会话不进部队、提醒、阵容和存档。新增接口 POST /api/master、GET /api/agents/screen。指令记录里来源显示「主控」。首次进入主控文件夹 Claude Code 会问一次是否信任。",
+      "status": "done",
+      "files": [
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "server/index.js",
+        "server/agents.js",
+        "web/index.html",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "master",
+        "mcp"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 13:40",
+      "updated": "2026-11-03 13:40",
+      "notes": []
     }
   ]
 }

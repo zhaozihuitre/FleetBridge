@@ -24,6 +24,7 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
+import { isMasterCwd, masterInfo, masterWanted, startMaster, stopMaster, trackMaster } from './master.js';
 import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
@@ -64,11 +65,14 @@ let stateJson = '';
 const clients = new Set();
 
 function publish() {
-  const sessions = sessionsNow();
+  const everything = sessionsNow();
+  bindAgents(everything);
+  trackMaster();
+  // the master console's own session isn't part of the fleet: no unit, no reminders
+  const sessions = everything.filter((s) => !isMasterCwd(s.cwd));
   const running = new Map(sessions.map((s) => [s.sessionId, s.pid]));
-  bindAgents(sessions);
   const all = listAgents();
-  const agents = all.filter((a) => a.kind !== 'shell'); // plain shells aren't agents: no unit, no roster
+  const agents = all.filter((a) => a.kind !== 'shell' && a.kind !== 'master'); // plain shells aren't agents: no unit, no roster
   saveRoster(agents); // after binding, so /clear'd agents are saved under their current session
   const live = agents.filter((a) => a.alive);
   const byPid = new Map(live.filter((a) => a.pid).map((a) => [a.pid, a.id]));
@@ -102,8 +106,9 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
-    agents: all.map((a) => ({ ...a, queue: queueOf(a.id) })),
+    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id) })), // the master has its own column
     agentSupport: agentSupport(),
+    master: masterInfo(),
     today,
     orders: recentOrders(),
     forecast: fc,
@@ -138,7 +143,7 @@ async function refreshGit() {
   try {
     const sessions = sessionsNow();
     gitByCwd = await collectGit(sessions.map((s) => s.cwd));
-    history = await collectHistory();
+    history = (await collectHistory()).filter((h) => !isMasterCwd(h.cwd));
     today = await collectToday();
     const off = offlineSessions(history, sessions.map((s) => s.cwd)).map((h) => h.cwd);
     if (Date.now() - offlineGitAt > 120_000 || off.some((c) => !(c in offlineGit))) {
@@ -204,7 +209,7 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
     if (!a) return false;
     if (action === 'text' && typeof text === 'string' && text.trim()) {
       const ok = sendText(a, text);
-      if (ok && a.kind !== 'shell') recordOrder({ kind: 'sent', ...orderTarget(a), text, via });
+      if (ok && a.kind !== 'shell' && a.kind !== 'master') recordOrder({ kind: 'sent', ...orderTarget(a), text, via });
       return ok;
     }
     if (action === 'key') return sendKey(a, key);
@@ -219,6 +224,7 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
       return true;
     }
     if (action === 'kill') {
+      if (a.kind === 'master') stopMaster();
       killAgent(a);
       return true;
     }
@@ -285,6 +291,28 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       return send(res, 400, { error: e.message });
     }
+  }
+  // the master console: start (resumes its last session), new (a fresh session), stop
+  if (req.method === 'POST' && req.url === '/api/master') {
+    const { action } = await readBody(req);
+    try {
+      if (action === 'stop') stopMaster();
+      else if (action === 'new') {
+        stopMaster();
+        await new Promise((r) => setTimeout(r, 800)); // let the old process let go of its folder
+        startMaster(url, { fresh: true });
+      } else startMaster(url);
+      publish();
+      return send(res, 200, { ok: true, ...masterInfo() });
+    } catch (e) {
+      return send(res, 400, { error: e.message });
+    }
+  }
+  // an agent's screen as text (the master's fleet_read_screen)
+  if (req.method === 'GET' && req.url.startsWith('/api/agents/screen?')) {
+    const a = getAgent(new URL(req.url, 'http://localhost').searchParams.get('id') || '');
+    if (!a) return send(res, 404, { error: 'unknown_agent' });
+    return send(res, 200, { lines: screenLines(a), alive: a.alive });
   }
   if (req.method === 'POST' && req.url === '/api/agents/action') return send(res, 200, agentAction(await readBody(req)));
   // phone access (on / off, new key, QR): only from this computer
@@ -443,6 +471,13 @@ export async function start() {
     server.listen(config.port, '127.0.0.1', resolve);
   });
   await restoreRoster();
+  if (masterWanted() && agentSupport().ok) {
+    try {
+      startMaster(url);
+    } catch (e) {
+      console.error('master failed', e.message);
+    }
+  }
   await Promise.all([refreshUsage(), refreshGit()]);
   setInterval(publish, config.intervals.sessions);
   setInterval(() => refreshUsage(), config.intervals.usage);

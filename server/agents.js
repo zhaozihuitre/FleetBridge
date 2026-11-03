@@ -182,7 +182,7 @@ export function getAgent(id) {
 /**
  * @param {{cwd: string, name?: string, resume?: string, prompt?: string}} opts
  */
-export function spawnAgent({ cwd, name, resume, prompt }) {
+export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) {
   const support = agentSupport();
   if (!support.ok) throw new Error(support.error);
   if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error(L('文件夹不存在', 'Folder does not exist', 'フォルダが存在しません'));
@@ -198,10 +198,11 @@ export function spawnAgent({ cwd, name, resume, prompt }) {
   if (name) args.push('--name', String(name).slice(0, 60));
   const settings = agentSettingsFile();
   if (settings) args.push('--settings', settings);
+  args.push(...extraArgs);
 
   const term = pty.spawn(CLAUDE, args, { name: 'xterm-256color', cols: 120, rows: 32, cwd, env: agentEnv() });
   const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
-  const agent = { id: sessionId, sessionId, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
+  const agent = { id: sessionId, sessionId, kind, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   term.onData((d) => {
     screen.write(d);
     agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
