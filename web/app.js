@@ -503,8 +503,7 @@ function unitCard(u) {
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
   const drones = !u.agents.length ? L('无') : running.length ? L('{0} 架出击：{1}', running.length, running.map((a) => a.description).join(lang === 'en' ? ', ' : '、')) : L('{0} 架 · 全部返航', u.agents.length);
-  const repos = u.repos.slice(0, 4).map(repoRow).join('');
-  const more = u.repos.length > 4 ? `<div class="empty">${L('还有 {0} 个仓库…', u.repos.length - 4)}</div>` : '';
+  const repos = u.repos.map(repoRow).join('');
   const oldestFetch = u.repos.reduce((m, r) => (r.fetchedAt && (!m || r.fetchedAt < m) ? r.fetchedAt : m), null);
   // offline: its latest session, deployed here (or in an outside terminal) on demand
   const action = u.offline
@@ -513,7 +512,7 @@ function unitCard(u) {
     ? `<button class="mini" data-term="${esc(u.agentId)}" title="${L('打开它的终端，直接下指令')}">${L('▶ 终端')}</button>`
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
-  <article class="unit ${cls}">
+  <article class="unit ${cls}" data-unit="${esc(u.key)}">
     <div class="top"><span>◆ ${label}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.project)}</h3><div class="call">${L('呼号')} ${esc(u.name)} · ${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
@@ -524,7 +523,7 @@ function unitCard(u) {
     </div>
     <div class="repos">
       <div class="k"><span>${L('REPOS 仓库')} ×${u.repos.length}</span><span>${oldestFetch ? L('最早 fetch 在 ') + ago(now - oldestFetch) : ''}</span></div>
-      ${!u.gitScanned ? `<div class="empty">${L('扫描中…')}</div>` : u.repos.length ? repos + more : `<div class="empty">${L('这个目录下没有 git 仓库')}</div>`}
+      ${!u.gitScanned ? `<div class="empty">${L('扫描中…')}</div>` : u.repos.length ? repos : `<div class="empty">${L('这个目录下没有 git 仓库')}</div>`}
     </div>
   </article>`;
 }
@@ -721,6 +720,12 @@ function moveFolder(d) {
   document.querySelector('.folder.on')?.scrollIntoView({ block: 'nearest' });
 }
 
+// A card's repo list that doesn't fit scrolls inside the card; a fade at the bottom says there is more.
+function markRepoScroll(r) {
+  r.classList.toggle('more-below', r.scrollHeight - r.scrollTop - r.clientHeight > 2);
+}
+document.addEventListener('scroll', (e) => e.target.classList?.contains('repos') && markRepoScroll(e.target), true);
+
 function renderPage() {
   const { kind, list } = currentList();
   const size = pageSize(kind);
@@ -752,8 +757,13 @@ function renderPage() {
   else if (ui.tab === 'orders') html = ordersPage();
   if (kind !== 'archive') {
     const keep = kind === 'orders' ? document.querySelector('.orders')?.scrollTop || 0 : 0;
+    const repoScroll = new Map([...document.querySelectorAll('.unit[data-unit] .repos')].map((r) => [r.closest('.unit').dataset.unit, r.scrollTop]));
     $('page').innerHTML = html;
     if (keep) document.querySelector('.orders').scrollTop = keep; // live refreshes keep the scroll position
+    for (const r of document.querySelectorAll('.unit[data-unit] .repos')) {
+      r.scrollTop = repoScroll.get(r.closest('.unit').dataset.unit) || 0;
+      markRepoScroll(r);
+    }
   }
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));

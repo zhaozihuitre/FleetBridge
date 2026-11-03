@@ -408,8 +408,8 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .stat .k .mono { color: var(--kc, var(--cyan)); }
 .stat .v { font-family: var(--body); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .seg { height: 8px; }
-.repos { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 10px; min-height: 0; overflow: hidden; }
-.repos .k { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 1px; color: var(--muted); }
+.repos { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; }
+.repos .k { position: sticky; top: -10px; z-index: 1; display: flex; justify-content: space-between; margin-top: -10px; padding: 10px 0 4px; background: var(--panel); font-size: 12px; letter-spacing: 1px; color: var(--muted); }
 .repo { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; background: var(--panel-deep); border-left: 2px solid var(--rc, var(--line-hi)); }
 .repo .r1 { display: flex; align-items: center; gap: 6px; }
 .repo .name { font-size: 14px; font-weight: 700; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -573,3 +573,14 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .ph-warn { font-size: 12px; color: var(--amber); }
 .ph-warn[hidden] { display: none; }
 .ph-pin input::placeholder { letter-spacing: 0; font-size: 12px; }
+
+/* unit cards: everything above the repo list keeps its size; the list takes the rest and scrolls */
+.unit > :not(.repos) { flex: none; }
+.repo { flex: none; }
+.repos.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+/* the scrollbar sits in the card's right padding, so the rows keep their full width */
+.unit .repos { margin-right: -16px; padding-right: 4px; }
+/* a stat's label gives way (ellipsis) before its number wraps */
+.unit .stat .k { flex-wrap: nowrap; gap: 8px; white-space: nowrap; }
+.unit .stat .k > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.unit .stat .k .mono { flex: none; }
