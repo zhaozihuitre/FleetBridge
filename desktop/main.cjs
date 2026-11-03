@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, Menu, Notification, screen, shell, Tray } =
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { warmVoice, startVoice, stopVoice } = require('./voice.cjs');
 
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
@@ -103,6 +104,7 @@ function createWidget() {
 
 // term: an agent id to open its terminal panel right away
 function openMain(term) {
+  warmVoice(); // the voice button's helper, ready before the first click
   const target = typeof term === 'string' && /^[0-9a-f-]{36}$/.test(term) ? `${baseUrl}/#term=${term}` : null;
   if (mainWin) {
     if (mainWin.isMinimized()) mainWin.restore();
@@ -201,6 +203,7 @@ function createTray() {
 const ACTIONS = {
   'open-main': () => openMain(),
   'tuck-widget': () => setWidgetTucked(true),
+  voice: () => startVoice(),
   'toggle-mute': () => {
     muted = !muted;
     savePrefs({ muted });
@@ -262,5 +265,8 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
-  app.on('before-quit', () => serverModule?.shutdown()); // agents are our child processes
+  app.on('before-quit', () => {
+    stopVoice();
+    serverModule?.shutdown();
+  }); // agents are our child processes
 }

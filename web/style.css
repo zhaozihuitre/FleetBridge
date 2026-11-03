@@ -502,3 +502,7 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .term-add .shell-btn { border-color: rgba(166,232,192,.45); color: #a6e8c0; background: rgba(166,232,192,.06); }
 .term-add .shell-btn:hover { border-color: #a6e8c0; color: #dcf8e8; }
 .tabs .deploy-btn.shell { margin-left: 8px; border-color: #a6e8c0; background: rgba(166,232,192,.08); color: #dcf8e8; }
+/* voice buttons exist only in the desktop app (they need it to press Win+H) */
+body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; justify-content: center; }
+.cmd-row .voice-btn { padding: 0 10px; color: #a6e8c0; }
+.voice-btn svg { display: block; }

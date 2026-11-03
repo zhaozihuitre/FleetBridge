@@ -2254,6 +2254,31 @@
       "created": "2026-11-03 11:05",
       "updated": "2026-11-03 11:05",
       "notes": []
+    },
+    {
+      "id": "C-040",
+      "type": "change",
+      "title": "0.8.8：语音输入（Windows 语音输入 Win+H）",
+      "summary": "总指挥台输入框旁和每个终端标题栏有麦克风按钮：先把焦点放到输入框或该终端，再由桌面端按下 Win+H，调出 Windows 自带的语音输入，说的话直接打进去。只在桌面版显示。",
+      "detail": "Electron 里 Web Speech API 不可用（需要 Google key），所以用系统的语音输入。Electron 不能发送系统级按键，desktop/voice.cjs 常驻一个隐藏的 PowerShell，通过 user32 keybd_event 按 Win+H；打开指挥中心时预热（Add-Type 编译约 0.4s），退出时结束。",
+      "status": "done",
+      "files": [
+        "desktop/voice.cjs",
+        "desktop/main.cjs",
+        "web/app.js",
+        "web/index.html",
+        "web/i18n.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "语音",
+        "输入"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 11:16",
+      "updated": "2026-11-03 11:16",
+      "notes": []
     }
   ]
 }

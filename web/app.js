@@ -760,6 +760,7 @@ const MAX_PANES = 4;
 const panes = new Map(); // agent id -> { el, t }
 
 const PANE_ACTIONS = `
+  <button data-tact="voice" class="voice-btn" title="${L('语音输入：对这个终端说话（Windows 语音输入，Win+H）')}" aria-label="${L('语音输入')}" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
   <button data-tkey="esc" title="${L('打断当前操作')}">Esc</button>
   <button data-tact="pop" title="${L('弹出成独立窗口')}">⧉</button>
   <button data-tact="kill" class="danger" title="${L('结束这个 Claude 进程')}">${L('结束')}</button>
@@ -1026,6 +1027,7 @@ $('term-grid').addEventListener('click', async (e) => {
     await agentAction({ id, action: 'remove' });
     return closePane(id);
   } else if (b.dataset.tact === 'pop') return popOut(id);
+  else if (b.dataset.tact === 'voice') return voiceInto(() => panes.get(id)?.t.focus());
   else if (b.dataset.tact === 'close') return closePane(id);
   else return;
   panes.get(id)?.t.focus();
@@ -1378,6 +1380,16 @@ window.opsConfirmQuit = async (names) => {
 
 // Frameless desktop window: our own minimize / maximize / close in the HUD.
 const winBridge = window.opsBridge;
+
+// Voice input: Windows' own voice typing (Win+H, pressed for us by the desktop app) writes what you
+// say into whatever has focus, so focus the target first. Only in the desktop app.
+function voiceInto(focus) {
+  if (!winBridge?.action) return;
+  focus();
+  setTimeout(() => winBridge.action('voice'), 60);
+}
+if (winBridge?.action) document.body.classList.add('has-voice');
+$('cmd-voice').addEventListener('click', () => voiceInto(() => $('cmd-text').focus()));
 if (winBridge?.win) {
   document.body.classList.add('frameless');
   document.querySelectorAll('[data-win]').forEach((b) => b.addEventListener('click', () => winBridge.win(b.dataset.win)));
