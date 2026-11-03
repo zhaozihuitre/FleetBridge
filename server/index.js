@@ -423,6 +423,12 @@ async function restoreRoster() {
   console.log(`roster: restored ${resume.length}, cleaned ${killed.length} orphan(s), skipped ${skipped.length} running elsewhere`);
 }
 
+// For keep-awake: something is working, waiting on a permission prompt, or has orders queued.
+export function fleetBusy() {
+  if (!state) return false;
+  return state.units.some((u) => u.status === 'busy' || u.permission) || state.agents.some((a) => a.alive && a.queue?.length);
+}
+
 export function liveAgents() {
   return listAgents().filter((a) => a.alive);
 }

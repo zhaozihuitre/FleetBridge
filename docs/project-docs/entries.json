@@ -2305,6 +2305,31 @@
       "created": "2026-11-03 11:31",
       "updated": "2026-11-03 11:31",
       "notes": []
+    },
+    {
+      "id": "C-042",
+      "type": "change",
+      "title": "保持唤醒（0.8.10）",
+      "summary": "小窗菜单新增「保持唤醒」：有任务时 / 始终 / 关闭，可选屏幕也不熄灭；用 Electron powerSaveBlocker，生效时小窗显示 ☀",
+      "detail": "有任务时 = 有 agent 作战、等授权或排队未发完（server fleetBusy()），结束 3 分钟后释放。默认只防休眠（prevent-app-suspension），勾选后改为 prevent-display-sleep。主进程每 10 秒检查一次。不能阻止手动睡眠、合盖或组策略。设置存在 widget.json（awakeMode/awakeScreen）。",
+      "status": "done",
+      "files": [
+        "desktop/awake.cjs",
+        "desktop/main.cjs",
+        "server/index.js",
+        "web/widget.html",
+        "web/widget.js",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "desktop",
+        "power"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 13:05",
+      "updated": "2026-11-03 13:05",
+      "notes": []
     }
   ]
 }

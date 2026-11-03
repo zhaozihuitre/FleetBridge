@@ -8,10 +8,23 @@ const MAX_ROWS = 8;
 
 let state = null;
 let muted = false;
+let awakeOn = false;
+const AWAKE = { busy: '保持唤醒：有任务时', always: '保持唤醒：始终', off: '保持唤醒：关闭' };
 
 // Themed menu (☰ or right-click) instead of the native context menu.
 bridge?.onSettings((s) => {
   muted = Boolean(s.muted);
+  if (s.awakeMode) {
+    $('m-awake').hidden = $('m-screen').hidden = false;
+    $('m-awake').textContent = L(AWAKE[s.awakeMode] || AWAKE.busy);
+    $('m-awake').title = L('点击切换：有任务时 → 始终 → 关闭。有任务时 = 有 agent 作战、等授权或排队未发完，结束 3 分钟后恢复正常休眠');
+    $('m-screen').setAttribute('aria-checked', String(Boolean(s.awakeScreen)));
+    $('m-screen').disabled = s.awakeMode === 'off';
+  }
+  if (awakeOn !== Boolean(s.awakeOn)) {
+    awakeOn = Boolean(s.awakeOn);
+    if (state) render();
+  }
   $('m-mute').setAttribute('aria-checked', String(muted));
   $('m-auto').hidden = !s.packaged; // only the installed app can register itself
   $('m-auto').setAttribute('aria-checked', String(Boolean(s.autostart)));
@@ -100,7 +113,7 @@ function renderUnits() {
 
   const busy = units.filter((u) => u.status === 'busy').length;
   const permit = units.filter((u) => u.permission).length;
-  $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('授权 ')}<b>${permit}</b></span>` : ''}`;
+  $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('授权 ')}<b>${permit}</b></span>` : ''}${awakeOn ? `<span class="awake" title="${esc(L('保持唤醒中：电脑不会自动休眠'))}">☀</span>` : ''}`;
 }
 
 const LV = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };

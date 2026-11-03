@@ -101,7 +101,7 @@ const EN = {
   '▶ 出击': '▶ Deploy', '语言 / Language': 'Language / 语言',
   '舰桥 · 战况': 'Fleet Bridge · status', '拖动移动 · 右键菜单': 'Drag to move · right-click for menu', '打开指挥中心': 'Open the command center',
   '折叠 / 展开': 'Fold / unfold', '折叠或展开': 'Fold or unfold', '菜单（也可以右键）': 'Menu (or right-click)', '菜单': 'Menu',
-  '静音提醒': 'Mute notifications', '回到右下角': 'Back to the corner', '开机自动启动': 'Start with Windows', '舰桥 · 终端': 'Fleet Bridge · terminal',
+  '静音提醒': 'Mute notifications', '保持唤醒：有任务时': 'Stay awake: while working', '保持唤醒：始终': 'Stay awake: always', '保持唤醒：关闭': 'Stay awake: off', '唤醒时屏幕也不熄灭': 'Keep the screen on too', '点击切换：有任务时 → 始终 → 关闭。有任务时 = 有 agent 作战、等授权或排队未发完，结束 3 分钟后恢复正常休眠': 'Click to cycle: while working → always → off. While working = an agent is busy, waiting on approval or has queued orders; normal sleep returns 3 minutes after', '保持唤醒中：电脑不会自动休眠': 'Staying awake: the PC will not sleep on its own', '回到右下角': 'Back to the corner', '开机自动启动': 'Start with Windows', '舰桥 · 终端': 'Fleet Bridge · terminal',
   // widget
   '周 · ': 'Wk · ', '本周': 'Week', '{0} 已用 {1}%，{2} 重置': '{0} {1}% used, resets {2}', '读取失败': 'Read failed', '等你授权！': 'Needs approval!',
   '执行：': 'Doing: ', '做完了，等你指令': 'Done, awaiting orders', '点击打开它的终端': 'Click to open its terminal', '点击切到它的终端窗口': 'Click to switch to its terminal window',
@@ -194,7 +194,7 @@ const JA = {
   '▶ 出击': '▶ 出撃', '语言 / Language': '言語 / Language',
   '舰桥 · 战况': 'Fleet Bridge · 戦況', '拖动移动 · 右键菜单': 'ドラッグで移動 · 右クリックでメニュー', '打开指挥中心': '指揮センターを開く',
   '折叠 / 展开': '折りたたむ / 展開', '折叠或展开': '折りたたみまたは展開', '菜单（也可以右键）': 'メニュー（右クリックでも可）', '菜单': 'メニュー',
-  '静音提醒': '通知をミュート', '回到右下角': '右下に戻す', '开机自动启动': 'Windows 起動時に開始', '舰桥 · 终端': 'Fleet Bridge · ターミナル',
+  '静音提醒': '通知をミュート', '保持唤醒：有任务时': 'スリープ防止：作業中のみ', '保持唤醒：始终': 'スリープ防止：常に', '保持唤醒：关闭': 'スリープ防止：オフ', '唤醒时屏幕也不熄灭': '画面もオフにしない', '点击切换：有任务时 → 始终 → 关闭。有任务时 = 有 agent 作战、等授权或排队未发完，结束 3 分钟后恢复正常休眠': 'クリックで切替：作業中のみ → 常に → オフ。作業中 = agent が作業中・承認待ち・キュー残りあり。終了 3 分後に通常のスリープに戻ります', '保持唤醒中：电脑不会自动休眠': 'スリープ防止中：PC は自動でスリープしません', '回到右下角': '右下に戻す', '开机自动启动': 'Windows 起動時に開始', '舰桥 · 终端': 'Fleet Bridge · ターミナル',
   // widget
   '周 · ': '週 · ', '本周': '今週', '{0} 已用 {1}%，{2} 重置': '{0} {1}% 使用、{2} にリセット', '读取失败': '読み込み失敗', '等你授权！': '承認待ち！',
   '执行：': '実行：', '做完了，等你指令': '完了、指示待ち', '点击打开它的终端': 'クリックでターミナルを開く', '点击切到它的终端窗口': 'クリックでターミナルウィンドウに切り替え',

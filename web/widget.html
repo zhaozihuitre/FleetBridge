@@ -43,6 +43,8 @@ html, body { background: transparent; overflow: hidden; }
 .w-menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--soft); font-family: var(--body); font-size: 13px; text-align: left; }
 .w-menu button::before { content: ''; width: 14px; flex: none; color: var(--cyan); }
 .w-menu button[aria-checked="true"]::before { content: '✓'; }
+.w-head .chips .awake { color: var(--amber); }
+.w-menu button:disabled { opacity: .45; }
 .w-menu button:hover, .w-menu button:focus-visible { background: rgba(61,245,255,.1); color: var(--text); outline: none; }
 .w-menu .quit { color: #ff8fa3; border-top: 1px solid var(--line); }
 .w-menu .quit:hover { background: rgba(255,77,109,.12); }
@@ -62,6 +64,8 @@ html, body { background: transparent; overflow: hidden; }
 <nav class="w-menu" id="w-menu" role="menu" hidden>
 <button role="menuitem" data-act="open-main">打开指挥中心</button>
 <button role="menuitemcheckbox" data-act="toggle-mute" id="m-mute">静音提醒</button>
+<button role="menuitem" data-act="cycle-awake" id="m-awake" hidden>保持唤醒：有任务时</button>
+<button role="menuitemcheckbox" data-act="toggle-awake-screen" id="m-screen" hidden>唤醒时屏幕也不熄灭</button>
 <button role="menuitem" data-act="reset-pos">回到右下角</button>
 <button role="menuitem" data-act="tuck-widget">最小化到托盘</button>
 <button role="menuitemcheckbox" data-act="toggle-autostart" id="m-auto" hidden>开机自动启动</button>

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { warmVoice, startVoice, stopVoice } = require('./voice.cjs');
+const { startAwake, setAwake, nextMode, awakeInfo, stopAwake } = require('./awake.cjs');
 
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
@@ -169,7 +170,7 @@ function confirmQuit() {
 
 // What the widget's own (themed) menu shows.
 function widgetSettings() {
-  return { muted, packaged: app.isPackaged, autostart: app.isPackaged && app.getLoginItemSettings().openAtLogin };
+  return { muted, packaged: app.isPackaged, autostart: app.isPackaged && app.getLoginItemSettings().openAtLogin, ...awakeInfo() };
 }
 
 function sendSettings() {
@@ -204,6 +205,16 @@ const ACTIONS = {
   'open-main': () => openMain(),
   'tuck-widget': () => setWidgetTucked(true),
   voice: () => startVoice(),
+  'cycle-awake': () => {
+    const mode = nextMode();
+    setAwake({ mode });
+    savePrefs({ awakeMode: mode });
+  },
+  'toggle-awake-screen': () => {
+    const screen = !awakeInfo().awakeScreen;
+    setAwake({ screen });
+    savePrefs({ awakeScreen: screen });
+  },
   'toggle-mute': () => {
     muted = !muted;
     savePrefs({ muted });
@@ -263,10 +274,13 @@ if (!app.requestSingleInstanceLock()) {
     widgetTucked = Boolean(loadPrefs().tucked);
     createWidget();
     createTray();
+    const p = loadPrefs();
+    startAwake({ mode: p.awakeMode, screen: p.awakeScreen, busy: () => serverModule?.fleetBusy(), changed: sendSettings });
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
   app.on('before-quit', () => {
     stopVoice();
+    stopAwake();
     serverModule?.shutdown();
   }); // agents are our child processes
 }
