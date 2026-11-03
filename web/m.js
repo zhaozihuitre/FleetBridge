@@ -10,7 +10,11 @@ const hhmm = (ms) => {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
-const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+const post = (url, body) =>
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => {
+    if (r.status === 401) location.reload(); // signed out (PIN changed, session expired): to the PIN page
+    return r.json();
+  });
 const KIND = { PERMIT: 'var(--red)', ALERT: 'var(--red)', OVERLOAD: 'var(--red)', READY: 'var(--amber)', GIT: 'var(--amber)', ENGAGED: 'var(--cyan)', STANDBY: 'var(--muted)' };
 const AMBIENT = new Set(['engaged', 'calm', 'standby', 'empty']);
 
@@ -138,7 +142,15 @@ async function refreshScreen() {
   const el = $('screen');
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
   // colored by the server (text already escaped there)
-  if (r.html?.length) el.innerHTML = r.html.join('\n');
+  // a full-width rule (120 columns of ─) would wrap into several lines on a phone: one thin line instead
+  // (a rule with a short label in it, like Claude Code's "──── name ─", keeps the label)
+  const rule = (l) => {
+    const text = l.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&');
+    if ((text.match(/[─━═╌┄]/g) || []).length < 20) return null;
+    const label = text.replace(/[─━═╌┄]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return label.length <= 40 ? `<span class="rule" data-label="${esc(label)}"></span>` : null;
+  };
+  if (r.html?.length) el.innerHTML = r.html.map((l) => rule(l) ?? l).join('\n');
   else el.textContent = L('（没有内容）');
   if (atBottom) el.scrollTop = el.scrollHeight;
   const menu = r.menu || [];
@@ -214,6 +226,24 @@ async function press(body) {
   setTimeout(refreshScreen, 400);
 }
 document.querySelector('.sheet-head .esc').addEventListener('click', () => press({ action: 'key', key: 'esc' }));
+// long lines wrap on a phone by default; off: the terminal as it is, scrolled sideways
+function setWrap(on) {
+  $('screen').classList.toggle('wrap', on);
+  $('wrap').setAttribute('aria-pressed', String(on));
+  try {
+    localStorage.setItem('fbm-wrap', on ? '1' : '0');
+  } catch {
+    // not kept
+  }
+}
+let wrapOn = true;
+try {
+  wrapOn = localStorage.getItem('fbm-wrap') !== '0';
+} catch {
+  // default on
+}
+setWrap(wrapOn);
+$('wrap').addEventListener('click', () => setWrap($('wrap').getAttribute('aria-pressed') !== 'true'));
 $('sheet-menu').addEventListener('click', (e) => {
   const c = e.target.closest('[data-choice]');
   if (c) press({ action: 'answer', choice: c.dataset.choice });
@@ -237,8 +267,21 @@ $('text').addEventListener('focus', () => setTimeout(() => $('text').scrollIntoV
 
 /* ---------- live state ---------- */
 
+// EventSource gives up for good after an error response, and phones kill it in the background:
+// reconnect ourselves, and go back to the PIN page once the session is gone.
+let es = null;
+let retry = null;
+async function signedOut() {
+  try {
+    return (await fetch('/api/me', { cache: 'no-store' })).status === 401;
+  } catch {
+    return false; // unreachable (computer asleep, other network): keep retrying
+  }
+}
 function connect() {
-  const es = new EventSource('/api/stream');
+  clearTimeout(retry);
+  es?.close();
+  es = new EventSource('/api/stream');
   es.onopen = () => {
     $('conn').classList.remove('bad');
     $('conn-text').textContent = L('在线');
@@ -247,9 +290,15 @@ function connect() {
     state = JSON.parse(e.data);
     render();
   };
-  es.onerror = () => {
-    $('conn').classList.add('bad'); // EventSource reconnects by itself
+  es.onerror = async () => {
+    $('conn').classList.add('bad');
     $('conn-text').textContent = L('离线');
+    if (es.readyState !== EventSource.CLOSED) return; // still retrying by itself
+    if (await signedOut()) return location.reload();
+    retry = setTimeout(connect, 3000);
   };
 }
 connect();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (!es || es.readyState === EventSource.CLOSED)) connect();
+});

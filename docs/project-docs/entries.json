@@ -2449,6 +2449,37 @@
       "created": "2026-11-03 14:29",
       "updated": "2026-11-03 14:29",
       "notes": []
+    },
+    {
+      "id": "C-048",
+      "type": "change",
+      "title": "手机 PIN 登录、手机页修复、前台不弹通知（0.9.5）",
+      "summary": "手机访问改为 PIN 登录（默认 123456，可改，设备会话 30 天），连续输错锁定，只允许局域网/Tailscale；修好手机页断线不重连和终端难看的问题；指挥中心在前台有焦点时不弹系统通知",
+      "detail": "PIN：server/phoneauth.js（scrypt 加盐存 PIN，会话 token 只存 SHA-256，30 天滑动有效；同一地址错 5 次锁 5 分钟、逐次翻倍到 1 小时，10 分钟内全局错 30 次全部锁 10 分钟；isPrivateAddress 只放行 10/8、172.16/12、192.168/16、169.254/16、100.64/10、回环和 IPv6 本地）。扫码链接保留，扫码直接登录；旧版配对的 cookie 继续有效直到重新生成二维码；改 PIN 或「让所有手机退出登录」会清掉全部会话。cookie 改为 SameSite=Lax（从推送通知点开时也带上）。指挥中心手机面板：改 PIN、默认 PIN 提醒、已登录设备数、电脑名地址。手机页：EventSource 出错关闭后自己重连、回到前台重连、会话失效回 PIN 页（原来会一直停在离线）；终端默认折行、整行分隔线缩成细线；下拉框/排队按钮 44px；/api/lang 不再 404。通知：getFocusedWindow 在最小化后仍返回窗口，改为只有指挥中心/弹出终端可见、未最小化且有焦点时才不弹。打不开的原因：IP 在公司域 Wi-Fi 上由 DHCP 变动导致收藏地址和配对失效；EventSource 断开后不重连；手机不在同一网络时需 Tailscale。",
+      "status": "done",
+      "files": [
+        "server/phoneauth.js",
+        "server/mobile.js",
+        "web/m.js",
+        "web/m.css",
+        "web/m.html",
+        "web/app.js",
+        "web/index.html",
+        "web/style.css",
+        "web/i18n.js",
+        "desktop/main.cjs",
+        ".gitignore"
+      ],
+      "tags": [
+        "phone",
+        "security",
+        "notify"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 14:42",
+      "updated": "2026-11-03 14:42",
+      "notes": []
     }
   ]
 }

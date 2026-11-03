@@ -1366,7 +1366,13 @@ async function renderPhone(info) {
   if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('手机访问');
   $('ph-tip').textContent = !info.enabled ? '' : info.running ? L('用手机相机扫码') : L('端口 {0} 没能打开，可能被占用', info.port);
   // the key stays out of the visible list: only the QR code carries it
-  $('ph-urls').innerHTML = info.urls.map((u) => `<li><b>http://${esc(u.ip)}:${info.port}/m</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}</li>`).join('');
+  $('ph-urls').innerHTML =
+    info.urls.map((u) => `<li><b>http://${esc(u.ip)}:${info.port}/m</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}</li>`).join('') +
+    (info.host ? `<li><b>${esc(info.host)}</b> · ${L('电脑名（IP 变了也能用，需要网络能解析）')}</li>` : '');
+  $('ph-pin-box').hidden = $('ph-logout').hidden = !info.enabled;
+  $('ph-pin-warn').hidden = !info.pinDefault;
+  $('ph-devices').textContent = info.enabled ? L('已登录的设备：{0} 台（每台 {1} 天内不用再输 PIN）', info.devices ?? 0, info.sessionDays ?? 30) : '';
+  if (info.error) toast(info.error);
 }
 
 function renderPush(info) {
@@ -1397,6 +1403,20 @@ $('pu-test').addEventListener('click', async () => {
 $('ph-toggle').addEventListener('click', async () => {
   const on = $('ph-toggle').textContent === L('开启手机访问');
   renderPhone(await post('/api/mobile', { enabled: on }));
+});
+$('ph-pin-save').addEventListener('click', async () => {
+  const pin = $('ph-pin').value.trim();
+  if (!/^\d{4,12}$/.test(pin)) return toast(L('PIN 需要是 4 到 12 位数字'));
+  const info = await post('/api/mobile', { pin });
+  renderPhone(info);
+  if (!info.error) {
+    $('ph-pin').value = '';
+    toast(L('PIN 已修改，手机需要用新 PIN 重新登录'));
+  }
+});
+$('ph-logout').addEventListener('click', async () => {
+  renderPhone(await post('/api/mobile', { logoutAll: true }));
+  toast(L('所有手机都已退出登录'));
 });
 $('ph-regen').addEventListener('click', async () => {
   renderPhone(await post('/api/mobile', { regenerate: true }));

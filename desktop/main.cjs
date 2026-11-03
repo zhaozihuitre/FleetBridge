@@ -252,8 +252,13 @@ ipcMain.on('ops:action', (_e, name) => {
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
 ipcMain.on('ops:notify', (_e, title, body) => {
   if (muted || !Notification.isSupported()) return;
-  // The command center already shows everything; a toast on top of it is just noise.
-  if (mainWin && mainWin.isVisible() && !mainWin.isMinimized()) return;
+  // Someone is looking at the bridge (one of our windows has the focus): its own marks are enough,
+  // a toast and its sound would only interrupt. In the background, minimized or unfocused: notify.
+  // (the command center or a popped-out terminal; the small widget having focus doesn't count)
+  const focused = BrowserWindow.getFocusedWindow();
+  const looking = Boolean(focused && focused !== widget && focused.isVisible() && !focused.isMinimized());
+  if (!app.isPackaged) console.log(`notify ${looking ? 'suppressed' : 'shown'} (focused: ${focused === mainWin ? 'command center' : focused === widget ? 'widget' : focused ? 'other' : 'none'}${focused?.isMinimized() ? ', minimized' : ''}): ${String(title).slice(0, 40)}`);
+  if (looking) return;
   const n = new Notification({ title: String(title).slice(0, 80), body: String(body).slice(0, 200), silent: false });
   n.on('click', () => openMain());
   n.show();

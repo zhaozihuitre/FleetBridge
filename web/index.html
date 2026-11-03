@@ -119,16 +119,18 @@
 <dialog class="deploy phone" id="phone">
 <form method="dialog" class="ph-body">
 <h2><span class="mono">PHONE</span> 手机访问 · 用手机查看和下指令</h2>
-<p class="ph-note">开启后，同一 Wi-Fi 下的手机扫码即可配对（装了 Tailscale 也可以在外面用）。手机只能查看、下指令、回应授权，不能启动或结束 agent、不能提交代码。</p>
+<p class="ph-note">开启后，同一 Wi-Fi 下的手机打开下面的地址，输入 PIN 登录（扫码可以直接登录，装了 Tailscale 也可以在外面用）。手机只能查看、下指令、回应授权，不能启动或结束 agent、不能提交代码。只接受局域网和 Tailscale 内的访问。</p>
 <div class="ph-main"><div class="ph-qr" id="ph-qr"></div><div class="ph-side"><p class="ph-tip" id="ph-tip"></p><ul class="ph-urls" id="ph-urls"></ul></div></div>
-<p class="ph-note">首次开启时 Windows 可能询问防火墙，请允许「专用网络」。</p>
+<div class="ph-pin" id="ph-pin-box" hidden><label for="ph-pin">PIN</label><input id="ph-pin" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password" placeholder="新 PIN（4–12 位数字）"><button type="button" class="btn ghost" id="ph-pin-save">修改 PIN</button><span class="ph-warn" id="ph-pin-warn" hidden>还在用默认 PIN 123456，建议修改</span></div>
+<p class="ph-note" id="ph-devices"></p>
+<p class="ph-note">首次开启时 Windows 可能询问防火墙，请允许「专用网络」。连续输错 PIN 5 次会暂时锁定（5 分钟起，逐次加长）。</p>
 <div class="ph-push">
 <h3><span class="mono">PUSH</span> 推送通知 · 不看屏幕也知道该做什么</h3>
 <p class="ph-note">用 ntfy（安卓免费 App，Google Play / F-Droid）：有事时手机通知栏会弹出提示，锁屏也能收到，点通知打开手机页。通知只写「哪个项目、什么事」，不带命令、代码或回复内容；消息经过 ntfy 的服务器。</p>
 <div class="ph-main"><div class="ph-qr" id="pu-qr"></div><div class="ph-side"><p class="ph-tip" id="pu-tip"></p><ol class="ph-steps" id="pu-steps"><li>手机安装 ntfy App</li><li>用手机扫左边的码（或在 App 里点 ＋，频道名填下面这串）</li><li>点「发送测试通知」确认能收到</li></ol><code class="ph-topic" id="pu-topic"></code></div></div>
 <div class="deploy-row"><button type="button" class="btn ghost" id="pu-test">发送测试通知</button><button type="button" class="btn ghost" id="pu-regen">换一个频道</button><button type="button" class="btn" id="pu-toggle">开启推送</button></div>
 </div>
-<div class="deploy-row"><button type="button" class="btn ghost" id="ph-regen">重新生成密钥（已配对的手机都要重新扫码）</button><button type="button" class="btn" id="ph-toggle">开启手机访问</button><button type="submit" class="btn ghost">关闭</button></div>
+<div class="deploy-row"><button type="button" class="btn ghost" id="ph-logout">让所有手机退出登录</button><button type="button" class="btn ghost" id="ph-regen">重新生成二维码（旧码失效，手机都要重新登录）</button><button type="button" class="btn" id="ph-toggle">开启手机访问</button><button type="submit" class="btn ghost">关闭</button></div>
 </form>
 </dialog>
 <dialog class="review" id="review" aria-labelledby="rv-title">

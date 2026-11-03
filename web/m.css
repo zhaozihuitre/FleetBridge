@@ -94,10 +94,10 @@ main { flex: 1; padding: 8px 12px calc(178px + var(--kb, 0px)); display: flex; f
 /* --kb: the height the on-screen keyboard covers (set by m.js), so the composer sits above it */
 .composer { position: fixed; left: 0; right: 0; bottom: var(--kb, 0px); z-index: 9; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; background: rgba(7,14,24,.86); border-top: 1px solid var(--line-hi); box-shadow: 0 -10px 30px rgba(0,0,0,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .c-row { display: flex; gap: 8px; align-items: stretch; }
-.target { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; background: #050a12; border: 1px solid var(--line-hi); }
+.target { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 10px; background: #050a12; border: 1px solid var(--line-hi); }
 .target select { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font-size: 14px; outline: none; }
 .target select option { background: #0a1120; }
-#queue { flex: none; height: 38px; padding: 0 12px; background: transparent; border: 1px solid var(--line-hi); color: var(--muted); font-size: 13px; }
+#queue { flex: none; height: 44px; padding: 0 12px; background: transparent; border: 1px solid var(--line-hi); color: var(--muted); font-size: 13px; }
 #queue[aria-pressed="true"] { color: var(--amber); border-color: var(--amber); background: rgba(255,176,32,.12); box-shadow: 0 0 10px rgba(255,176,32,.2); }
 .composer textarea { flex: 1; min-width: 0; resize: none; background: #050a12; border: 1px solid var(--line-hi); padding: 9px 11px; font-size: 16px; line-height: 1.4; }
 .composer textarea:focus, .target:focus-within { outline: none; border-color: var(--cyan); box-shadow: 0 0 12px rgba(61,245,255,.25); }
@@ -112,7 +112,7 @@ main { flex: 1; padding: 8px 12px calc(178px + var(--kb, 0px)); display: flex; f
 .back { width: 40px; height: 40px; flex: none; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); font-size: 26px; line-height: 1; }
 .sh-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sh-title b { font-family: var(--display); font-size: 14px; letter-spacing: 1px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sheet-head .esc { height: 34px; padding: 0 12px; background: transparent; border: 1px solid rgba(255,77,109,.6); color: #ff8fa3; font-family: var(--label); font-weight: 600; font-size: 14px; }
+.sheet-head .esc { height: 40px; padding: 0 12px; background: transparent; border: 1px solid rgba(255,77,109,.6); color: #ff8fa3; font-family: var(--label); font-weight: 600; font-size: 14px; }
 .live { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 10px; letter-spacing: 1px; color: var(--green); }
 .live i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: pulse 1.6s ease-in-out infinite; }
 .screen-wrap { flex: 1; min-height: 0; margin: 8px 10px 0; border: 1px solid var(--line-hi); box-shadow: inset 0 0 24px rgba(61,245,255,.06); background: #050a12; display: flex; }
@@ -134,3 +134,12 @@ main { flex: 1; padding: 8px 12px calc(178px + var(--kb, 0px)); display: flex; f
 @keyframes pulse { 50% { opacity: .35; } }
 @keyframes alarm { 50% { border-color: var(--red); background-color: rgba(255,77,109,.14); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* terminal sheet: wrapped lines (default) and rules drawn as one thin line */
+.screen.wrap { white-space: pre-wrap; word-break: break-all; overflow-x: hidden; }
+.screen .rule { display: block; height: 0; margin: 6px 0; border-top: 1px solid #24384a; }
+.sheet-head .wrap { height: 40px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--muted); font-size: 13px; }
+.sheet-head .wrap[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
+.screen .rule[data-label]:not([data-label=""]) { display: flex; align-items: center; gap: 6px; border-top: 0; height: auto; margin: 4px 0; color: #5f7f90; }
+.screen .rule[data-label]:not([data-label=""])::before { content: ''; flex: 1; border-top: 1px solid #24384a; }
+.screen .rule[data-label]:not([data-label=""])::after { content: attr(data-label); }

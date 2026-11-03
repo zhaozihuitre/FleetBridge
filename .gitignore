@@ -4,3 +4,4 @@ vendor/
 config.json
 dist/
 .claude/settings.local.json
+.playwright-mcp/
