@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { Worker } from 'node:worker_threads';
 import { config } from '../config.js';
 
 const run = promisify(execFile);
@@ -9,9 +10,61 @@ const SKIP = new Set(['node_modules', 'vendor', 'dist', 'build', 'target', '.ven
 // Read-only status must never take the index lock while the user is committing.
 const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' };
 
+// Starting a process blocks the thread that starts it: 20-40 ms each on Windows inside Electron.
+// A scan runs 6 git commands per repo, and on the server's thread that held up the keystrokes sent
+// to the terminals for seconds. So the git processes are started from a worker thread; the server
+// thread only gets the output back. Inline code (eval) so it also runs from the packaged asar.
+const WORKER = `
+const { parentPort } = require('node:worker_threads');
+const { execFile } = require('node:child_process');
+const queue = [];
+let running = 0;
+function next() {
+  while (running < 4 && queue.length) {
+    const { id, file, args, opts } = queue.shift();
+    running++;
+    execFile(file, args, opts, (err, stdout) => {
+      running--;
+      parentPort.postMessage({ id, stdout, error: err ? String(err.message || err) : null });
+      next();
+    });
+  }
+}
+parentPort.on('message', (m) => { queue.push(m); next(); });`;
+const OPTS = { env: ENV, timeout: 15_000, maxBuffer: 8 << 20, windowsHide: true };
+let worker = null;
+let nextId = 0;
+const calls = new Map();
+
+function spawner() {
+  if (worker) return worker;
+  try {
+    worker = new Worker(WORKER, { eval: true });
+    worker.unref(); // never keeps the process alive on its own
+    worker.on('message', ({ id, stdout, error }) => {
+      const c = calls.get(id);
+      calls.delete(id);
+      if (c) error ? c.reject(new Error(error)) : c.resolve(stdout);
+    });
+    worker.on('error', () => {
+      for (const c of calls.values()) c.reject(new Error('git worker failed'));
+      calls.clear();
+      worker = null;
+    });
+  } catch {
+    worker = null;
+  }
+  return worker;
+}
+
 async function git(repo, args) {
-  const { stdout } = await run('git', ['-C', repo, ...args], { env: ENV, timeout: 15_000, maxBuffer: 8 << 20, windowsHide: true });
-  return stdout;
+  const w = spawner();
+  if (!w) return (await run('git', ['-C', repo, ...args], OPTS)).stdout; // no worker threads: plain spawn
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    calls.set(id, { resolve, reject });
+    w.postMessage({ id, file: 'git', args: ['-C', repo, ...args], opts: OPTS });
+  });
 }
 
 export function findRepos(dir, depth = config.git.scanDepth) {
@@ -55,16 +108,11 @@ function parseStatus(out) {
 }
 
 // How long the oldest uncommitted change has been sitting, from file mtimes.
-function oldestChange(repo, files) {
+// Async: up to 300 stats per repo, for every repo, used to stall the server's thread.
+async function oldestChange(repo, files) {
   let oldest = null;
-  for (const f of files.slice(0, 300)) {
-    try {
-      const m = fs.statSync(path.join(repo, f)).mtimeMs;
-      if (oldest === null || m < oldest) oldest = m;
-    } catch {
-      // deleted files have no mtime
-    }
-  }
+  const times = await Promise.all(files.slice(0, 300).map((f) => fs.promises.stat(path.join(repo, f)).then((s) => s.mtimeMs, () => null))); // deleted files have no mtime
+  for (const m of times) if (m !== null && (oldest === null || m < oldest)) oldest = m;
   return oldest;
 }
 
@@ -121,7 +169,7 @@ async function inspect(repo) {
     conflicts: st.conflicts,
     insertions: +(statOut.match(/(\d+) insertion/)?.[1] || 0),
     deletions: +(statOut.match(/(\d+) deletion/)?.[1] || 0),
-    oldestChangeAt: st.changed.length ? oldestChange(repo, st.changed) : null,
+    oldestChangeAt: st.changed.length ? await oldestChange(repo, st.changed) : null,
     stash: stashOut.split('\n').filter(Boolean).length,
     operation: has('MERGE_HEAD') ? 'merge' : has('rebase-merge') || has('rebase-apply') ? 'rebase' : has('CHERRY_PICK_HEAD') ? 'cherry-pick' : null,
     head: hash ? { hash, subject, author, at: +ct * 1000 } : null,

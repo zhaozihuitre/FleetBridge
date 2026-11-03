@@ -34,7 +34,11 @@ function apply(st, d, since) {
   else if (isPrompt(d)) st.prompts++;
 }
 
-function read(file, since) {
+const tick = () => new Promise((r) => setImmediate(r));
+
+// Async and one chunk per turn of the event loop: the first read of the day goes through every
+// transcript written today (can be 100+ MB) and must not hold up terminal input meanwhile.
+async function read(file, since) {
   let st = files.get(file);
   let size;
   try {
@@ -47,11 +51,11 @@ function read(file, since) {
     files.set(file, st);
   }
   if (size <= st.offset) return st;
-  const fd = fs.openSync(file, 'r');
+  const fd = await fs.promises.open(file, 'r');
   try {
     const buf = Buffer.alloc(CHUNK);
     while (st.offset < size) {
-      const n = fs.readSync(fd, buf, 0, Math.min(CHUNK, size - st.offset), st.offset);
+      const { bytesRead: n } = await fd.read(buf, 0, Math.min(CHUNK, size - st.offset), st.offset);
       if (n <= 0) break;
       st.offset += n;
       const lines = (st.rest + st.decoder.write(buf.subarray(0, n))).split('\n');
@@ -64,55 +68,55 @@ function read(file, since) {
           // malformed line: skip it
         }
       }
+      await tick();
     }
   } finally {
-    fs.closeSync(fd);
+    await fd.close();
   }
   return st;
 }
 
-// <projects>/<dir>/<session>.jsonl and <projects>/<dir>/<session>/subagents/*.jsonl, modified today
-function todaysFiles(root, since) {
-  const out = [];
-  const fresh = (p) => {
-    try {
-      return fs.statSync(p).mtimeMs >= since;
-    } catch {
-      return false;
-    }
-  };
+// <projects>/<dir>/<session>.jsonl and <projects>/<dir>/<session>/subagents/*.jsonl, modified today.
+// Stats are async: there is one per transcript and session folder, and sync they stalled the server.
+async function todaysFiles(root, since) {
+  const fresh = (p) => fs.promises.stat(p).then((s) => s.mtimeMs >= since, () => false);
   let dirs = [];
   try {
-    dirs = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory());
+    dirs = (await fs.promises.readdir(root, { withFileTypes: true })).filter((d) => d.isDirectory());
   } catch {
-    return out;
+    return [];
   }
-  for (const d of dirs) {
-    const dir = path.join(root, d.name);
-    let entries = [];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      const p = path.join(dir, e.name);
-      if (e.isFile() && e.name.endsWith('.jsonl')) {
-        if (fresh(p)) out.push(p);
-      } else if (e.isDirectory() && fresh(p)) {
-        const sub = path.join(p, 'subagents');
-        try {
-          for (const f of fs.readdirSync(sub)) if (f.endsWith('.jsonl') && fresh(path.join(sub, f))) out.push(path.join(sub, f));
-        } catch {
-          // no subagents
-        }
+  const found = await Promise.all(
+    dirs.map(async (d) => {
+      const dir = path.join(root, d.name);
+      let entries = [];
+      try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      } catch {
+        return [];
       }
-    }
-  }
-  return out;
+      const lists = await Promise.all(
+        entries.map(async (e) => {
+          const p = path.join(dir, e.name);
+          if (e.isFile() && e.name.endsWith('.jsonl')) return (await fresh(p)) ? [p] : [];
+          if (!e.isDirectory() || !(await fresh(p))) return [];
+          const sub = path.join(p, 'subagents');
+          try {
+            const names = (await fs.promises.readdir(sub)).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(sub, f));
+            const ok = await Promise.all(names.map(fresh));
+            return names.filter((_, i) => ok[i]);
+          } catch {
+            return []; // no subagents
+          }
+        }),
+      );
+      return lists.flat();
+    }),
+  );
+  return found.flat();
 }
 
-export function collectToday() {
+export async function collectToday() {
   const start = midnight();
   const key = start.toDateString();
   if (key !== day) {
@@ -121,8 +125,8 @@ export function collectToday() {
   }
   const since = start.getTime();
   const t = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, prompts: 0, sessions: 0 };
-  for (const f of todaysFiles(path.join(config.claudeDir, 'projects'), since)) {
-    const st = read(f, since);
+  for (const f of await todaysFiles(path.join(config.claudeDir, 'projects'), since)) {
+    const st = await read(f, since);
     if (!st) continue;
     if (st.usage.size || st.prompts) t.sessions++;
     t.prompts += st.prompts;

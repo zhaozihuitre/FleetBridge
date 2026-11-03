@@ -39,7 +39,10 @@ function save() {
 const newToken = () => crypto.randomBytes(24).toString('base64url');
 
 /** LAN addresses a phone could reach, Tailscale's 100.64/10 included (labelled). */
+let addrCache = { at: 0, list: [] };
 function addresses() {
+  // asked on every 3 s publish; the interfaces seldom change and reading them costs a few ms
+  if (Date.now() - addrCache.at < 30_000) return addrCache.list;
   const out = [];
   for (const [name, list] of Object.entries(os.networkInterfaces())) {
     for (const a of list || []) {
@@ -48,6 +51,7 @@ function addresses() {
       out.push({ ip: a.address, name, tailscale });
     }
   }
+  addrCache = { at: Date.now(), list: out };
   return out;
 }
 

@@ -15,8 +15,12 @@ function readSlice(fd, start, length) {
   return buf.toString('utf8', 0, n);
 }
 
+// Only the lines summarize() looks at are parsed: JSON.parse of every line of 300 KB slices,
+// for each transcript that changed, held up the server's thread for a few hundred ms.
+const WANTED = /"cwd"|"custom-title"|"ai-title"|"last-prompt"/;
+
 function jsonLines(text) {
-  return text.split('\n').flatMap((l) => {
+  return text.split('\n').filter((l) => WANTED.test(l)).flatMap((l) => {
     try {
       return [JSON.parse(l)];
     } catch {
@@ -47,7 +51,19 @@ function summarize(file, size) {
 /** sessionId -> transcript path of the sessions in the last history, for the full-text search */
 export const historyFiles = new Map();
 
-export function collectHistory() {
+// Async with a turn of the event loop per changed transcript: on the server's thread a sync scan
+// stalled terminal input for a few hundred ms every 30 s.
+// Whether a session's folder still exists, remembered for a few minutes (checked for up to 300 sessions).
+const folders = new Map();
+function folderExists(cwd) {
+  const hit = folders.get(cwd);
+  if (hit && Date.now() - hit.at < 300_000) return hit.ok;
+  const ok = fs.existsSync(cwd);
+  folders.set(cwd, { ok, at: Date.now() });
+  return ok;
+}
+
+export async function collectHistory() {
   const root = path.join(config.claudeDir, 'projects');
   const files = [];
   for (const dir of fs.readdirSync(root, { withFileTypes: true })) {
@@ -57,10 +73,10 @@ export function collectHistory() {
       const id = f.replace(/\.jsonl$/, '');
       if (!f.endsWith('.jsonl') || !UUID.test(id)) continue;
       const file = path.join(p, f);
-      const st = fs.statSync(file);
-      files.push({ file, id, mtimeMs: st.mtimeMs, size: st.size });
+      files.push({ file, id });
     }
   }
+  await Promise.all(files.map((f) => fs.promises.stat(f.file).then((st) => Object.assign(f, { mtimeMs: st.mtimeMs, size: st.size }), () => Object.assign(f, { mtimeMs: 0, size: 0 }))));
   files.sort((a, b) => b.mtimeMs - a.mtimeMs);
 
   const out = [];
@@ -68,6 +84,7 @@ export function collectHistory() {
     if (out.length >= LIMIT) break;
     let c = cache.get(f.file);
     if (!c || c.mtimeMs !== f.mtimeMs) {
+      await new Promise((r) => setImmediate(r));
       try {
         c = { mtimeMs: f.mtimeMs, entry: summarize(f.file, f.size) };
       } catch {
@@ -77,7 +94,7 @@ export function collectHistory() {
     }
     const { cwd, title, lastPrompt } = c.entry;
     // scratch/temp sessions whose folder is gone can't be resumed
-    if (!cwd || !fs.existsSync(cwd) || !(title || lastPrompt)) continue;
+    if (!cwd || !folderExists(cwd) || !(title || lastPrompt)) continue;
     out.push({ sessionId: f.id, cwd, project: path.basename(cwd) || cwd, title, lastPrompt, updatedAt: f.mtimeMs, size: f.size });
     historyFiles.set(f.id, f.file);
   }

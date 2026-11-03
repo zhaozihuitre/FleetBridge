@@ -41,6 +41,17 @@ let history = [];
 let today = null;
 let offlineGit = {}; // git of offline projects: rescanned every 2 minutes, not every 30 s
 let offlineGitAt = 0;
+// Offline cards change rarely: rebuilt when the set of offline sessions changes or every 30 s,
+// not on each 3 s publish (that stat-ed 16 transcripts every time).
+let offlineCache = { key: null, at: 0, cards: [] };
+function offlineCards(sessions) {
+  const list = offlineSessions(history, sessions.map((s) => s.cwd));
+  const key = list.map((h) => h.sessionId).join(',');
+  if (key !== offlineCache.key || Date.now() - offlineCache.at > 30_000) {
+    offlineCache = { key, at: Date.now(), cards: buildOffline(list, { ...offlineGit, ...gitByCwd }) };
+  }
+  return offlineCache.cards;
+}
 let state = null;
 const promptSeen = new Map(); // agent id -> when its current permission dialog was first seen
 function promptSince(id) {
@@ -87,7 +98,7 @@ function publish() {
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
-    offline: buildOffline(offlineSessions(history, sessions.map((s) => s.cwd)), { ...offlineGit, ...gitByCwd }),
+    offline: offlineCards(sessions),
     agents: agents.map((a) => ({ ...a, queue: queueOf(a.id) })),
     agentSupport: agentSupport(),
     today,
@@ -118,13 +129,14 @@ async function refreshGit() {
   try {
     const sessions = sessionsNow();
     gitByCwd = await collectGit(sessions.map((s) => s.cwd));
-    history = collectHistory();
-    today = collectToday();
+    history = await collectHistory();
+    today = await collectToday();
     const off = offlineSessions(history, sessions.map((s) => s.cwd)).map((h) => h.cwd);
     if (Date.now() - offlineGitAt > 120_000 || off.some((c) => !(c in offlineGit))) {
       offlineGit = await collectGit(off);
       offlineGitAt = Date.now();
     }
+    offlineCache.at = 0; // fresh git and history: rebuild the offline cards on this publish
     publish();
   } finally {
     gitBusy = false;

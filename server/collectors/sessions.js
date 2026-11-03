@@ -37,6 +37,10 @@ function readJson(file) {
   }
 }
 
+// Subagent meta files, by path. A finished subagent's meta no longer changes, so it is read once;
+// re-reading every meta file of a long session on each 3 s tick held up the server's thread.
+const metaCache = new Map();
+
 function agentsOf(projectDir, sessionId) {
   const dir = path.join(projectDir, sessionId, 'subagents');
   let files;
@@ -47,15 +51,20 @@ function agentsOf(projectDir, sessionId) {
   }
   return files
     .map((f) => {
-      const m = readJson(path.join(dir, f));
+      const file = path.join(dir, f);
+      const hit = metaCache.get(file);
+      if (hit && !hit.running) return hit;
+      const m = readJson(file);
       if (!m) return null;
-      return {
-        id: f.replace('.meta.json', ''),
-        type: m.agentType || 'agent',
-        description: m.description || '',
-        running: !m.finished,
-        updatedAt: fs.statSync(path.join(dir, f)).mtimeMs,
-      };
+      let updatedAt = 0;
+      try {
+        updatedAt = fs.statSync(file).mtimeMs;
+      } catch {
+        // removed meanwhile
+      }
+      const a = { id: f.replace('.meta.json', ''), type: m.agentType || 'agent', description: m.description || '', running: !m.finished, updatedAt };
+      metaCache.set(file, a);
+      return a;
     })
     .filter(Boolean)
     .sort((a, b) => b.updatedAt - a.updatedAt);

@@ -4,13 +4,12 @@ import { L, lang, locale, setLang, translateDom } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
-const ITEM = { unitW: 400, unitGap: 16, questH: 92, questGap: 10, msgH: 46, saveH: 108, saveGap: 8 };
+const ITEM = { unitW: 400, unitGap: 16, questH: 92, questGap: 10, saveH: 108, saveGap: 8 };
 function pageSize(kind) {
   const W = $('page').clientWidth || 900;
   const H = $('page').clientHeight || 600;
   if (kind === 'units') return Math.max(1, Math.floor((W + ITEM.unitGap) / (ITEM.unitW + ITEM.unitGap)));
   if (kind === 'agents') return Math.max(1, Math.floor((H - 46 + ITEM.questGap) / (ITEM.questH + ITEM.questGap))); // minus the header row
-  if (kind === 'comms') return Math.max(3, Math.floor((H - 40) / ITEM.msgH));
   return Math.max(1, Math.floor((H - 30) / (ITEM.saveH + ITEM.saveGap))); // archive
 }
 const KIND = {
@@ -27,7 +26,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
-const TABS = ['units', 'agents', 'comms', 'archive'];
+const TABS = ['units', 'agents', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -584,10 +583,6 @@ function agentRow(a) {
   </article>`;
 }
 
-function msgRow(e) {
-  const k = KIND[e.kind] || KIND.SYS;
-  return `<div class="msg"><span class="t">[${clock(e.t, Date.now() - e.t > 86_400_000)}]</span><span class="k" style="--kc:${k.c}">${k.label}</span><span class="m" title="${esc(e.msg)}">${esc(e.msg)}</span></div>`;
-}
 
 // The search term highlighted in an escaped snippet.
 function mark(text, q) {
@@ -641,7 +636,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
-  return { kind: ui.tab, list: { units: state.units, agents: liveAgents(), comms: state.comms }[ui.tab] };
+  return { kind: ui.tab, list: { units: state.units, agents: liveAgents() }[ui.tab] };
 }
 
 function folderList(list, sel) {
@@ -692,13 +687,11 @@ function renderPage() {
     html = items.length
       ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
-  else html = `<div class="comms">${items.map(msgRow).join('') || `<div class="msg"><span class="m">${L('还没有通讯记录。部队状态变化时会出现在这里。')}</span></div>`}</div>`;
   if (kind !== 'archive') $('page').innerHTML = html;
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
   $('n-units').textContent = state.units.length;
   $('n-agents').textContent = liveAgents().length;
-  $('n-comms').textContent = state.comms.length;
   $('n-archive').textContent = (state.history || []).length;
   const busy = state.units.filter((u) => u.status === 'busy').length;
   $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
