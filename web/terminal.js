@@ -39,20 +39,32 @@ export const THEME = {
  * @param {{fontSize?: number, onFocus?: () => void, onInput?: (data: string) => boolean | void}} [opts]
  */
 export function createTerminal(host, id, opts = {}) {
-  host.innerHTML = '';
+  // xterm goes into a box with no padding of its own: the fit addon sizes the terminal from its
+  // parent's CSS width and height, which under border-box include the host's padding, so on the
+  // padded host it came out a row taller and a few columns wider than the space (the last row
+  // and the right edge were cut off, under the scrollbar)
+  host.innerHTML = '<div class="term-fit" style="width:100%;height:100%;overflow:hidden"></div>';
+  const box = host.firstElementChild;
   const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: THEME, minimumContrastRatio: 3 });
   const fit = new FitAddon();
   term.loadAddon(fit);
-  term.open(host);
+  term.open(box);
   // GPU rendering: the default DOM renderer lags with several panes redrawing at once.
   // Falls back to DOM if WebGL is unavailable or its context gets lost.
-  try {
-    const gl = new WebglAddon();
-    gl.onContextLoss(() => gl.dispose());
-    term.loadAddon(gl);
-  } catch {
-    // no WebGL: keep the DOM renderer
-  }
+  let gl = null;
+  const useWebgl = () => {
+    try {
+      gl = new WebglAddon();
+      gl.onContextLoss(() => {
+        gl?.dispose();
+        gl = null;
+      });
+      term.loadAddon(gl);
+    } catch {
+      gl = null; // no WebGL: keep the DOM renderer
+    }
+  };
+  useWebgl();
   if (opts.onFocus) term.textarea?.addEventListener('focus', opts.onFocus);
 
   const ws = new WebSocket(`ws://${location.host}/ws/agents/${id}`);
@@ -82,8 +94,25 @@ export function createTerminal(host, id, opts = {}) {
     clearTimeout(settle);
     settle = setTimeout(refit, 120);
   });
-  ro.observe(host);
+  ro.observe(box);
   requestAnimationFrame(refit);
+  // the cell size changes without the box changing: once the fonts are in, and when the window
+  // moves to a screen with another scaling (the WebGL renderer kept its old cells: started afresh)
+  document.fonts?.ready.then(refit).catch(() => {});
+  let dpr = null;
+  const watchDpr = () => {
+    dpr = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    dpr.addEventListener('change', onDpr, { once: true });
+  };
+  const onDpr = () => {
+    if (gl) {
+      gl.dispose();
+      useWebgl();
+    }
+    requestAnimationFrame(refit);
+    watchDpr();
+  };
+  watchDpr();
 
   return {
     id,
@@ -97,6 +126,7 @@ export function createTerminal(host, id, opts = {}) {
     },
     dispose() {
       ro.disconnect();
+      dpr?.removeEventListener('change', onDpr);
       ws.close();
       term.dispose();
     },
