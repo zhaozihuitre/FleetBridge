@@ -2230,6 +2230,30 @@
       "created": "2026-11-03 10:38",
       "updated": "2026-11-03 10:38",
       "notes": []
+    },
+    {
+      "id": "C-039",
+      "type": "change",
+      "title": "0.8.7：普通终端入口（＞_ 终端）",
+      "summary": "终端栏和顶部各有一个「＞_ 终端」按钮，在当前终端的项目目录打开普通 PowerShell 分屏（有 PowerShell 7 时优先用 7）。它不算 agent：不接收总指挥台的指令，不出现在活动终端页和全部结束里，也不写入阵容、重启后不恢复。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/agents.js",
+        "server/index.js",
+        "web/app.js",
+        "web/index.html",
+        "web/i18n.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "终端"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 11:05",
+      "updated": "2026-11-03 11:05",
+      "notes": []
     }
   ]
 }

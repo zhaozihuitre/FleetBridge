@@ -499,3 +499,6 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 
 .toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); background: rgba(4,10,18,.95); border: 1px solid var(--cyan); color: var(--text); padding: 10px 18px; font-family: var(--body); font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }
+.term-add .shell-btn { border-color: rgba(166,232,192,.45); color: #a6e8c0; background: rgba(166,232,192,.06); }
+.term-add .shell-btn:hover { border-color: #a6e8c0; color: #dcf8e8; }
+.tabs .deploy-btn.shell { margin-left: 8px; border-color: #a6e8c0; background: rgba(166,232,192,.08); color: #dcf8e8; }

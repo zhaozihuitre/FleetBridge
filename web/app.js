@@ -214,8 +214,19 @@ function goLine(i) {
 
 const sentLog = []; // shown as outgoing messages in the message box
 
+// our live Claude agents; plain shells (kind 'shell') get panes but no orders, no rows, no "end all"
 function liveAgents() {
-  return (state?.agents || []).filter((a) => a.alive);
+  return (state?.agents || []).filter((a) => a.alive && a.kind !== 'shell');
+}
+
+const isShell = (id) => (state?.agents || []).some((a) => a.id === id && a.kind === 'shell');
+
+// A plain PowerShell in the split view, in the folder of the active terminal (else the newest project).
+async function openShell() {
+  const cwd = agentLabel(ui.term || '').cwd || folders()[0]?.cwd || '';
+  const r = await post('/api/agents', { shell: true, cwd });
+  if (!r.id) return toast(r.error || L('无法打开终端'));
+  openTerm(r.id);
 }
 
 // @handles for the command box: the agent's name, lowercased and spaceless; duplicates get an id suffix.
@@ -755,6 +766,8 @@ const PANE_ACTIONS = `
   <button data-tact="remove" class="ghost" hidden>${L('移除')}</button>
   <button data-tact="close" title="${L('收起这个终端（agent 继续运行）')}" aria-label="${L('收起这个终端')}">✕</button>`;
 
+const SHELL_BTN = `<button data-add-shell class="shell-btn" title="${L('打开一个普通的 PowerShell 终端，目录是当前终端的项目')}">${L('＞_ 终端')}</button>`;
+
 function renderTermHeads() {
   for (const [id, { el }] of panes) {
     const { a, name, cwd } = agentLabel(id);
@@ -771,7 +784,7 @@ function renderTermHeads() {
     const u = state?.units.find((x) => x.agentId === id);
     const [label, cls] = !alive
       ? [a?.exitCode != null ? L('● 已退出（{0}）', a.exitCode) : L('● 已退出'), 'off']
-      : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
+      : a?.kind === 'shell' ? [L('● 终端'), 'on'] : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
     st.textContent = label;
     st.className = 't-state ' + cls;
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
@@ -783,8 +796,8 @@ function renderTermHeads() {
   // Our other agents, one click away from joining the split view (the panel hides the unit cards).
   const others = (state?.agents || []).filter((a) => a.alive && !panes.has(a.id));
   const html = others.length
-    ? others.map((a) => `<button data-add="${esc(a.id)}" title="${esc(a.cwd)}">＋ ${esc(agentLabel(a.id).name)}</button>`).join('') + `<button data-add-new title="${L('启动新的 Claude（N）')}">${L('＋ 出击')}</button>`
-    : `<span class="hint">${L('没有其他我方 agent · ')}</span><button data-add-new>${L('＋ 出击')}</button>`;
+    ? others.map((a) => `<button data-add="${esc(a.id)}" title="${esc(a.cwd)}">＋ ${esc(agentLabel(a.id).name)}</button>`).join('') + `<button data-add-new title="${L('启动新的 Claude（N）')}">${L('＋ 出击')}</button>${SHELL_BTN}`
+    : `<span class="hint">${L('没有其他我方 agent · ')}</span><button data-add-new>${L('＋ 出击')}</button>${SHELL_BTN}`;
   if (renderTermHeads.last !== html) $('term-add').innerHTML = renderTermHeads.last = html;
 }
 
@@ -957,6 +970,7 @@ $('dp-cwd').addEventListener('input', () => {
 });
 $('dp-mode').addEventListener('change', updateDeployMode);
 $('deploy-open').addEventListener('click', openDeploy);
+$('shell-open').addEventListener('click', openShell);
 $('dp-cancel').addEventListener('click', () => $('deploy').close());
 $('deploy-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -993,6 +1007,7 @@ $('term-add').addEventListener('click', (e) => {
   if (!b) return;
   if (b.dataset.add) openTerm(b.dataset.add);
   else if ('addNew' in b.dataset) openDeploy();
+  else if ('addShell' in b.dataset) openShell();
 });
 $('term-grid').addEventListener('click', async (e) => {
   const pane = e.target.closest('.pane');
@@ -1004,7 +1019,7 @@ $('term-grid').addEventListener('click', async (e) => {
   if (b.dataset.tkey) await agentAction({ id, action: 'key', key: b.dataset.tkey });
   else if (b.dataset.tcmd) await agentAction({ id, action: 'text', text: b.dataset.tcmd });
   else if (b.dataset.tact === 'kill') {
-    const yes = await ask({ danger: true, title: L('结束「{0}」？', agentLabel(id).name), message: L('进程会退出，会话记录保留，可以从存档继续。'), ok: L('结束') });
+    const yes = await ask({ danger: true, title: L('结束「{0}」？', agentLabel(id).name), message: isShell(id) ? L('这个终端会关闭。') : L('进程会退出，会话记录保留，可以从存档继续。'), ok: L('结束') });
     if (!yes) return;
     await agentAction({ id, action: 'kill' });
   } else if (b.dataset.tact === 'remove') {

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import os from 'node:os';
 import { config, DATA_DIR, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
@@ -22,7 +23,7 @@ import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, writeRaw } from './agents.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -65,7 +66,8 @@ function publish() {
   const sessions = sessionsNow();
   const running = new Map(sessions.map((s) => [s.sessionId, s.pid]));
   bindAgents(sessions);
-  const agents = listAgents();
+  const all = listAgents();
+  const agents = all.filter((a) => a.kind !== 'shell'); // plain shells aren't agents: no unit, no roster
   saveRoster(agents); // after binding, so /clear'd agents are saved under their current session
   const live = agents.filter((a) => a.alive);
   const byPid = new Map(live.filter((a) => a.pid).map((a) => [a.pid, a.id]));
@@ -99,7 +101,7 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
-    agents: agents.map((a) => ({ ...a, queue: queueOf(a.id) })),
+    agents: all.map((a) => ({ ...a, queue: queueOf(a.id) })),
     agentSupport: agentSupport(),
     today,
     forecast: fc,
@@ -244,9 +246,13 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, await resumeSession(h.cwd, h.sessionId));
   }
   if (req.method === 'POST' && req.url === '/api/agents') {
-    const { cwd, name, prompt, resume } = await readBody(req);
+    const { cwd, name, prompt, resume, shell } = await readBody(req);
     try {
       let agent;
+      if (shell) {
+        agent = spawnShell({ cwd: String(cwd || '').trim() || os.homedir() });
+        return send(res, 200, { ok: true, id: agent.id });
+      }
       if (resume) {
         // resume only sessions from our own scan, in the folder the transcript says
         const h = history.find((x) => x.sessionId === resume);

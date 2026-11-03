@@ -151,7 +151,7 @@ export function agentSupport() {
 }
 
 export function listAgents() {
-  return [...agents.values()].map(({ id, sessionId, name, cwd, alive, exitCode, startedAt, pid }) => ({ id, sessionId, name, cwd, alive, exitCode, startedAt, pid }));
+  return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid }));
 }
 
 // node-pty reports pid 0 on Windows, and the session id changes on /clear or when a resume
@@ -160,7 +160,7 @@ export function listAgents() {
 export function bindAgents(sessions) {
   const bound = new Set([...agents.values()].map((a) => a.pid).filter(Boolean));
   for (const a of agents.values()) {
-    if (!a.alive) continue;
+    if (!a.alive || a.kind === 'shell') continue;
     if (!a.pid) {
       const s =
         sessions.find((x) => x.sessionId === a.sessionId && !bound.has(x.pid)) ||
@@ -218,6 +218,49 @@ export function spawnAgent({ cwd, name, resume, prompt }) {
   });
   agents.set(sessionId, agent);
   if (prompt) whenQuiet(agent, () => sendText(agent, prompt));
+  onChange();
+  return agent;
+}
+
+// A plain shell in the split view (PowerShell 7 if installed, else Windows PowerShell; $SHELL elsewhere),
+// for git, npm and friends next to the agents. Not an agent: never bound to a session, saved in the
+// roster, sent orders or counted as a unit.
+let SHELL;
+function findShell() {
+  if (SHELL !== undefined) return SHELL;
+  if (process.platform !== 'win32') return (SHELL = process.env.SHELL || '/bin/bash');
+  try {
+    SHELL = execFileSync('where.exe', ['pwsh'], { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).find((l) => /\.exe$/i.test(l.trim()))?.trim() || 'powershell.exe';
+  } catch {
+    SHELL = 'powershell.exe';
+  }
+  return SHELL;
+}
+
+export function spawnShell({ cwd }) {
+  if (!pty) throw new Error(agentSupport().error);
+  if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error(L('文件夹不存在', 'Folder does not exist', 'フォルダが存在しません'));
+  const exe = findShell();
+  const args = /powershell|pwsh/i.test(exe) ? ['-NoLogo'] : [];
+  const term = pty.spawn(exe, args, { name: 'xterm-256color', cols: 120, rows: 32, cwd, env: { ...process.env, FORCE_COLOR: '1' } });
+  const id = crypto.randomUUID();
+  const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
+  const agent = { id, sessionId: null, kind: 'shell', pid: null, name: /pwsh/i.test(exe) ? 'PowerShell 7' : /powershell/i.test(exe) ? 'PowerShell' : path.basename(exe), cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
+  term.onData((d) => {
+    screen.write(d);
+    agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
+    agent.lastOutputAt = Date.now();
+    for (const ws of agent.clients) ws.send(d);
+  });
+  term.onExit(({ exitCode }) => {
+    agent.alive = false;
+    agent.exitCode = exitCode;
+    const note = `\r\n\x1b[33m${L(`[终端已退出，代码 ${exitCode}]`, `[Shell exited with code ${exitCode}]`, `[ターミナルがコード ${exitCode} で終了しました]`)}\x1b[0m\r\n`;
+    agent.buffer += note;
+    for (const ws of agent.clients) ws.send(note);
+    onChange();
+  });
+  agents.set(id, agent);
   onChange();
   return agent;
 }
