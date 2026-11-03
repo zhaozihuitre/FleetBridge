@@ -49,10 +49,12 @@ function savePrefs(patch) {
 async function startServer() {
   const server = await import(pathToFileURL(path.join(__dirname, '..', 'server', 'index.js')).href);
   baseUrl = server.url;
+  // the master's UI commands open the command center if needed (set before start: the master
+  // is restored during start and may send one right away)
+  server.setUiOpener?.(() => openMain());
   try {
     await server.start();
     serverModule = server;
-    server.setUiOpener?.(() => openMain()); // the master's UI commands open the command center if needed
   } catch (e) {
     if (e.code !== 'EADDRINUSE') throw e; // a standalone `npm start` is already serving: just use it
   }

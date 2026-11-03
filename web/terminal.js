@@ -36,7 +36,7 @@ export const THEME = {
 /**
  * @param {HTMLElement} host
  * @param {string} id agent id
- * @param {{fontSize?: number, onFocus?: () => void}} [opts]
+ * @param {{fontSize?: number, onFocus?: () => void, onInput?: (data: string) => boolean | void}} [opts]
  */
 export function createTerminal(host, id, opts = {}) {
   host.innerHTML = '';
@@ -70,7 +70,9 @@ export function createTerminal(host, id, opts = {}) {
   };
   ws.onmessage = (e) => term.write(e.data);
   ws.onclose = () => term.write(`\r\n\x1b[90m${L('[与终端的连接已断开]')}\x1b[0m\r\n`);
-  term.onData((data) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data })));
+  const send = (data) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data }));
+  // onInput may take a keystroke for itself (the master's @ picker) by returning false
+  term.onData((data) => opts.onInput?.(data) !== false && send(data));
   term.onResize(sendResize);
 
   // Panes animate when the split view resizes them: refit once they settle, not on every frame,
@@ -86,6 +88,9 @@ export function createTerminal(host, id, opts = {}) {
   return {
     id,
     focus: () => term.focus(),
+    send,
+    /** text as a paste: typed in as-is, without triggering the program's key handling */
+    paste: (text) => send(`\x1b[200~${text}\x1b[201~`),
     setFontSize(px) {
       term.options.fontSize = px;
       refit();

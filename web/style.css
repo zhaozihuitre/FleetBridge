@@ -553,3 +553,12 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .master-off { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 20px; background: rgba(4,10,18,.92); border: 1px solid var(--line-hi); font-size: 13px; line-height: 1.7; color: var(--text); }
 .master-off .dim { color: var(--muted); font-size: 12px; }
 .master-off .btn { align-self: flex-start; }
+/* the master's @ picker, over the bottom of its terminal (near Claude Code's prompt) */
+.master { position: relative; }
+.cmd-suggest.master-mention { top: auto; bottom: 64px; left: 10px; right: 10px; max-height: 300px; }
+.master-mention[hidden] { display: none; }
+.master-mention .mn-head { position: sticky; top: 0; display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; background: #0a1424; border-bottom: 1px solid var(--line-hi); font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; color: var(--cyan); }
+.master-mention .mn-head span { font-family: var(--body); font-size: 11px; color: var(--muted); }
+.master-mention .sg b { display: flex; align-items: baseline; gap: 10px; }
+.master-mention .sg b i { font-style: normal; font-size: 11px; font-weight: normal; }
+.master-mention .mn-none { padding: 8px 10px; font-size: 12px; color: var(--muted); }

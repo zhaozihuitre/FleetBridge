@@ -801,12 +801,99 @@ function renderMaster() {
   $('master-start').disabled = !state.agentSupport?.ok;
   if (alive && masterTerm?.id !== m.id) {
     masterTerm?.dispose();
-    masterTerm = createTerminal($('master-term'), m.id, { fontSize: 12 });
+    masterTerm = createTerminal($('master-term'), m.id, { fontSize: 12, onInput: mentionInput });
   } else if (!alive && masterTerm) {
     masterTerm.dispose();
     masterTerm = null;
   }
 }
+
+// @ in the master: a picker of the running terminals (type to filter, ↑↓, Enter / Tab to pick).
+// The pick goes in as "@name " for the master to read; Esc types a plain @ instead (Claude Code's file mention).
+const mention = { open: false, q: '', index: 0, items: [] };
+
+function mentionAll() {
+  const units = new Map((state?.units || []).filter((u) => u.agentId).map((u) => [u.agentId, u]));
+  const hs = new Map(handles().map((h) => [h.id, h.handle]));
+  const live = (state?.agents || []).filter((a) => a.alive);
+  const items = live.map((a) => {
+    const u = units.get(a.id);
+    const shell = a.kind === 'shell';
+    const st = shell ? L('终端') : !u ? L('启动中') : u.permission ? L('等你授权') : u.status === 'busy' ? L('作战中') : L('待命');
+    const c = shell ? 'var(--soft)' : u?.permission ? 'var(--red)' : u?.status === 'busy' ? 'var(--cyan)' : 'var(--amber)';
+    const handle = hs.get(a.id) || agentLabel(a.id).name.toLowerCase().replace(/\s+/g, '-') + (shell ? '-' + a.id.slice(0, 4) : '');
+    return { handle, st, c, sub: a.cwd, busy: u?.status === 'busy' || Boolean(u?.permission) };
+  });
+  items.sort((a, b) => Number(b.busy) - Number(a.busy)); // working ones first
+  if (items.length > 1) items.unshift({ handle: 'all', st: L('全部'), c: 'var(--green)', sub: L('所有我方 agent（{0}）', live.filter((a) => a.kind !== 'shell').length) });
+  return items;
+}
+
+function renderMention() {
+  const q = mention.q.toLowerCase();
+  mention.items = mentionAll().filter((h) => !q || h.handle.includes(q) || h.sub.toLowerCase().includes(q));
+  mention.index = Math.min(mention.index, Math.max(0, mention.items.length - 1));
+  $('master-mention').innerHTML =
+    `<div class="mn-head">@${esc(mention.q)}<span>${L('↑↓ 选择 · Enter 确定 · Esc 普通 @')}</span></div>` +
+    (mention.items.length
+      ? mention.items.map((h, i) => `<div class="sg ${i === mention.index ? 'on' : ''}" role="option" data-i="${i}"><b>@${esc(h.handle)}<i style="color:${h.c}">● ${esc(h.st)}</i></b><small>${esc(h.sub)}</small></div>`).join('')
+      : `<div class="mn-none">${L('没有匹配的终端')}</div>`);
+  $('master-mention').hidden = false;
+  $('master-mention').querySelector('.sg.on')?.scrollIntoView({ block: 'nearest' });
+}
+
+function closeMention(typed = '') {
+  mention.open = false;
+  $('master-mention').hidden = true;
+  if (typed) masterTerm?.send(typed);
+}
+
+function pickMention(i) {
+  const h = mention.items[i];
+  closeMention();
+  if (h) masterTerm?.paste(`@${h.handle} `);
+  masterTerm?.focus();
+}
+
+/** Keystrokes of the master's terminal; false keeps one from reaching Claude Code. */
+function mentionInput(data) {
+  if (!mention.open) {
+    if (data !== '@' && data !== '＠') return true;
+    if (!mentionAll().length) return true; // nothing running: a plain @
+    Object.assign(mention, { open: true, q: '', index: 0 });
+    renderMention();
+    return false;
+  }
+  const raw = '@' + mention.q;
+  if (data === '\x1b[A' || data === '\x1b[B') {
+    const n = mention.items.length || 1;
+    mention.index = (mention.index + (data === '\x1b[A' ? n - 1 : 1)) % n;
+    renderMention();
+  } else if (data === '\r' || data === '\t') {
+    if (mention.items.length) pickMention(mention.index);
+    else closeMention(raw + (data === '\t' ? '' : data));
+  } else if (data === '\x1b') closeMention(raw);
+  else if (data === '\x7f' || data === '\b') {
+    if (!mention.q) closeMention();
+    else {
+      mention.q = mention.q.slice(0, -1);
+      renderMention();
+    }
+  } else if (/^[^\x00-\x20\x7f]+$/.test(data) && !data.includes('@')) {
+    mention.q += data;
+    mention.index = 0;
+    renderMention();
+  } else closeMention(raw + data); // space, other keys: it was a plain @
+  return false;
+}
+
+$('master-mention').addEventListener('mousedown', (e) => {
+  const el = e.target.closest('[data-i]');
+  if (!el) return;
+  e.preventDefault();
+  pickMention(Number(el.dataset.i));
+});
+$('master-term').addEventListener('focusout', () => setTimeout(() => mention.open && !$('master-term').contains(document.activeElement) && closeMention(), 150));
 
 async function masterDo(action) {
   const r = await post('/api/master', { action });

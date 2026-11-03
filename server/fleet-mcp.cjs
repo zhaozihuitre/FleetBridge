@@ -38,10 +38,12 @@ async function fleet() {
 
 // "agent" may be an id (or its first 8 characters), a name, or a project folder name.
 function resolve(ours, ref) {
-  const r = String(ref || '').trim().toLowerCase();
+  const r = String(ref || '').trim().toLowerCase().replace(/^@/, '');
   if (!r) throw new Error('agent is required');
   const hits = (f) => ours.filter(f);
-  for (const f of [(x) => x.a.id.toLowerCase() === r, (x) => x.a.id.toLowerCase().startsWith(r) && r.length >= 4, (x) => x.name.toLowerCase() === r, (x) => x.project.toLowerCase() === r, (x) => x.name.toLowerCase().includes(r) || x.project.toLowerCase().includes(r)]) {
+  // the command center's @handles: the name lowercased with dashes for spaces, an id suffix when names repeat
+  const handle = (x) => x.name.toLowerCase().replace(/\s+/g, '-');
+  for (const f of [(x) => handle(x) === r || `${handle(x)}-${x.a.id.slice(0, 4)}` === r, (x) => x.a.id.toLowerCase() === r, (x) => x.a.id.toLowerCase().startsWith(r) && r.length >= 4, (x) => x.name.toLowerCase() === r, (x) => x.project.toLowerCase() === r, (x) => x.name.toLowerCase().includes(r) || x.project.toLowerCase().includes(r)]) {
     const h = hits(f);
     if (h.length === 1) return h[0];
     if (h.length > 1) throw new Error(`"${ref}" matches several agents: ${h.map((x) => `${x.name} (${x.a.id.slice(0, 8)})`).join(', ')}. Use the id.`);
@@ -84,7 +86,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
     async run({ agents, text, mode = 'auto' }) {
       const { ours } = await fleet();
-      const list = agents?.length === 1 && String(agents[0]).toLowerCase() === 'all' ? ours.filter((x) => x.status !== 'shell') : (agents || []).map((r) => resolve(ours, r));
+      const list = agents?.length === 1 && /^@?all$/i.test(String(agents[0])) ? ours.filter((x) => x.status !== 'shell') : (agents || []).map((r) => resolve(ours, r));
       if (!list.length) throw new Error('no agents to send to');
       const out = [];
       for (const x of list) {
@@ -164,7 +166,7 @@ const TOOLS = [
     async run({ agents, ...cmd }) {
       if (agents?.length) {
         const { ours } = await fleet();
-        cmd.ids = (agents.length === 1 && String(agents[0]).toLowerCase() === 'all' ? ours : agents.map((r) => resolve(ours, r))).map((x) => x.a.id);
+        cmd.ids = (agents.length === 1 && /^@?all$/i.test(String(agents[0])) ? ours : agents.map((r) => resolve(ours, r))).map((x) => x.a.id);
       }
       const r = await api('/api/ui', cmd);
       const v = r.view;

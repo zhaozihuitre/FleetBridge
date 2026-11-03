@@ -2381,6 +2381,32 @@
       "created": "2026-11-03 13:55",
       "updated": "2026-11-03 13:55",
       "notes": []
+    },
+    {
+      "id": "C-045",
+      "type": "change",
+      "title": "主控里 @ 选终端（0.9.2）",
+      "summary": "在主控终端按 @ 弹出正在运行的终端列表（作战中的在前，带状态，多于一个时有 @all），打字筛选、↑↓ 选、Enter/Tab 插入 @名字；Esc 输入普通 @，保留 Claude Code 自己的文件引用",
+      "detail": "terminal.js 新增 onInput 钩子（返回 false 拦截按键）和 send/paste；选中项以 bracketed paste 插入，避免触发 Claude Code 的 @ 文件补全。fleet 工具认 @handle（名字小写、空格转-，重名带 id 前 4 位）和 @all。主控 CLAUDE.md 默认内容加入 @ 说明（用户改过的不覆盖）。另修：桌面端在服务器 start 之前注册 setUiOpener，启动期间的界面指令也能打开窗口。",
+      "status": "done",
+      "files": [
+        "web/terminal.js",
+        "web/app.js",
+        "web/index.html",
+        "web/style.css",
+        "web/i18n.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "master"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 14:05",
+      "updated": "2026-11-03 14:05",
+      "notes": []
     }
   ]
 }

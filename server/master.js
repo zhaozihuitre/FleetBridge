@@ -21,6 +21,22 @@ const GUIDE = `# 主控 · Fleet Bridge master console
 
 你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
 
+- 用户消息里的「@名字」指对应的终端（和 fleet_status 里的名字或项目名对应，可以直接作为 agent 参数传给工具），「@all」指全部我方 agent。
+- 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
+- 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
+- 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕。
+- agent 在等授权时，把它问的内容告诉用户；用户同意后再用 fleet_answer 回应。明显无害的只读操作可以直接同意。
+- 需要新的 agent 时用 fleet_projects 找文件夹，再用 fleet_spawn 启动。
+- 用户说「打开 / 切到 / 看看 某个终端或页面」时，用 fleet_ui 操作指挥中心：切标签页（部队 units / 活动终端 agents / 指令 orders / 存档 archive）、翻页、在分屏里打开或关闭终端、搜索会话、看某个项目的存档、打开审查改动、全屏等。每次调用都会返回界面当前显示的内容。
+- 你自己不要去改项目代码：具体工作交给对应项目的 agent，你负责拆分任务、分派、跟进和汇总。
+- 回答用户时用用户使用的语言，简洁地说结果。
+`;
+
+// the 0.9.1 default
+const GUIDE_V2 = `# 主控 · Fleet Bridge master console
+
+你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
+
 - 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
 - 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
 - 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕。
@@ -98,7 +114,7 @@ function prepare(url) {
   } catch {
     // none yet
   }
-  if (current === null || current === GUIDE_V1) fs.writeFileSync(guide, GUIDE);
+  if (current === null || current === GUIDE_V1 || current === GUIDE_V2) fs.writeFileSync(guide, GUIDE);
   // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
   fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
   // Electron's own binary runs it as node; under plain node, execPath is node itself
