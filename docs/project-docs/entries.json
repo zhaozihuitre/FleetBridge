@@ -2147,6 +2147,29 @@
       "created": "2026-11-03 09:28",
       "updated": "2026-11-03 09:28",
       "notes": []
+    },
+    {
+      "id": "C-037",
+      "type": "change",
+      "title": "活动终端页加「全部结束」（0.8.5）",
+      "summary": "确认框列出将结束的终端，确认后对全部我方 agent 执行 kill；会话保留可继续。曾尝试在该页放「全部关闭（收起）」，但终端打开时此页被终端区覆盖、点不到，改由用户选择为「全部结束」。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "终端"
+      ],
+      "sections": [
+        "02-features"
+      ],
+      "refs": [],
+      "created": "2026-11-03 09:40",
+      "updated": "2026-11-03 09:40",
+      "notes": []
     }
   ]
 }

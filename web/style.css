@@ -433,6 +433,9 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 /* the Agents page: our live terminals */
 .agents-head { flex: none; height: 36px; display: flex; align-items: center; justify-content: space-between; font-family: var(--body); font-size: 13px; color: var(--muted); }
 .agents-head .btn { height: 34px; }
+.agents-acts { display: flex; gap: 8px; }
+.agents-acts .danger { border-color: rgba(255,77,109,.6); color: #ff8fa3; background: rgba(255,77,109,.08); }
+.agents-acts .danger:hover { background: rgba(255,77,109,.18); color: #fff; }
 .agent-row .lv { font-size: 22px; }
 .agent-row.open { background: rgba(61,245,255,.05); border-color: var(--line-hi); }
 .agent-row .opened { align-self: center; font-family: var(--body); font-size: 12px; color: var(--cyan); margin-right: 4px; }

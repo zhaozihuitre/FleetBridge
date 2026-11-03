@@ -690,7 +690,7 @@ function renderPage() {
   else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${size}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
   else if (ui.tab === 'agents')
     html = items.length
-      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></div>${items.map(agentRow).join('')}</div>`
+      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
   else html = `<div class="comms">${items.map(msgRow).join('') || `<div class="msg"><span class="m">${L('还没有通讯记录。部队状态变化时会出现在这里。')}</span></div>`}</div>`;
   if (kind !== 'archive') $('page').innerHTML = html;
@@ -1068,6 +1068,23 @@ $('refresh').addEventListener('click', async () => {
   toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
+  // end every terminal of ours, after a confirmation; sessions stay and can be continued later
+  if (e.target.closest('[data-end-all]')) {
+    const live = liveAgents();
+    if (!live.length) return;
+    return ask({
+      danger: true,
+      title: L('结束全部 {0} 个终端？', live.length),
+      message: L('这些 agent 的进程会退出。会话记录保留，之后可以在部队页或存档里接着用。'),
+      detail: live.map((a) => '◆ ' + agentLabel(a.id).name),
+      ok: L('全部结束'),
+    }).then(async (yes) => {
+      if (!yes) return;
+      closeAllPanes();
+      const r = await post('/api/agents/action', { id: live.map((a) => a.id), action: 'kill' });
+      toast(L('已结束 {0} 个终端', (r.results || []).filter(Boolean).length));
+    });
+  }
   if (e.target.closest('[data-open-all]')) {
     const ids = liveAgents().map((a) => a.id);
     for (const id of ids.slice(0, MAX_PANES)) openTerm(id);
