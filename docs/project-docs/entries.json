@@ -2170,6 +2170,66 @@
       "created": "2026-11-03 09:40",
       "updated": "2026-11-03 09:40",
       "notes": []
+    },
+    {
+      "id": "I-018",
+      "type": "issue",
+      "title": "输入卡顿：后台服务线程被 git 扫描和同步读文件阻塞",
+      "summary": "终端按键经后台服务转发，服务每 3 秒刷新、每 30 秒扫描 git/历史/今日用量时同步阻塞，最长 3.5 秒。git 移到 worker 线程，扫描改异步，每次刷新的读取做缓存，稳定后停顿约 0.1 秒。",
+      "detail": "排查：echo 延迟正常（32ms），前端无长任务；对 /api/lang 连续探测发现服务端周期性停顿 0.3-3.5s。CPU profile：spawn（git，每仓库 6 个命令，一次 ~140 个进程）、today.js 同步读当日全部 transcript（首读 3.7s）、history.js 同步 stat + 解析、todaysFiles 的同步 stat、sessions.js 每 3s 重读子 agent meta、buildOffline 每 3s stat 16 个 transcript。修复：git 通过 eval 的 worker_threads 启动（兼容 asar，最多并发 4）；today/history/oldestChange 改 fs.promises 并逐块让出事件循环；已完成子 agent meta、离线卡片（30s 或集合变化时重建）、网卡地址（30s）缓存；history 只解析需要的行，cwd 存在性缓存 5 分钟。",
+      "status": "resolved",
+      "files": [
+        "server/collectors/git.js",
+        "server/collectors/today.js",
+        "server/collectors/history.js",
+        "server/collectors/sessions.js",
+        "server/index.js",
+        "server/mobile.js"
+      ],
+      "tags": [
+        "性能",
+        "输入"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 10:38",
+      "updated": "2026-11-03 10:38",
+      "notes": [],
+      "count": 1
+    },
+    {
+      "id": "C-038",
+      "type": "change",
+      "title": "0.8.6：修复输入卡顿；去掉通讯标签",
+      "summary": "后台服务不再被 git/文件扫描阻塞；顶部标签只保留部队、活动终端、存档。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/index.html",
+        "server/collectors/*"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 10:38",
+      "updated": "2026-11-03 10:38",
+      "notes": []
+    },
+    {
+      "id": "M-018",
+      "type": "milestone",
+      "title": "发布 0.8.6（含 0.8.1-0.8.5）",
+      "summary": "推送 main 与 v0.8.1-v0.8.6 标签，GitHub Release 0.8.6 已上传安装包。",
+      "detail": "",
+      "status": "done",
+      "files": [],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-03 10:38",
+      "updated": "2026-11-03 10:38",
+      "notes": []
     }
   ]
 }
