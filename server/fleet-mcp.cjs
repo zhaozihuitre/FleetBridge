@@ -30,7 +30,7 @@ async function fleet() {
     .filter((a) => a.alive && a.kind !== 'master')
     .map((a) => {
       const u = units.get(a.id);
-      const status = a.kind === 'shell' ? 'shell' : !u ? 'starting' : u.permission ? (u.permission.prompt?.kind === 'question' ? 'needs-answer' : 'needs-approval') : u.status === 'busy' ? 'working' : 'idle';
+      const status = a.kind === 'shell' ? 'shell' : !u ? (a.waiting ? 'needs-answer' : 'starting') : u.permission ? (u.permission.prompt?.kind === 'question' ? 'needs-answer' : 'needs-approval') : u.status === 'busy' ? 'working' : 'idle';
       return { a, u, status, name: a.name || u?.name || base(a.cwd), project: base(a.cwd) };
     });
   return { st, ours };
@@ -63,6 +63,7 @@ const TOOLS = [
         const by = { master: 'you (master)', cc: 'the user (input box)', phone: 'the user (phone)', terminal: 'the user (typed in its terminal)' }[a.orderBy];
         const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
+        if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
         if (u?.lastText) out.push(`  last reply: ${short(u.lastText, 300)}`);

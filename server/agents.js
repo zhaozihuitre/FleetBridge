@@ -151,7 +151,7 @@ export function agentSupport() {
 }
 
 export function listAgents() {
-  return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid, orderBy }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid, orderBy: orderBy || null }));
+  return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid, orderBy, exitedAt, endedByUser }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid, orderBy: orderBy || null, exitedAt: exitedAt || null, endedByUser: Boolean(endedByUser) }));
 }
 
 // node-pty reports pid 0 on Windows, and the session id changes on /clear or when a resume
@@ -214,6 +214,7 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   term.onExit(({ exitCode }) => {
     agent.alive = false;
     agent.exitCode = exitCode;
+    agent.exitedAt = Date.now(); // the roster keeps it a moment: the whole app may be going down (an update)
     const note = `\r\n\x1b[33m${L(`[进程已退出，代码 ${exitCode}。会话记录还在，可以从存档继续]`, `[Process exited with code ${exitCode}. The session is kept; continue it from the archive]`, `[プロセスがコード ${exitCode} で終了しました。セッション記録は残っているので、アーカイブから続行できます]`)}\x1b[0m\r\n`;
     agent.buffer += note;
     for (const ws of agent.clients) ws.send(note);
@@ -269,22 +270,82 @@ export function spawnShell({ cwd }) {
 }
 
 // Wait for the TUI to finish drawing its first screen before typing into it.
+// The first order of a new agent goes in once its screen settles, but never while a dialog is up:
+// typing it, and its Enter, into the folder-trust dialog picked the default "No, exit" and the agent
+// quit. With a dialog on screen it waits (a person, or the master, answers it), then goes in.
 function whenQuiet(agent, fn, quietMs = 1200, maxMs = 15_000) {
-  const t0 = Date.now();
+  let t0 = Date.now();
   const check = () => {
     if (!agent.alive) return;
+    if (dialogShowing(agent)) {
+      t0 = Date.now(); // the wait for quiet starts over once it's answered
+      return setTimeout(check, 500);
+    }
     if (Date.now() - agent.lastOutputAt >= quietMs || Date.now() - t0 > maxMs) fn();
     else setTimeout(check, 250);
   };
   setTimeout(check, 1500);
 }
 
+/**
+ * Claude Code's "do you trust this folder" dialog, shown the first time it opens a folder (before
+ * any session exists). Its two options are unnumbered, so it reads as a question with 1 = No, exit
+ * and 2 = Yes, trust; answerPrompt moves the cursor for them.
+ */
+export function trustPrompt(agent) {
+  const lines = screenLines(agent);
+  const yes = lines.findIndex((l) => /Yes, I trust this folder/i.test(l));
+  if (yes < 0) return null;
+  const no = lines.findIndex((l) => /No, exit/i.test(l));
+  const folder = lines.find((l, i) => i > 0 && /accessing workspace/i.test(lines[i - 1] || ''))?.trim() || agent.cwd;
+  return {
+    kind: 'question',
+    trust: true,
+    text: `Claude Code 第一次打开这个文件夹，问是否信任它：${folder}\n（选 2 信任后才能工作；选 1 会退出）`,
+    options: [
+      { key: '1', label: 'No, exit', current: no >= 0 && /^\s*[❯›>▸]/.test(lines[no]) },
+      { key: '2', label: 'Yes, I trust this folder', current: /^\s*[❯›>▸]/.test(lines[yes]) },
+    ],
+  };
+}
+
+/** Any dialog waiting on a person: the trust dialog, a permission dialog or a numbered menu. */
+export function dialogShowing(agent) {
+  return Boolean(trustPrompt(agent) || menuOptions(agent).length || permissionPrompt(agent));
+}
+
 // Typed as a bracketed paste so multi-line text arrives as one message, then Enter submits it.
 export function sendText(agent, text) {
   if (!agent?.alive) return false;
   agent.term.write(`\x1b[200~${String(text)}\x1b[201~`);
-  setTimeout(() => agent.alive && agent.term.write('\r'), 120);
+  setTimeout(() => agent.alive && agent.term.write('\r'), 150);
+  // A Claude Code that has just started (e.g. right after the trust dialog) can swallow the Enter
+  // that follows a paste: the order then sits in its input line. Seen there, Enter goes again.
+  // (it may only show up there a few seconds later, while Claude Code finishes starting)
+  const head = String(text).replace(/\s+/g, ' ').trim().slice(0, 10);
+  const t0 = Date.now();
+  let presses = 0;
+  const verify = () => {
+    if (!agent.alive || presses >= 3 || Date.now() - t0 > 12_000) return;
+    if (orderInInput(agent, head) && Date.now() - agent.lastOutputAt > 800) {
+      presses++;
+      agent.term.write('\r');
+    }
+    setTimeout(verify, 1000);
+  };
+  setTimeout(verify, 1500);
   return true;
+}
+
+/** Whether Claude Code's input line (the ❯ line under a rule) still holds this text, or a collapsed paste. */
+function orderInInput(agent, head) {
+  const lines = screenLines(agent);
+  for (let i = lines.length - 1; i > 0; i--) {
+    if (!/^❯/.test(lines[i]) || !/^[─━]{5,}/.test(lines[i - 1])) continue;
+    const input = lines[i].replace(/^❯\s*/, '').replace(/\s+/g, ' ').trim();
+    return Boolean(input) && (input.startsWith(head) || /^\[Pasted text/i.test(input));
+  }
+  return false;
 }
 
 // what a button can press: the command center uses esc; the phone page drives any dialog with the rest
@@ -409,6 +470,16 @@ export function inputEmpty(agent) {
 /** Answer a permission dialog by its option number (1 = yes); Esc rejects. */
 export function answerPrompt(agent, choice) {
   if (!agent?.alive) return false;
+  // the trust dialog takes the arrow keys and Enter, not digits
+  const trust = trustPrompt(agent);
+  if (trust && /^[12]$/.test(choice)) {
+    const want = Number(choice) - 1;
+    const at = trust.options.findIndex((o) => o.current);
+    const moves = want - (at < 0 ? 0 : at);
+    agent.term.write((moves > 0 ? '\x1b[B' : '\x1b[A').repeat(Math.abs(moves)));
+    setTimeout(() => agent.alive && agent.term.write('\r'), 150);
+    return true;
+  }
   if (choice === 'esc') agent.term.write('\x1b');
   else if (/^\d$/.test(choice)) agent.term.write(choice);
   else return false;
@@ -433,6 +504,12 @@ export function resizeAgent(agent, cols, rows) {
 
 export function killAgent(agent) {
   if (agent?.alive) agent.term.kill();
+}
+
+/** Ended by the user (the ■ button, the phone, the master): leaves the roster at once. */
+export function endAgent(agent) {
+  if (agent) agent.endedByUser = true;
+  killAgent(agent);
 }
 
 export function removeAgent(id) {

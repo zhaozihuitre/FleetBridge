@@ -2626,6 +2626,30 @@
       "created": "2026-11-05 08:30",
       "updated": "2026-11-05 08:30",
       "notes": []
+    },
+    {
+      "id": "I-022",
+      "type": "issue",
+      "title": "fleet_spawn 的终端几秒后消失；升级后 agent 没恢复（0.9.12 修复）",
+      "summary": "新文件夹的信任对话框被首条指令的回车选成 No, exit；刚启动的 Claude Code 会吞掉粘贴后的回车；升级时阵容在 agent 先退出时被清空",
+      "detail": "1) spawn 秒退：从没打开过的文件夹（如 D:\\top）启动时 Claude Code 先问是否信任，默认选项 No, exit；whenQuiet 15 秒内无论屏幕上是什么都会粘贴首条指令并回车，回车确认了 No, exit，进程以退出码 1 结束（两次 1e8483d0 / c749240a 屏幕都停在该对话框）。修复：有对话框（信任框、授权框、编号选择）时首条指令一直等待，答完再发；新增 trustPrompt 把信任框识别为 needs-answer（1=No, exit / 2=Yes, trust），没有会话的启动中 agent 也会通知主控、fleet_status 显示问题和选项；fleet_answer 用方向键回答信任框。不自动信任，由人决定。2) 回车被吞：信任后刚启动的 Claude Code 显示了粘贴的指令却没提交。sendText 之后 12 秒内每秒检查：指令仍在输入行且屏幕已安静 800ms 则补按回车，最多 3 次；实测只产生一条用户消息。3) 恢复：saveRoster 只记录活着的 agent，升级或强杀时 agent 先退出、主进程稍后才结束，中间一次刷新把阵容写空（正式版 roster.json 只剩一条）。修复：agent 自行退出后在阵容里保留 15 秒，用户点结束（endAgent）立即移除；升级前可写 roster.update.json，下次启动合并后删除（30 分钟内有效）。实测：agent 先死 6 秒后强杀应用→重启恢复；点结束→立即移除；agent 自行退出且应用在跑→21 秒后移除；强杀留下的孤儿进程→重启后接管恢复。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/index.js",
+        "server/roster.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [
+        "spawn",
+        "roster"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 08:46",
+      "updated": "2026-11-05 08:46",
+      "notes": [],
+      "count": 1
     }
   ]
 }

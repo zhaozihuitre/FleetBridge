@@ -8,10 +8,17 @@ const FILE = path.join(DATA_DIR, 'roster.json');
 let last = null;
 let frozen = false; // set while quitting: agents exiting then must not empty the saved roster
 
-export function saveRoster(agents) {
+// An agent whose process exits stays in the roster for a grace period unless the user ended it:
+// an update or a hard kill takes the agents down first and the app a moment later, and saving the
+// roster in between used to drop them all (nothing came back after the restart). Still running
+// after the grace period, the app wasn't going down: the agent really quit, and leaves the roster.
+const GRACE = 15_000;
+
+export function saveRoster(agents, now = Date.now()) {
   if (frozen || process.env.MONITOR_DEMO) return;
   const seen = new Set();
-  const live = agents.filter((a) => a.alive && !seen.has(a.sessionId) && seen.add(a.sessionId)); // one entry per session
+  const keep = (a) => a.alive || (!a.endedByUser && a.exitedAt && now - a.exitedAt < GRACE);
+  const live = agents.filter((a) => keep(a) && !seen.has(a.sessionId) && seen.add(a.sessionId)); // one entry per session
   const json = JSON.stringify(live.map(({ sessionId, cwd, name }) => ({ sessionId, cwd, name })));
   if (json === last) return;
   last = json;
@@ -23,14 +30,41 @@ export function freezeRoster() {
   frozen = true;
 }
 
-export function loadRoster() {
-  if (process.env.MONITOR_DEMO) return [];
+// Written just before an update (by whoever runs it) from the roster as it was then: the app being
+// replaced may save an emptied roster while it is taken down. Merged in once at the next start
+// (if recent), then removed.
+const UPDATE_FILE = path.join(DATA_DIR, 'roster.update.json');
+const UPDATE_MAX_AGE = 30 * 60_000;
+
+function readList(file) {
   try {
-    const r = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    const seen = new Set();
-    return Array.isArray(r) ? r.filter((x) => x?.sessionId && x?.cwd && !seen.has(x.sessionId) && seen.add(x.sessionId)) : [];
+    const r = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(r) ? r : [];
   } catch {
     return [];
+  }
+}
+
+export function loadRoster() {
+  if (process.env.MONITOR_DEMO) return [];
+  let list = readList(FILE);
+  try {
+    if (Date.now() - fs.statSync(UPDATE_FILE).mtimeMs < UPDATE_MAX_AGE) list = [...list, ...readList(UPDATE_FILE)];
+    fs.unlinkSync(UPDATE_FILE);
+  } catch {
+    // no update in progress
+  }
+  const seen = new Set();
+  return list.filter((x) => x?.sessionId && x?.cwd && !seen.has(x.sessionId) && seen.add(x.sessionId));
+}
+
+/** Before an update: keep the current roster where the next start will find it. */
+export function snapshotRosterForUpdate() {
+  try {
+    fs.copyFileSync(FILE, UPDATE_FILE);
+    return true;
+  } catch {
+    return false;
   }
 }
 

@@ -26,7 +26,7 @@ import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
 import { isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -83,6 +83,7 @@ function publish() {
   // here. The screen alone also raises the reminder, for when no Notification hook fired (hooks can fail).
   const prompts = new Map();
   const asks = [];
+  const starting = new Map(); // agent id -> the trust dialog it waits on (no session, so no unit, yet)
   for (const s of sessions) {
     const id = byPid.get(s.pid) || bySession.get(s.sessionId);
     // a permission dialog, or any other question with a numbered menu (AskUserQuestion, plan approval)
@@ -95,6 +96,16 @@ function publish() {
     prompts.set(s.sessionId, prompt);
     s.permission ||= { at: promptSince(id), message: prompt.text.split('\n').find((l) => l.trim()) || prompt.options.map((o) => o.label).join(' / ') };
     asks.push({ agentId: id, name: a.name || s.name || s.project, project: s.project, prompt });
+  }
+  // our agents that have no session yet: one stopped on the folder-trust dialog waits on a person too
+  const seen = new Set(asks.map((x) => x.agentId));
+  for (const ag of all) {
+    if (!ag.alive || ag.kind !== 'claude' || seen.has(ag.id) || byPid.has(ag.pid) || [...bySession.values()].includes(ag.id) && sessions.some((x) => x.sessionId === ag.sessionId)) continue;
+    const prompt = trustPrompt(getAgent(ag.id));
+    if (prompt) {
+      asks.push({ agentId: ag.id, name: ag.name || path.basename(ag.cwd), project: path.basename(ag.cwd), prompt });
+      starting.set(ag.id, prompt);
+    }
   }
   const merged = withStatusline(usage, STATUSLINE_USAGE);
   recordUsage(merged); // readings from the status line feed the burn forecast too
@@ -112,7 +123,7 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
-    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)) })), // the master has its own column
+    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null })), // the master has its own column
     agentSupport: agentSupport(),
     master: masterInfo(),
     today,
@@ -249,7 +260,7 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
     }
     if (action === 'kill') {
       if (a.kind === 'master') stopMaster();
-      killAgent(a);
+      endAgent(a);
       return true;
     }
     if (action === 'remove') return removeAgent(one);
