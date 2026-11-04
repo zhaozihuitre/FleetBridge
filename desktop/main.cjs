@@ -7,6 +7,11 @@ const { pathToFileURL } = require('node:url');
 const { warmVoice, startVoice, stopVoice } = require('./voice.cjs');
 const { startAwake, setAwake, nextMode, awakeInfo, stopAwake } = require('./awake.cjs');
 
+// A development run (not the installed app) is kept apart from it: its own data folder and port
+// (server/config.js) and agents named dev·…; it shows no toasts unless MONITOR_DEV_NOTIFY=1, so a
+// test session or the demo's made-up projects never pop up over the user's work.
+if (!app.isPackaged && !process.env.FLEET_DEV) process.env.FLEET_DEV = '1';
+
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
@@ -252,6 +257,10 @@ ipcMain.on('ops:action', (_e, name) => {
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
 ipcMain.on('ops:notify', (_e, title, body) => {
   if (muted || !Notification.isSupported()) return;
+  if (!app.isPackaged && process.env.MONITOR_DEV_NOTIFY !== '1') {
+    console.log(`notify (dev, not shown): ${String(title).slice(0, 40)}`);
+    return;
+  }
   // Someone is looking at the bridge (one of our windows has the focus): its own marks are enough,
   // a toast and its sound would only interrupt. In the background, minimized or unfocused: notify.
   // (the command center or a popped-out terminal; the small widget having focus doesn't count)

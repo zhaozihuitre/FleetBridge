@@ -4,12 +4,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// Writable state lives outside the app folder (an installed app's files are read-only),
-// shared by the dev checkout and the installed app. server/hook.js writes here too.
-export const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(os.homedir(), '.claude-ops');
+// A development run (the unpackaged app sets FLEET_DEV, the demo sets MONITOR_DEMO) never touches the
+// installed app's world: its own data folder and port unless given explicitly, its agents named
+// "dev·…" so the installed app leaves their sessions out, and no toasts or phone pushes of its own.
+export const DEV = process.env.FLEET_DEV === '1' || Boolean(process.env.MONITOR_DEMO);
+export const DEV_PREFIX = 'dev·';
+
+// Writable state lives outside the app folder (an installed app's files are read-only).
+// server/hook.js writes here too (it follows MONITOR_DATA_DIR, which our agents inherit).
+export const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(os.homedir(), DEV ? '.claude-ops-dev' : '.claude-ops');
 
 const defaults = {
-  port: Number(process.env.MONITOR_PORT) || 8787,
+  port: Number(process.env.MONITOR_PORT) || (DEV ? 8790 : 8787),
   claudeDir: process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
   // usage is a shared, rate-limited endpoint (the status line may poll it too): keep it slow
   intervals: { usage: 180_000, sessions: 3_000, git: 30_000 },

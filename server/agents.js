@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { DATA_DIR } from './config.js';
+import { DATA_DIR, DEV, DEV_PREFIX } from './config.js';
 import { L } from './i18n.js';
 
 const require = createRequire(import.meta.url);
@@ -195,6 +195,8 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   // A new session gets an id we choose, so it maps to its transcript and status file from the start.
   const sessionId = resume || crypto.randomUUID();
   const args = resume ? ['--resume', resume] : ['--session-id', sessionId];
+  // a dev run's agents carry the dev prefix: the installed app hides those sessions
+  if (DEV) name = DEV_PREFIX + String(name || path.basename(cwd)).replace(DEV_PREFIX, '');
   if (name) args.push('--name', String(name).slice(0, 60));
   const settings = agentSettingsFile();
   if (settings) args.push('--settings', settings);

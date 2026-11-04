@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import os from 'node:os';
-import { config, DATA_DIR, ROOT } from './config.js';
+import { config, DATA_DIR, DEV, DEV_PREFIX, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, withStatusline } from './collectors/usage.js';
@@ -66,7 +66,8 @@ let stateJson = '';
 const clients = new Set();
 
 function publish() {
-  const everything = sessionsNow();
+  // the installed app leaves out the sessions of a dev run (its agents are named dev·…)
+  const everything = DEV ? sessionsNow() : sessionsNow().filter((s) => !String(s.name || '').startsWith(DEV_PREFIX));
   bindAgents(everything);
   trackMaster();
   // the master console's own session isn't part of the fleet: no unit, no reminders
@@ -142,7 +143,7 @@ function publish() {
   }
   notifyMaster(asks);
   // phone push: whatever needs you, whether or not anyone is looking at a screen
-  pushQuests(state.quests, phoneUrl());
+  if (!process.env.MONITOR_DEMO) pushQuests(state.quests, phoneUrl()); // never push made-up sessions to a phone
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
   stateJson = json;
@@ -163,7 +164,7 @@ async function refreshGit() {
   try {
     const sessions = sessionsNow();
     gitByCwd = await collectGit(sessions.map((s) => s.cwd));
-    history = (await collectHistory()).filter((h) => !isMasterCwd(h.cwd));
+    history = (await collectHistory()).filter((h) => !isMasterCwd(h.cwd) && (DEV || !String(h.title || '').startsWith(DEV_PREFIX)));
     today = await collectToday();
     const off = offlineSessions(history, sessions.map((s) => s.cwd)).map((h) => h.cwd);
     if (Date.now() - offlineGitAt > 120_000 || off.some((c) => !(c in offlineGit))) {

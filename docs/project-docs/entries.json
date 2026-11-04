@@ -2578,6 +2578,32 @@
       "created": "2026-11-04 10:37",
       "updated": "2026-11-04 10:37",
       "notes": []
+    },
+    {
+      "id": "I-021",
+      "type": "issue",
+      "title": "开发实例的演示数据弹到正式环境（0.9.10 修复）",
+      "summary": "用户不断收到 shop-app 等测试项目的系统通知：来自用演示数据启动后没关的开发实例（共弹出 393 次）；开发实例测试 agent 的会话也会被正式版当作外部会话看到",
+      "detail": "原因：开发实例与正式版在同一桌面和同一个 ~/.claude 上运行。MONITOR_DEMO 演示数据不断模拟「做完了」，开发实例小窗每次都调用 Windows 通知（shop-app 260 次、returns-api 133 次）；测试 agent（asker/doer/phone-test 等）是真实 Claude 进程，状态写在共用的 ~/.claude，正式版会显示并可能提醒、推送；npm run demo 不指定数据目录时会读正式版的 ~/.claude-ops（含开着的手机推送）。正式版数据目录本身未被写入测试数据。修复：config.js 引入开发模式（未打包 Electron 自动设 FLEET_DEV=1，或 MONITOR_DEMO），默认数据目录 ~/.claude-ops-dev、端口 8790；开发模式下 agent 名自动加 dev· 前缀，正式版在运行会话和存档里过滤 dev· 会话；开发版默认不弹系统通知（MONITOR_DEV_NOTIFY=1 才弹）；演示模式不发手机推送。README 新增「开发与测试：不要污染正式环境」。验证：未指定参数的开发实例自动用 ~/.claude-ops-dev 和 8790，agent 名为 dev·isolation-test；非开发模式的后端看不到它；开发实例的通知只写日志。",
+      "status": "resolved",
+      "files": [
+        "server/config.js",
+        "server/agents.js",
+        "server/index.js",
+        "desktop/main.cjs",
+        "README.md"
+      ],
+      "tags": [
+        "dev",
+        "isolation",
+        "notify"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-04 10:54",
+      "updated": "2026-11-04 10:54",
+      "notes": [],
+      "count": 1
     }
   ]
 }
