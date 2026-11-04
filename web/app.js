@@ -820,7 +820,8 @@ function renderMaster() {
   }
 }
 
-// @ in the master: a picker of the running terminals (type to filter, ↑↓, Enter / Tab to pick).
+// # in the master: a picker of the running terminals (type to filter, ↑↓, Enter / Tab to pick).
+// (# rather than @: Claude Code's own @ references files, so @ goes straight through to it.)
 // The pick goes in as "@name " for the master to read; Esc types a plain @ instead (Claude Code's file mention).
 const mention = { open: false, q: '', index: 0, items: [] };
 
@@ -846,9 +847,9 @@ function renderMention() {
   mention.items = mentionAll().filter((h) => !q || h.handle.includes(q) || h.sub.toLowerCase().includes(q));
   mention.index = Math.min(mention.index, Math.max(0, mention.items.length - 1));
   $('master-mention').innerHTML =
-    `<div class="mn-head">@${esc(mention.q)}<span>${L('↑↓ 选择 · Enter 确定 · Esc 普通 @')}</span></div>` +
+    `<div class="mn-head">#${esc(mention.q)}<span>${L('↑↓ 选择 · Enter 确定 · Esc 普通 #')}</span></div>` +
     (mention.items.length
-      ? mention.items.map((h, i) => `<div class="sg ${i === mention.index ? 'on' : ''}" role="option" data-i="${i}"><b>@${esc(h.handle)}<i style="color:${h.c}">● ${esc(h.st)}</i></b><small>${esc(h.sub)}</small></div>`).join('')
+      ? mention.items.map((h, i) => `<div class="sg ${i === mention.index ? 'on' : ''}" role="option" data-i="${i}"><b>#${esc(h.handle)}<i style="color:${h.c}">● ${esc(h.st)}</i></b><small>${esc(h.sub)}</small></div>`).join('')
       : `<div class="mn-none">${L('没有匹配的终端')}</div>`);
   $('master-mention').hidden = false;
   $('master-mention').querySelector('.sg.on')?.scrollIntoView({ block: 'nearest' });
@@ -863,20 +864,20 @@ function closeMention(typed = '') {
 function pickMention(i) {
   const h = mention.items[i];
   closeMention();
-  if (h) masterTerm?.paste(`@${h.handle} `);
+  if (h) masterTerm?.paste(`#${h.handle} `);
   masterTerm?.focus();
 }
 
 /** Keystrokes of the master's terminal; false keeps one from reaching Claude Code. */
 function mentionInput(data) {
   if (!mention.open) {
-    if (data !== '@' && data !== '＠') return true;
+    if (data !== '#' && data !== '＃') return true;
     if (!mentionAll().length) return true; // nothing running: a plain @
     Object.assign(mention, { open: true, q: '', index: 0 });
     renderMention();
     return false;
   }
-  const raw = '@' + mention.q;
+  const raw = '#' + mention.q;
   if (data === '\x1b[A' || data === '\x1b[B') {
     const n = mention.items.length || 1;
     mention.index = (mention.index + (data === '\x1b[A' ? n - 1 : 1)) % n;
@@ -891,7 +892,7 @@ function mentionInput(data) {
       mention.q = mention.q.slice(0, -1);
       renderMention();
     }
-  } else if (/^[^\x00-\x20\x7f]+$/.test(data) && !data.includes('@')) {
+  } else if (/^[^\x00-\x20\x7f]+$/.test(data) && !/[#＃]/.test(data)) {
     mention.q += data;
     mention.index = 0;
     renderMention();

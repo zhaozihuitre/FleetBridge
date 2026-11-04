@@ -2604,6 +2604,28 @@
       "updated": "2026-11-04 10:54",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-051",
+      "type": "change",
+      "title": "主控用 # 调出终端，主控不做具体业务（0.9.11）",
+      "summary": "主控里调出终端的触发符从 @ 改为 #（@ 交还给 Claude Code 的文件引用）；主控 CLAUDE.md 规定不亲自做任何具体业务，需要时用 fleet_spawn 单独开终端派发",
+      "detail": "web/app.js：# / ＃ 弹出终端列表，插入 #名字，Esc 输入普通 #；@ 不再拦截。fleet-mcp.cjs：agent 参数接受 #名字、@名字（旧对话）和 #all / @all。master.js：CLAUDE.md 默认内容改为 #名字 / #all，并新增：不亲自做任何具体业务（改代码、取数据、查资料、写文件、跑脚本或 skill 产出内容都算），需要时用 fleet_spawn 在合适的项目目录开终端，没有合适目录时开专门的工作终端；只读的状态确认（fleet_status / read_screen / projects / ui）不算业务。旧默认内容自动升级，用户改过的不覆盖。实测（隔离的开发实例）：# 选择器插入 #dev·picker，以 # 开头的消息作为普通消息发出（Claude Code 2.1.317 没有把它当成记忆）；主控只用 fleet_status + fleet_send 派发；让主控写文件时它用 fleet_spawn 开了「写文件」终端，由那个终端写出文件。",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/i18n.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js"
+      ],
+      "tags": [
+        "master"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 08:30",
+      "updated": "2026-11-05 08:30",
+      "notes": []
     }
   ]
 }
