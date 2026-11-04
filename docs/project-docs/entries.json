@@ -2523,6 +2523,30 @@
       "updated": "2026-11-04 08:42",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-049",
+      "type": "change",
+      "title": "主控派的指令做完后自动通知主控（0.9.8）",
+      "summary": "主控通过 fleet_send（含排队后发出的）或 fleet_spawn 首条指令派给 agent 的一轮结束时，舰桥把名字、指令开头、用时和回答摘要以【舰桥通知】完成 发进主控会话；用户自己下的指令不通知",
+      "detail": "server/turns.js：noteOrder 记下每个 agent 最后一条指令的来源（master / cc 输入框 / phone / terminal 终端里直接打），主控派的记为一轮；endedTurns 在 agent 回到 idle 且没有在等授权或回答时判定结束（看到过 busy，或 statusSince 晚于派发时间，覆盖两次刷新之间就做完的情况），每轮只报一次；turnReply 从 transcript 尾部取这一轮最后一条 assistant 正文，这一轮里用过 SendMessage 则不再通知；clip 超过 1500 字保留开头和结尾。master.js：完成通知和等回答通知合并成一条，沿用 0.9.4 的输入框空闲检查；CLAUDE.md 默认内容加入完成通知说明（用户改过的不覆盖）。queue.js 排队项记录 via；fleet_status 显示 last order from。实测：直接派发、等回答后再完成、排队后发出三种都收到且只收到一次；输入框和终端里直接下的指令不通知。",
+      "status": "done",
+      "files": [
+        "server/turns.js",
+        "server/index.js",
+        "server/master.js",
+        "server/queue.js",
+        "server/agents.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [
+        "master"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-04 10:02",
+      "updated": "2026-11-04 10:02",
+      "notes": []
     }
   ]
 }

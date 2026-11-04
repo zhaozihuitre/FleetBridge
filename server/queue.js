@@ -29,8 +29,9 @@ function save() {
   }
 }
 
-export function enqueue(id, text) {
-  (queues[id] ||= []).push({ text: String(text).slice(0, 20_000), at: Date.now() });
+/** via: who queued it ('master' turns are reported back to the master once they end). */
+export function enqueue(id, text, via) {
+  (queues[id] ||= []).push({ text: String(text).slice(0, 20_000), at: Date.now(), ...(via ? { via } : {}) });
   save();
 }
 

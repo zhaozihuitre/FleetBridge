@@ -14,6 +14,7 @@ import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
+import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
 import { pushInfo, pushQuests, setPush, testPush } from './push.js';
 import { screenHtml } from './screenhtml.js';
@@ -24,7 +25,7 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
-import { isMasterCwd, masterInfo, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
+import { isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
 import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, screenLines, menuOptions, killAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
@@ -94,8 +95,6 @@ function publish() {
     s.permission ||= { at: promptSince(id), message: prompt.text.split('\n').find((l) => l.trim()) || prompt.options.map((o) => o.label).join(' / ') };
     asks.push({ agentId: id, name: a.name || s.name || s.project, project: s.project, prompt });
   }
-  // the master hears about every one of them without having to look (once per question)
-  notifyMaster(asks);
   const merged = withStatusline(usage, STATUSLINE_USAGE);
   recordUsage(merged); // readings from the status line feed the burn forecast too
   const view = merged && { ...merged, limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
@@ -112,7 +111,7 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
-    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id) })), // the master has its own column
+    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)) })), // the master has its own column
     agentSupport: agentSupport(),
     master: masterInfo(),
     today,
@@ -124,9 +123,23 @@ function publish() {
   dispatch(state.units.filter((u) => u.owned), (id, text, item) => {
     const a = getAgent(id);
     const ok = sendText(a, text);
-    if (ok) recordOrder({ kind: 'dispatched', ...orderTarget(a), text, queuedAt: item?.at });
+    if (ok) {
+      recordOrder({ kind: 'dispatched', ...orderTarget(a), text, queuedAt: item?.at });
+      noteOrder(a, item?.via || 'cc', text); // a queued order of the master's is its turn once it goes out
+    }
     return ok;
   });
+  // the master hears without having to look: our agents waiting on a person (once per question),
+  // and the turns it gave out that have ended, with their answers
+  const owned = state.units.filter((u) => u.owned && u.agentId);
+  for (const t of endedTurns(owned, new Set(asks.map((x) => x.agentId)))) {
+    const r = turnReply(t.sessionId, t.since);
+    if (r?.messaged) continue; // it already answered the master itself (SendMessage)
+    const u = owned.find((x) => x.agentId === t.agentId);
+    const { text: reply, cut } = clip(r?.reply || u?.lastText || '');
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, reply, cut });
+  }
+  notifyMaster(asks);
   // phone push: whatever needs you, whether or not anyone is looking at a screen
   pushQuests(state.quests, phoneUrl());
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
@@ -215,13 +228,16 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
     if (!a) return false;
     if (action === 'text' && typeof text === 'string' && text.trim()) {
       const ok = sendText(a, text);
-      if (ok && a.kind !== 'shell' && a.kind !== 'master') recordOrder({ kind: 'sent', ...orderTarget(a), text, via });
+      if (ok && a.kind !== 'shell' && a.kind !== 'master') {
+        recordOrder({ kind: 'sent', ...orderTarget(a), text, via });
+        noteOrder(a, via, text);
+      }
       return ok;
     }
     if (action === 'key') return sendKey(a, key);
     if (action === 'answer') return answerPrompt(a, String(choice));
     if (action === 'queue' && typeof text === 'string' && text.trim()) {
-      enqueue(a.id, text.trim());
+      enqueue(a.id, text.trim(), via);
       recordOrder({ kind: 'queued', ...orderTarget(a), text: text.trim(), via });
       return true;
     }
@@ -313,7 +329,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, await resumeSession(h.cwd, h.sessionId));
   }
   if (req.method === 'POST' && req.url === '/api/agents') {
-    const { cwd, name, prompt, resume, shell } = await readBody(req);
+    const { cwd, name, prompt, resume, shell, via } = await readBody(req);
     try {
       let agent;
       if (shell) {
@@ -329,6 +345,7 @@ const server = http.createServer(async (req, res) => {
       } else {
         agent = spawnAgent({ cwd: String(cwd || '').trim(), name: name ? String(name).trim() : undefined, prompt: prompt ? String(prompt) : undefined });
       }
+      if (prompt) noteOrder(agent, via === 'master' ? 'master' : 'cc', prompt); // fleet_spawn's first order is the master's turn
       setTimeout(refreshGit, 4000); // pick up the new unit's repos without waiting for the next scan
       return send(res, 200, { ok: true, id: agent.id });
     } catch (e) {
@@ -472,6 +489,10 @@ server.on('upgrade', (req, socket, head) => {
       if (msg.type === 'input' && typeof msg.data === 'string') {
         writeRaw(agent, msg.data);
         agent.typedAt = Date.now(); // someone is typing here: the master's notices wait for a pause
+        // Enter on an idle agent with nothing to answer: an order typed straight into its terminal
+        // (an Enter that answers a dialog or a question doesn't change who gave the turn)
+        const u = msg.data.includes('\r') && state?.units.find((x) => x.agentId === agent.id);
+        if (u && u.status === 'idle' && !u.permission) noteOrder(agent, 'terminal', '');
       }
       else if (msg.type === 'resize') resizeAgent(agent, msg.cols, msg.rows);
     });

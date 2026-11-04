@@ -59,7 +59,9 @@ const TOOLS = [
     async run() {
       const { st, ours } = await fleet();
       const lines = ours.map(({ a, u, status, name, project }) => {
+        const by = { master: 'you (master)', cc: 'the user (input box)', phone: 'the user (phone)', terminal: 'the user (typed in its terminal)' }[a.orderBy];
         const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
+        if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
         if (u?.lastText) out.push(`  last reply: ${short(u.lastText, 300)}`);
@@ -82,7 +84,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_send',
-    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
+    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
     async run({ agents, text, mode = 'auto' }) {
       const { ours } = await fleet();
@@ -199,7 +201,7 @@ const TOOLS = [
     description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order. resume = a session id from fleet_projects to continue that session instead.',
     inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string' }, resume: { type: 'string' } } },
     async run({ cwd, name, prompt, resume }) {
-      const r = await api('/api/agents', { cwd, name, prompt, resume });
+      const r = await api('/api/agents', { cwd, name, prompt, resume, via: 'master' });
       return `started: id ${r.id}`;
     },
   },

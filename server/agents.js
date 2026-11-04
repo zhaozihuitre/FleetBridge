@@ -151,7 +151,7 @@ export function agentSupport() {
 }
 
 export function listAgents() {
-  return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid }));
+  return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid, orderBy }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid, orderBy: orderBy || null }));
 }
 
 // node-pty reports pid 0 on Windows, and the session id changes on /clear or when a resume
