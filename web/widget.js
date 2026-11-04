@@ -1,6 +1,7 @@
 // Always-on-top status widget: quota, the most urgent thing, and every unit at a glance.
 const $ = (id) => document.getElementById(id);
 import { L, locale, translateDom } from './i18n.js';
+import { followTheme } from './theme.js';
 
 translateDom();
 const bridge = window.opsBridge; // present only inside the Electron widget window
@@ -219,6 +220,7 @@ window.addEventListener('contextmenu', (e) => {
 
 new EventSource('/api/stream').onmessage = (e) => {
   state = JSON.parse(e.data);
+  followTheme(state.theme);
   render();
   notifyNew();
 };

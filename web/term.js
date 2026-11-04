@@ -2,6 +2,7 @@
 import { createTerminal } from './terminal.js';
 import { ask } from './ui.js';
 import { L, translateDom } from './i18n.js';
+import { followTheme } from './theme.js';
 
 translateDom();
 
@@ -42,7 +43,11 @@ function render(state) {
   document.title = `${name} · ${L('舰桥 · 终端').split(' · ')[0]}`;
 }
 
-new EventSource('/api/stream').onmessage = (e) => render(JSON.parse(e.data));
+new EventSource('/api/stream').onmessage = (e) => {
+  const s = JSON.parse(e.data);
+  followTheme(s.theme);
+  render(s);
+};
 
 pane.querySelector('.term-actions').addEventListener('click', async (e) => {
   const b = e.target.closest('button');

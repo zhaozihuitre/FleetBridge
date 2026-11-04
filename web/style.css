@@ -100,7 +100,7 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 /* Body */
 .main { flex: 1; min-height: 0; display: flex; gap: 16px; }
 /* the master console sits on the left; units / terminals to its right */
-.main .operator { order: 0; width: 340px; }
+.main .operator { order: 0; width: clamp(480px, 34vw, 720px); } /* the same with the master and with the input box */
 
 /* Left column: overview numbers, latest activity, operator dialog (top to bottom) */
 .operator { position: relative; width: 420px; flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 12px; background: var(--panel-deep); border: 1px solid var(--line); overflow: hidden; clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px); }
@@ -538,7 +538,6 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .op-mode { display: flex; border: 1px solid var(--line-hi); }
 .op-mode button { padding: 1px 10px; background: transparent; border: 0; color: var(--muted); font-family: var(--body); font-size: 12px; cursor: pointer; }
 .op-mode button[aria-pressed="true"] { background: rgba(61,245,255,.14); color: var(--cyan); }
-.main .operator.master-mode { width: clamp(480px, 34vw, 720px); }
 .operator.master-mode .msg-box, .operator.master-mode .cmd-form { display: none; }
 .master { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .master[hidden] { display: none; }
@@ -584,3 +583,8 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .unit .stat .k { flex-wrap: nowrap; gap: 8px; white-space: nowrap; }
 .unit .stat .k > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .unit .stat .k .mono { flex: none; }
+
+/* theme menu: each theme with its panel, text and accent colors */
+.theme-menu { min-width: 190px; }
+.theme-menu button .sw { display: inline-flex; flex: none; border: 1px solid var(--line-hi); }
+.theme-menu button .sw i { width: 12px; height: 14px; }

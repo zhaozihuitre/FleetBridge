@@ -1,6 +1,7 @@
 import { createTerminal } from './terminal.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
+import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
@@ -1590,6 +1591,40 @@ $('lang-menu').addEventListener('click', (e) => {
 });
 document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMenu(false));
 
+/* ---------- themes ---------- */
+
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：高对比霓虹，带发光', deepspace: '柔和灰蓝，青色柔光（推荐）', tokyo: '蓝紫夜色，柔光', warm: '米白配琥珀，减少蓝光', light: '灰白浅色，白天用' };
+function renderThemeMenu() {
+  const cur = state?.theme || 'deepspace';
+  $('theme-menu').innerHTML = THEME_KEYS.map((k) => {
+    const t = THEMES[k] || THEMES.deepspace;
+    const sw = k === 'auto' ? [THEMES.deepspace.ui.panel, THEMES.light.ui.panel, THEMES.deepspace.ui.accent] : [t.ui.panel, t.ui.text, t.ui.accent];
+    return `<button role="menuitemradio" data-theme="${k}" aria-checked="${k === cur}" title="${esc(L(THEME_NOTE[k]))}"><span class="sw">${sw.map((c) => `<i style="background:${c}"></i>`).join('')}</span>${esc(k === 'auto' ? L('跟随系统') : L(t.name))}</button>`;
+  }).join('');
+}
+// The header panel's clip-path (its cut corners) clips everything inside it, fixed menus included:
+// the menus live on the body instead.
+document.body.append($('theme-menu'), $('lang-menu'));
+function toggleThemeMenu(open = $('theme-menu').hidden) {
+  if (open) renderThemeMenu();
+  const r = $('theme-btn').getBoundingClientRect();
+  Object.assign($('theme-menu').style, { top: `${r.bottom + 6}px`, right: `${innerWidth - r.right}px` });
+  $('theme-menu').hidden = !open;
+  $('theme-btn').setAttribute('aria-expanded', String(open));
+}
+$('theme-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleThemeMenu();
+});
+$('theme-menu').addEventListener('click', async (e) => {
+  const next = e.target.closest('[data-theme]')?.dataset.theme;
+  toggleThemeMenu(false);
+  if (!next) return;
+  followTheme(next); // right away here; the other pages and the phone follow with the next state
+  await post('/api/theme', { theme: next });
+});
+document.addEventListener('click', () => !$('theme-menu').hidden && toggleThemeMenu(false));
+
 /* ---------- boot ---------- */
 
 // Page sizes depend on the window size, so re-paginate when it changes.
@@ -1763,6 +1798,7 @@ function connect() {
   es.onmessage = (e) => {
     const first = !state;
     state = JSON.parse(e.data);
+    followTheme(state.theme);
     // deep link: /#term=<id>[,<id>...] opens those agents' terminals (split view)
     const deep = first && location.hash.match(/^#term=([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/);
     if (deep) {

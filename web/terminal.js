@@ -4,34 +4,15 @@ import { Terminal } from '/lib/xterm/lib/xterm.mjs';
 import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
 import { L } from './i18n.js';
 import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
+import { onTermTheme, termTheme } from './theme.js';
 
-// The command center palette for all 16 colors: our agents run Claude Code with the dark-ansi
-// theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from these.
-export const THEME = {
-  background: '#050a12',
-  foreground: '#a6e8c0', // body text: a soft mint green, easy on the eyes for long reads
-  cursor: '#3df5ff',
-  cursorAccent: '#050a12',
-  selectionBackground: 'rgba(61,245,255,.3)',
-  black: '#0a1120',
-  red: '#ff4d6d',
-  green: '#4dffa6',
-  yellow: '#ffb020',
-  blue: '#4d9fff',
-  magenta: '#c77dff',
-  cyan: '#3df5ff',
-  white: '#86b89c',
-  // dark-ansi paints panels (diff review, the highlighted prompt) with this as background, and dim
-  // text with it as foreground: a dark slate, with minimumContrastRatio lifting the dim text
-  brightBlack: '#24384a',
-  brightRed: '#3df5ff', // Claude's brand accent (logo, highlights) in dark-ansi: our cyan; errors use plain red
-  brightGreen: '#8affc4',
-  brightYellow: '#ffd166',
-  brightBlue: '#82bcff',
-  brightMagenta: '#dcaaff',
-  brightCyan: '#b8fcff',
-  brightWhite: '#dcf8e8',
-};
+// The 16 colors come from the theme (web/theme.js): our agents run Claude Code with the dark-ansi
+// theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from them. Open terminals
+// follow a theme change right away.
+const live = new Set();
+onTermTheme((theme) => {
+  for (const term of live) term.options.theme = { ...theme };
+});
 
 /**
  * @param {HTMLElement} host
@@ -45,7 +26,8 @@ export function createTerminal(host, id, opts = {}) {
   // and the right edge were cut off, under the scrollbar)
   host.innerHTML = '<div class="term-fit" style="width:100%;height:100%;overflow:hidden"></div>';
   const box = host.firstElementChild;
-  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: THEME, minimumContrastRatio: 3 });
+  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: { ...termTheme() }, minimumContrastRatio: 3 });
+  live.add(term);
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(box);
@@ -128,6 +110,7 @@ export function createTerminal(host, id, opts = {}) {
       ro.disconnect();
       dpr?.removeEventListener('change', onDpr);
       ws.close();
+      live.delete(term);
       term.dispose();
     },
   };

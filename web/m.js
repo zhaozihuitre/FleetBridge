@@ -1,6 +1,7 @@
 // The phone page: what needs you (answerable right here), every unit, a read-only view of an
 // agent's screen, and one input to send or queue orders. Talks only to the phone server.
 import { L, translateDom } from './i18n.js';
+import { followTheme } from './theme.js';
 
 translateDom();
 const $ = (id) => document.getElementById(id);
@@ -288,6 +289,7 @@ function connect() {
   };
   es.onmessage = (e) => {
     state = JSON.parse(e.data);
+    followTheme(state.theme);
     render();
   };
   es.onerror = async () => {

@@ -6,7 +6,7 @@ import { config, DATA_DIR, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, withStatusline } from './collectors/usage.js';
-import { getLang, L, setLang } from './i18n.js';
+import { getLang, getTheme, L, setLang, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
 import { changes, commit, diff, pushRepo } from './gitops.js';
@@ -118,6 +118,7 @@ function publish() {
     orders: recentOrders(),
     forecast: fc,
     lang: getLang(),
+    theme: getTheme(),
   };
   // queued orders: the next one goes to each of our agents that has finished its turn
   dispatch(state.units.filter((u) => u.owned), (id, text, item) => {
@@ -449,6 +450,12 @@ const server = http.createServer(async (req, res) => {
     setLang(lang);
     publish(); // reminders and operator lines are rebuilt in the new language
     return send(res, 200, { ok: true, lang: getLang() });
+  }
+  if (req.method === 'POST' && req.url === '/api/theme') {
+    const { theme } = await readBody(req);
+    setTheme(theme);
+    publish(); // every open page (and the phone) recolors with the next state
+    return send(res, 200, { ok: true, theme: getTheme() });
   }
   if (req.method === 'POST' && req.url === '/api/snooze') {
     const { key, minutes } = await readBody(req);

@@ -2547,6 +2547,37 @@
       "created": "2026-11-04 10:02",
       "updated": "2026-11-04 10:02",
       "notes": []
+    },
+    {
+      "id": "C-050",
+      "type": "change",
+      "title": "主题选择（0.9.9）",
+      "summary": "新增 5 个主题和跟随系统：霓虹（原版）/ 深空（默认）/ Tokyo Night / 暖色 / 浅色；指挥中心、小窗、弹出终端、手机页面和所有终端同步切换；主控与输入框两种模式左栏宽度一致",
+      "detail": "现状问题：正文对比度 16.8:1、终端正文 14.1:1、强调色和绿色 14:1 以上（过高、刺眼），文字发光使字边发虚，大面积纯黑底配高饱和霓虹色。新主题正文约 7.3:1（AA 与 AAA 之间）、终端正文 7.6:1、状态色 ≥4.6:1，去掉文字发光（深空/Tokyo/暖色保留面板柔光，浅色不发光）。实现：web/theme.js 按颜色角色重映射样式表（每个颜色匹配到霓虹调色板中最近的角色，换成新主题的同角色颜色，保留透明度；普通属性按 rgb()、自定义属性按十六进制处理），无需改写约 190 处写死的颜色；终端主题实时切换（terminal.js 维护在用终端集合）。设置存在 settings.json 的 theme，随状态推送；页面本地记住上次主题避免闪烁。顶栏新增调色板按钮和菜单（带色样）。另修：顶栏 .pilot 的 clip-path 会裁掉其中的下拉菜单（语言菜单也受影响），菜单移到 body。左栏宽度统一为 clamp(480px, 34vw, 720px)。",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/terminal.js",
+        "web/app.js",
+        "web/widget.js",
+        "web/term.js",
+        "web/m.js",
+        "web/index.html",
+        "web/style.css",
+        "web/i18n.js",
+        "server/i18n.js",
+        "server/index.js",
+        "server/mobile.js"
+      ],
+      "tags": [
+        "ui",
+        "theme"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-04 10:37",
+      "updated": "2026-11-04 10:37",
+      "notes": []
     }
   ]
 }
