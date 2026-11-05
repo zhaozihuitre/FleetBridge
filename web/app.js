@@ -978,8 +978,40 @@ const PANE_ACTIONS = `
 
 const SHELL_BTN = `<button data-add-shell class="shell-btn" title="${L('打开一个普通的 PowerShell 终端，目录是当前终端的项目')}">${L('＞_ 终端')}</button>`;
 
+/* ---------- previews: a local page or a localhost URL in a pane (fleet-open / fleet_open) ---------- */
+
+// The page runs in a sandboxed frame from another origin (the preview server, or the dev server it
+// shows): it can't reach into this page, and gets none of the command center's API.
+const previewItems = new Map(); // pane id (pv:…) -> { id, title, target, url, kind }
+const isPreview = (id) => typeof id === 'string' && id.startsWith('pv:');
+const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads';
+const PREVIEW_ACTIONS = `<button data-pact="reload" title="${L('重新加载')}">⟳</button><button data-pact="external" title="${L('在系统浏览器里打开')}">↗</button><button data-pact="pop" title="${L('弹出成独立窗口')}">⧉</button><button data-pact="close" title="${L('关闭预览')}" aria-label="${L('关闭预览')}">✕</button>`;
+
+function openPreviewPane(p) {
+  previewItems.set(p.id, p);
+  $('term-panel').hidden = false;
+  if (panes.has(p.id)) {
+    setActivePane(p.id);
+    panes.get(p.id).reload();
+    return;
+  }
+  if (panes.size >= MAX_PANES) closePane(panes.has(ui.term) ? ui.term : panes.keys().next().value);
+  const el = document.createElement('div');
+  el.className = 'pane preview';
+  el.dataset.pane = p.id;
+  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name">${esc(p.title)}</b><span class="t-state on">${L('● 预览')}</span><span class="term-cwd t-cwd">${esc(p.target)}</span></div><div class="term-actions">${PREVIEW_ACTIONS}</div></header><div class="term-host pv-host"><iframe title="${esc(p.title)}" sandbox="${SANDBOX}"></iframe></div>`;
+  $('term-grid').appendChild(el);
+  const frame = el.querySelector('iframe');
+  frame.src = p.url;
+  panes.set(p.id, { el, t: { focus() {}, setFontSize() {}, dispose() {} }, reload: () => (frame.src = p.url) });
+  layoutPanes();
+  setActivePane(p.id);
+  renderTermHeads();
+}
+
 function renderTermHeads() {
   for (const [id, { el }] of panes) {
+    if (isPreview(id)) continue;
     const { a, name, cwd } = agentLabel(id);
     const alive = a?.alive;
     // the project folder tells panes apart when callsigns don't (alpha, bravo…);
@@ -1232,6 +1264,15 @@ $('term-grid').addEventListener('click', async (e) => {
   setActivePane(id);
   const b = e.target.closest('button');
   if (!b) return;
+  if (b.dataset.pact) {
+    if (b.dataset.pact === 'reload') panes.get(id)?.reload();
+    else if (b.dataset.pact === 'external') post('/api/preview/external', { id });
+    else if (b.dataset.pact === 'pop') {
+      window.open(`/term-preview#${encodeURIComponent(id)}`, `fleet-preview-${id.slice(3)}`, 'width=1100,height=760');
+      closePane(id);
+    } else if (b.dataset.pact === 'close') closePane(id);
+    return;
+  }
   if (b.dataset.tkey) await agentAction({ id, action: 'key', key: b.dataset.tkey });
   else if (b.dataset.tcmd) await agentAction({ id, action: 'text', text: b.dataset.tcmd });
   else if (b.dataset.tact === 'kill') {
@@ -1705,7 +1746,7 @@ function uiView() {
     onPage: shown.map(label).slice(0, 12),
     archiveFolder: kind === 'archive' ? currentFolder()?.cwd || null : null,
     search: ui.search?.q || null,
-    terminals: [...panes.keys()].map((id) => ({ id, name: agentLabel(id).name, active: id === ui.term })),
+    terminals: [...panes.keys()].map((id) => ({ id, name: previewItems.get(id)?.title || agentLabel(id).name, preview: isPreview(id), active: id === ui.term })),
     split: dynamicSplit ? 'dynamic' : 'equal',
     operator: opMode,
     fullscreen: document.body.classList.contains('fullscreen'),
@@ -1770,6 +1811,9 @@ async function runUi(c) {
     case 'review':
       if (!c.path) throw new Error('path (a repo folder) is required');
       return openReview(c.path);
+    case 'preview':
+      if (!c.preview?.url) throw new Error('no preview');
+      return openPreviewPane(c.preview);
     case 'close_dialog':
       document.querySelectorAll('dialog[open]').forEach((d) => d.close());
       return;
@@ -1815,9 +1859,15 @@ function connect() {
       } catch {
         // nothing kept
       }
-      const ids = (kept?.ids || []).filter((id) => state.agents?.some((a) => a.id === id && a.alive));
-      if (ids.length) setTimeout(() => {
-        ids.forEach((id) => openTerm(id));
+      const ids = (kept?.ids || []).filter((id) => isPreview(id) || state.agents?.some((a) => a.id === id && a.alive));
+      if (ids.length) setTimeout(async () => {
+        for (const id of ids) {
+          if (!isPreview(id)) openTerm(id);
+          else {
+            const p = await fetch(`/api/preview?id=${encodeURIComponent(id)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+            if (p) openPreviewPane(p);
+          }
+        }
         if (kept.active && ids.includes(kept.active)) setActivePane(kept.active);
       }, 0);
     }

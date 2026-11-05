@@ -16,6 +16,7 @@ import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
+import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
 import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
 import { pushInfo, pushQuests, setPush, testPush } from './push.js';
 import { screenHtml } from './screenhtml.js';
@@ -194,6 +195,7 @@ function serveStatic(req, res) {
   if (pathname === '/') pathname = '/web/index.html';
   if (pathname === '/widget' || pathname === '/pet') pathname = '/web/widget.html';
   if (pathname === '/term') pathname = '/web/term.html';
+  if (pathname === '/term-preview') pathname = '/web/preview.html';
   const prefix = Object.keys(STATIC).find((p) => pathname.startsWith(p));
   if (!prefix) return false;
   const base = STATIC[prefix];
@@ -392,6 +394,27 @@ const server = http.createServer(async (req, res) => {
     process.send({ type: req.url.endsWith('rollback') ? 'rollback' : 'reload' });
     return send(res, 200, { ok: true });
   }
+  // Previews (fleet-open, fleet_open): a local page or a localhost URL shown in the command center;
+  // an outside URL goes to the system browser.
+  if (req.method === 'POST' && req.url === '/api/preview') {
+    const { target, cwd } = await readBody(req);
+    try {
+      const r = openPreview(target, cwd);
+      if (!r.external) uiCommand({ action: 'preview', preview: r }).catch(() => {}); // opens the window if needed
+      return send(res, 200, r);
+    } catch (e) {
+      return send(res, 400, { error: e.message });
+    }
+  }
+  if (req.method === 'GET' && req.url.startsWith('/api/preview?')) {
+    const p = getPreview(new URL(req.url, 'http://localhost').searchParams.get('id') || '');
+    return p ? send(res, 200, p) : send(res, 404, { error: 'gone' });
+  }
+  if (req.method === 'POST' && req.url === '/api/preview/external') {
+    const { id } = await readBody(req);
+    const p = getPreview(String(id || ''));
+    return send(res, 200, { ok: Boolean(p && openExternal(p.url)) });
+  }
   // the master drives the command center page: switch tabs, open terminals... (fleet_ui)
   if (req.method === 'POST' && req.url === '/api/ui') return send(res, 200, await uiCommand(await readBody(req)));
   if (req.method === 'POST' && req.url === '/api/ui/done') {
@@ -536,12 +559,14 @@ onAgentsChange(() => publish());
 /** The app quits: the terminals end with it (continue an agent from the archive later if wanted). */
 export async function shutdown() {
   stopMobile();
+  stopPreview();
   await killAll();
 }
 
 /** This server makes way for another (an update): the terminals stay, in the PTY host. */
 export async function detach() {
   stopMobile();
+  stopPreview();
   for (const t of timers) clearInterval(t);
   await new Promise((r) => server.close(() => r()));
 }
@@ -584,6 +609,12 @@ export async function start({ onListening } = {}) {
   // Terminals still running in the PTY host (this server replaced another, or the shell crashed)
   // are taken back as they are. Agents that ended (the app quit) are not brought back: the user
   // continues one from the archive when wanted.
+  startPreview();
+  try {
+    installBin();
+  } catch (e) {
+    console.error('fleet-open not installed:', e.message);
+  }
   const kept = await attachHost();
   if (kept) console.log(`pty host: took back ${kept} running terminal(s)`);
   adoptMaster();

@@ -2732,6 +2732,34 @@
       "updated": "2026-11-05 13:36",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-052",
+      "type": "change",
+      "title": "页面在舰桥里打开：fleet-open 与预览面板（0.9.16）",
+      "summary": "agent 用 fleet-open（主控用 fleet_open）打开本地 HTML/Markdown/图片或 localhost 页面，显示在指挥中心分屏的预览面板里，可弹出独立窗口，文件改动自动刷新；外部链接仍走系统浏览器",
+      "detail": "server/preview.js：预览登记、独立端口（主端口+10）的预览文件服务器（只服务被预览文件所在目录，Markdown 渲染为 HTML，注入轮询版本号的自动刷新脚本和外链交给系统浏览器的点击处理）、Markdown 渲染器、fleet-open 安装（<数据目录>/bin 下 .cmd 与 sh 两个版本，用应用自己的可执行文件以 node 模式运行）。终端环境 PATH 前置 bin、BROWSER 指向 fleet-open.cmd（正斜杠，Python webbrowser 会按 POSIX 拆分）；Claude agent 加 --append-system-prompt 说明用 fleet-open。接口 POST /api/preview（打开，经 UI 命令开面板，必要时打开窗口）、GET /api/preview?id、POST /api/preview/external。web/app.js 预览面板（sandbox iframe，⟳ / ↗ / ⧉ / ✕，刷新页面后按 sessionStorage 恢复），web/preview.html 弹出窗口（/term-preview，借用外壳允许 /term… 开新窗口，不改外壳）。主控 fleet_open 工具与 CLAUDE.md 说明。安全：预览来源与指挥中心不同源，实测从预览来源调 /api/state、/api/agents、/api/agents/action、/api/admin/summary 均 403，终端 WebSocket 拒绝。实测：HTML（相对 CSS 生效）、Markdown（表格/代码/任务列表）、localhost 页面三种面板；改文件后自动刷新；弹出独立窗口；PowerShell 中 fleet-open 可用、BROWSER 正确；Python webbrowser.open 走舰桥；Claude agent 被要求「在浏览器打开」时自行使用 fleet-open。",
+      "status": "done",
+      "files": [
+        "server/preview.js",
+        "server/index.js",
+        "server/agents.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "web/app.js",
+        "web/preview.html",
+        "web/style.css",
+        "web/i18n.js",
+        "README.md"
+      ],
+      "tags": [
+        "preview"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 14:26",
+      "updated": "2026-11-05 14:26",
+      "notes": []
     }
   ]
 }

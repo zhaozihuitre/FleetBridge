@@ -188,6 +188,15 @@ const TOOLS = [
     },
   },
   {
+    name: 'fleet_open',
+    description: 'Show the user a page in Fleet Bridge (a pane of the command center, next to the terminals) instead of the system browser: a local HTML or Markdown file, an image, a folder with index.html / README.md, or a localhost URL (a dev server). File pages reload when their folder changes. Outside http(s) URLs open in the system browser. Relative paths are relative to cwd (default: the home folder).',
+    inputSchema: { type: 'object', properties: { target: { type: 'string' }, cwd: { type: 'string' } }, required: ['target'] },
+    async run({ target, cwd }) {
+      const r = await api('/api/preview', { target, cwd: cwd || require('node:os').homedir() });
+      return r.external ? `opened in the system browser: ${r.url}` : `opened in Fleet Bridge: ${r.title} (${r.target})`;
+    },
+  },
+  {
     name: 'fleet_projects',
     description: 'Project folders Claude Code has been used in (most recent first), to pick a cwd for fleet_spawn or a session to resume.',
     inputSchema: { type: 'object', properties: {} },

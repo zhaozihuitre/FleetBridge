@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>舰桥 · 预览</title>
+<link rel="stylesheet" href="/web/style.css">
+<style>
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { display: flex; flex-direction: column; background: var(--bg); }
+.pv-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); font-family: var(--body); font-size: 13px; }
+.pv-bar b { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-bar small { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-bar button { height: 28px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
+.pv-bar button:hover { border-color: var(--cyan); color: var(--text); }
+iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+.gone { margin: 40px auto; color: var(--muted); font-family: var(--body); }
+</style>
+</head>
+<body>
+<div class="pv-bar"><b id="title">预览</b><small id="target"></small><button id="reload" title="重新加载">⟳</button><button id="external" title="在系统浏览器里打开">在浏览器打开</button></div>
+<iframe id="frame" title="预览" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
+<script type="module">
+// A preview on its own (popped out of the command center): the page runs in a sandboxed frame from
+// another origin, so it gets nothing of this window.
+import { followTheme } from '/web/theme.js';
+import { translateDom } from '/web/i18n.js';
+translateDom();
+const $ = (id) => document.getElementById(id);
+const id = decodeURIComponent(location.hash.slice(1));
+const p = await fetch(`/api/preview?id=${encodeURIComponent(id)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+if (!p) {
+  document.body.innerHTML = '<p class="gone">这个预览已经不在了（舰桥重启过）。</p>';
+} else {
+  document.title = `${p.title} · 舰桥`;
+  $('title').textContent = p.title;
+  $('target').textContent = p.target;
+  $('frame').src = p.url;
+  $('reload').addEventListener('click', () => ($('frame').src = p.url));
+  $('external').addEventListener('click', () => fetch('/api/preview/external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id }) }));
+}
+new EventSource('/api/stream').onmessage = (e) => followTheme(JSON.parse(e.data).theme);
+</script>
+</body>
+</html>

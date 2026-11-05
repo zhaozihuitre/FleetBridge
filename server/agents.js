@@ -9,6 +9,7 @@ import path from 'node:path';
 import { DATA_DIR, DEV, DEV_PREFIX } from './config.js';
 import { L } from './i18n.js';
 import * as host from './ptyclient.js';
+import { BIN_DIR } from './preview.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -151,12 +152,21 @@ function termEnv() {
   // run started from one of them would take the installed app's data folder and terminals
   if (!DEV) delete env.MONITOR_DATA_DIR;
   env.TERM ||= 'xterm-256color';
+  // fleet-open on the PATH, and as BROWSER for tools that honour it (forward slashes: Python's
+  // webbrowser splits the value like a POSIX shell and would eat backslashes)
+  const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') || 'PATH';
+  env[pathKey] = `${BIN_DIR}${path.delimiter}${env[pathKey] || ''}`;
+  env.BROWSER = path.join(BIN_DIR, process.platform === 'win32' ? 'fleet-open.cmd' : 'fleet-open').replace(/\\/g, '/');
   return env;
 }
 
 // Claude Code's input line: its prompt mark (❯, or > when it draws ASCII) right under the input box's
 // rule. A numbered menu option ("> 1. Yes") is not it.
 const PROMPT = /^[❯>](?!\s*\d\.)/;
+
+// Added to our agents' system prompt: pages are shown in Fleet Bridge.
+const OPEN_HINT =
+  'You run inside Fleet Bridge. To show the user a local HTML or Markdown file, an image, or a localhost page (e.g. a dev server), run `fleet-open <path-or-url>` (it is on PATH): it opens in Fleet Bridge, next to the terminals, and reloads when the files change. Do not start the system browser for these (no `start`, `Invoke-Item` or `open`). Outside http(s) links passed to fleet-open go to the system browser.';
 const PROMPT_MARK = /^[❯>]\s*/;
 const agents = new Map(); // sessionId -> agent
 let onChange = () => {};
@@ -295,6 +305,8 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   // a dev run's agents carry the dev prefix: the installed app hides those sessions
   if (DEV) name = DEV_PREFIX + String(name || path.basename(cwd)).replace(DEV_PREFIX, '');
   if (name) args.push('--name', String(name).slice(0, 60));
+  // where pages go: the command center, not the system browser
+  args.push('--append-system-prompt', OPEN_HINT);
   const settings = agentSettingsFile();
   if (settings) args.push('--settings', settings);
   args.push(...extraArgs);

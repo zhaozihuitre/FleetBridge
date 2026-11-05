@@ -588,3 +588,7 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .theme-menu { min-width: 190px; }
 .theme-menu button .sw { display: inline-flex; flex: none; border: 1px solid var(--line-hi); }
 .theme-menu button .sw i { width: 12px; height: 14px; }
+
+/* previews in the split view (fleet-open): the page fills the pane */
+.pane.preview .pv-host { padding: 0; background: #fff; }
+.pane.preview .pv-host iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
