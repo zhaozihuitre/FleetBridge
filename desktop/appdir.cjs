@@ -134,12 +134,24 @@ function create(dataDir, shellDir) {
     dirs.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
     for (const d of dirs.slice(KEEP)) {
       if (keep.has(path.resolve(d))) continue;
+      // Renamed out of the way first: a folder still in use (the terminal host keeps running from the
+      // folder it was started from) can't be renamed on Windows, so it stays whole until next time.
+      const gone = `${d}.tmp-del-${process.pid}`;
       try {
-        fs.unlinkSync(path.join(d, 'node_modules')); // the junction only, never the shell's modules
+        fs.renameSync(d, gone);
+      } catch {
+        continue;
+      }
+      try {
+        fs.unlinkSync(path.join(gone, 'node_modules')); // the junction only, never the shell's modules
       } catch {
         // no junction
       }
-      fs.rmSync(d, { recursive: true, force: true });
+      try {
+        fs.rmSync(gone, { recursive: true, force: true });
+      } catch {
+        // left over: skipped by the listing above (.tmp-), tried again by nobody; harmless
+      }
     }
   }
 
