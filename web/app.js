@@ -971,6 +971,7 @@ const panes = new Map(); // agent id -> { el, t }
 const PANE_ACTIONS = `
   <button data-tact="voice" class="voice-btn" title="${L('语音输入：对这个终端说话（Windows 语音输入，Win+H）')}" aria-label="${L('语音输入')}" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
   <button data-tkey="esc" title="${L('打断当前操作')}">Esc</button>
+  <button data-tact="solo" title="${L('放大到整个分屏（再点一次或双击标题栏恢复）')}">⛶</button>
   <button data-tact="pop" title="${L('弹出成独立窗口')}">⧉</button>
   <button data-tact="kill" class="danger" title="${L('结束这个 Claude 进程')}">${L('结束')}</button>
   <button data-tact="remove" class="ghost" hidden>${L('移除')}</button>
@@ -988,7 +989,7 @@ const previewItems = new Map(); // preview id (pv:…) -> { id, title, target, u
 const PV_PANE = 'pv:tabs';
 const isPreview = (id) => typeof id === 'string' && id.startsWith('pv:');
 const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads';
-const PREVIEW_ACTIONS = `<button data-pact="reload" title="${L('重新加载')}">⟳</button><button data-pact="external" title="${L('在系统浏览器里打开')}">↗</button><button data-pact="pop" title="${L('弹出成独立窗口')}">⧉</button><button data-pact="close-all" title="${L('关闭所有预览')}" aria-label="${L('关闭所有预览')}">✕</button>`;
+const PREVIEW_ACTIONS = `<button data-pact="reload" title="${L('重新加载')}">⟳</button><button data-pact="external" title="${L('在系统浏览器里打开')}">↗</button><button data-pact="solo" title="${L('放大到整个分屏（再点一次或双击标题栏恢复）')}">⛶</button><button data-pact="pop" title="${L('弹出成独立窗口')}">⧉</button><button data-pact="close-all" title="${L('关闭所有预览')}" aria-label="${L('关闭所有预览')}">✕</button>`;
 let activePreview = null;
 
 function previewPane() {
@@ -1122,15 +1123,37 @@ try {
 // the open panes and previews survive a reload of the page (an update of the app reloads it)
 function savePanes() {
   try {
-    sessionStorage.setItem('fb-panes', JSON.stringify({ ids: [...panes.keys()].filter((id) => id !== PV_PANE), active: ui.term, previews: [...previewItems.keys()], activePreview }));
+    sessionStorage.setItem('fb-panes', JSON.stringify({ ids: [...panes.keys()].filter((id) => id !== PV_PANE), active: ui.term, previews: [...previewItems.values()].map((p) => ({ id: p.id, target: p.target })), activePreview }));
   } catch {
     // not kept
   }
 }
 
+function toggleSolo(id) {
+  ui.solo = ui.solo === id ? null : id;
+  setActivePane(id);
+  layoutPanes();
+}
+
 function layoutPanes() {
   savePanes();
   const grid = $('term-grid');
+  if (ui.solo && !panes.has(ui.solo)) ui.solo = null;
+  for (const [id, { el, t }] of panes) {
+    el.hidden = Boolean(ui.solo) && id !== ui.solo;
+    el.classList.toggle('solo', id === ui.solo);
+  }
+  if (ui.solo) {
+    grid.dataset.n = '1';
+    grid.classList.remove('dynamic');
+    grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
+    grid.style.gridTemplateRows = 'minmax(0, 1fr)';
+    panes.get(ui.solo).el.style.gridArea = '1 / 1 / 2 / 2';
+    panes.get(ui.solo).t.setFontSize(13);
+    for (const b of document.querySelectorAll('.pane [data-tact=solo], .pane [data-pact=solo]')) b.setAttribute('aria-pressed', String(b.closest('.pane').dataset.pane === ui.solo));
+    return;
+  }
+  for (const b of document.querySelectorAll('.pane [data-tact=solo], .pane [data-pact=solo]')) b.setAttribute('aria-pressed', 'false');
   const ids = [...panes.keys()];
   const n = ids.length;
   grid.dataset.n = String(n);
@@ -1206,6 +1229,7 @@ function closePane(id) {
     previewItems.clear();
     activePreview = null;
   }
+  if (ui.solo === id) ui.solo = null;
   p.t.dispose();
   p.el.remove();
   panes.delete(id);
@@ -1315,13 +1339,22 @@ $('term-add').addEventListener('click', (e) => {
   else if ('addNew' in b.dataset) openDeploy();
   else if ('addShell' in b.dataset) openShell();
 });
+let headClick = null; // a pending single click on a title bar (see below)
 $('term-grid').addEventListener('click', async (e) => {
   const pane = e.target.closest('.pane');
   if (!pane) return;
   const id = pane.dataset.pane;
-  setActivePane(id);
   const b = e.target.closest('button');
-  if (!b) return;
+  // On a small pane, becoming active swaps it with the big one, moving it from under the pointer.
+  // A click on its title bar waits a moment (a double-click there means "this pane alone", and its
+  // second click must land on the same pane); a click on a button does its job first.
+  if (!b && e.target.closest('.term-head')) {
+    clearTimeout(headClick);
+    headClick = setTimeout(() => setActivePane(id), 250);
+    return;
+  }
+  if (!b) return setActivePane(id);
+  if (b.dataset.tact !== 'solo' && b.dataset.pact !== 'solo') setTimeout(() => panes.has(id) && setActivePane(id), 0);
   const x = e.target.closest('[data-pclose]');
   if (x) return closePreview(x.dataset.pclose);
   if (b.dataset.ptab) {
@@ -1331,7 +1364,8 @@ $('term-grid').addEventListener('click', async (e) => {
   }
   if (b.dataset.pact) {
     const pv = activePreview;
-    if (b.dataset.pact === 'reload') panes.get(PV_PANE)?.reload();
+    if (b.dataset.pact === 'solo') toggleSolo(PV_PANE);
+    else if (b.dataset.pact === 'reload') panes.get(PV_PANE)?.reload();
     else if (b.dataset.pact === 'external' && pv) post('/api/preview/external', { id: pv });
     else if (b.dataset.pact === 'pop' && pv) {
       window.open(`/term-preview#${encodeURIComponent(pv)}`, `fleet-preview-${pv.slice(3)}`, 'width=1100,height=760');
@@ -1353,9 +1387,38 @@ $('term-grid').addEventListener('click', async (e) => {
   } else if (b.dataset.tact === 'pop') return popOut(id);
   else if (b.dataset.tact === 'voice') return voiceInto(() => panes.get(id)?.t.focus());
   else if (b.dataset.tact === 'close') return closePane(id);
+  else if (b.dataset.tact === 'solo') return toggleSolo(id);
   else return;
   panes.get(id)?.t.focus();
 });
+
+// Double-clicking a pane's title bar: that pane alone (the same as ⛶).
+$('term-grid').addEventListener('dblclick', (e) => {
+  const head = e.target.closest('.term-head');
+  if (!head || e.target.closest('button')) return;
+  clearTimeout(headClick);
+  toggleSolo(head.closest('.pane').dataset.pane);
+});
+
+// A click inside a preview lands in its frame and never reaches this page: the page loses focus to
+// the frame instead. Seen that way, the preview pane becomes the active (big) one like a terminal.
+window.addEventListener('blur', () =>
+  setTimeout(() => {
+    const f = document.activeElement;
+    if (f?.tagName !== 'IFRAME') return;
+    const pane = f.closest('.pane');
+    if (!pane) return;
+    const id = pane.dataset.pane;
+    if (id === PV_PANE) {
+      const tab = [...(panes.get(PV_PANE)?.frames || [])].find(([, fr]) => fr === f)?.[0];
+      if (tab && tab !== activePreview) {
+        activePreview = tab;
+        renderPreviewTabs();
+      }
+    }
+    setActivePane(id);
+  }, 0),
+);
 
 async function resume(sessionId) {
   const r = await post('/api/resume', { sessionId });
@@ -1934,15 +1997,20 @@ function connect() {
         // nothing kept
       }
       const ids = (kept?.ids || []).filter((id) => !isPreview(id) && state.agents?.some((a) => a.id === id && a.alive));
-      const pvs = (kept?.previews || []).filter(isPreview);
+      const pvs = (kept?.previews || []).filter((p) => p && isPreview(p.id));
       if (ids.length || pvs.length) setTimeout(async () => {
         for (const id of ids) openTerm(id);
-        for (const id of pvs) {
-          const p = await fetch(`/api/preview?id=${encodeURIComponent(id)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-          if (p) openPreviewPane(p);
+        // a server that restarted (an update) no longer knows the ids: the pages are registered again
+        let showFirst = null;
+        for (const k of pvs) {
+          let p = await fetch(`/api/preview?id=${encodeURIComponent(k.id)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+          if (!p && k.target) p = await post('/api/preview/restore', { target: k.target }).catch(() => null);
+          if (!p?.url) continue;
+          openPreviewPane(p);
+          if (k.id === kept.activePreview) showFirst = p.id;
         }
-        if (kept.activePreview && previewItems.has(kept.activePreview)) {
-          activePreview = kept.activePreview;
+        if (showFirst) {
+          activePreview = showFirst;
           renderPreviewTabs();
         }
         if (kept.active && ids.includes(kept.active)) setActivePane(kept.active);

@@ -410,6 +410,16 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: e.message });
     }
   }
+  // a page reloaded after the server restarted (an update) brings its previews back
+  if (req.method === 'POST' && req.url === '/api/preview/restore') {
+    const { target } = await readBody(req);
+    try {
+      const r = openPreview(target, '');
+      return r.external ? send(res, 400, { error: 'not a local page' }) : send(res, 200, r);
+    } catch (e) {
+      return send(res, 404, { error: e.message });
+    }
+  }
   if (req.method === 'GET' && req.url.startsWith('/api/preview?')) {
     const p = getPreview(new URL(req.url, 'http://localhost').searchParams.get('id') || '');
     return p ? send(res, 200, p) : send(res, 404, { error: 'gone' });

@@ -602,3 +602,8 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .pv-tab i:hover { color: var(--red); }
 .pv-tab.on { border-color: var(--cyan); color: var(--text); background: rgba(61,245,255,.08); }
 .pane.preview .pv-host iframe[hidden] { display: none; }
+
+/* ⛶ / double-clicked title bar: one pane fills the split */
+.pane[hidden] { display: none !important; }
+.pane [data-tact=solo][aria-pressed="true"], .pane [data-pact=solo][aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
+.pane .term-head { user-select: none; }
