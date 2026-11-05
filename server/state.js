@@ -95,32 +95,13 @@ function buildUnits(sessions, gitByCwd) {
   });
 }
 
-function buildQuests(units, usage, now, forecast = {}) {
+function buildQuests(units, usage, now) {
   const th = config.thresholds;
   const q = [];
   for (const l of limitsOf(usage)) {
     const left = remaining(l);
     if (left !== null && left <= th.energyLowPct)
       q.push({ key: `energy:${l.key}`, kind: 'ALERT', lv: 'S', title: L(`额度（${l.label}）只剩 ${pct(left)}`, `Quota (${l.label}) down to ${pct(left)}`, `利用枠（${l.label}）残り ${pct(left)}`), goal: L(`放慢节奏，或等 ${new Date(l.resetsAt).toLocaleString('zh-CN', { hour12: false })} 回充`, `Slow down, or wait for the refill at ${new Date(l.resetsAt).toLocaleString('en-US', { hour12: false })}`, `ペースを落とすか、${new Date(l.resetsAt).toLocaleString('ja-JP', { hour12: false })} の回復を待ちましょう`), since: usage.fetchedAt });
-  }
-  // at the current pace a limit runs out before it resets (within the next 2 hours): slow down now
-  for (const l of limitsOf(usage)) {
-    const f = forecast[l.key];
-    const left = remaining(l);
-    if (!f?.runsOutAt || left === null || left <= th.energyLowPct || f.runsOutAt - now > 2 * 3_600_000) continue;
-    // with the date: a time alone reads as today
-    const at = (loc) => new Date(f.runsOutAt).toLocaleString(loc, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-    const reset = (loc) => new Date(l.resetsAt).toLocaleString(loc, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-    q.push({
-      key: `burn:${l.key}:${l.resetsAt}`,
-      kind: 'ALERT',
-      lv: 'A',
-      title: L(`按当前速度，额度（${l.label}）约 ${at('zh-CN')} 用完`, `At this pace the quota (${l.label}) runs out around ${at('en-US')}`, `このペースだと利用枠（${l.label}）は ${at('ja-JP')} ごろに尽きます`),
-      goal: f.basis === 'week'
-        ? L(`本周平均每天 +${Math.round(f.perHour * 24)}%，${reset('zh-CN')} 才重置；放慢节奏，先做最要紧的`, `+${Math.round(f.perHour * 24)}% a day this week, resets only at ${reset('en-US')}; slow down and do what matters first`, `今週は 1 日あたり +${Math.round(f.perHour * 24)}%、リセットは ${reset('ja-JP')}。ペースを落とし、重要なものから`)
-        : L(`最近 1 小时 +${f.perHour}%，${reset('zh-CN')} 才重置；放慢节奏，先做最要紧的`, `+${f.perHour}% in the last hour, resets only at ${reset('en-US')}; slow down and do what matters first`, `直近 1 時間で +${f.perHour}%、リセットは ${reset('ja-JP')}。ペースを落とし、重要なものから`),
-      since: now,
-    });
   }
   for (const u of units) {
     if (u.permission)
@@ -229,11 +210,11 @@ function operatorState(units, quests, now) {
     : { mood: 'ENGAGED', lines: [{ key: 'calm', kind: 'ENGAGED', text: L('一切正常，随时待命。', 'All quiet, standing by.', '異常なし、待機中。') }] };
 }
 
-export function buildState({ sessions, gitByCwd, usage, forecast = {} }) {
+export function buildState({ sessions, gitByCwd, usage }) {
   const now = Date.now();
   const units = buildUnits(sessions, gitByCwd);
   detectEvents(units, usage);
-  const quests = buildQuests(units, usage, now, forecast);
+  const quests = buildQuests(units, usage, now);
   const state = {
     now,
     usage,

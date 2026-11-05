@@ -99,11 +99,13 @@ function renderEnergy() {
         const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
         const weekly = l.key !== 'session';
         const stale = u.error ? `<span class="stale" title="${esc(errText)}${u.retryAt ? ' · ' + clock(u.retryAt) + L(' 重试') : ''}">${L('缓存 {0}', clock(u.fetchedAt))}</span>` : '';
-        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${l.active ? L('当前起作用的限额') : ''}">
+        // what's used and when it resets (with the date): nothing more
+        const resets = L('{0} 重置', when(l.resetsAt));
+        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${resets}`)}">
           <div class="row"><span class="label">${weekly ? 'RESERVE' : 'ENERGY'} · ${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row">${burnText(l)}<span>${L('重置 ')}<span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span> · ${clock(l.resetsAt, weekly)}</span></div>
+          <div class="row"><span class="resets">${esc(resets)}</span></div>
         </div>`;
       })
       .join('');
@@ -113,26 +115,12 @@ function renderEnergy() {
   $('pilot').title = a ? `${a.email || ''} · ${a.org || ''}` : '';
 }
 
-// When a forecast time is: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
+// A time with its day: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
 function when(ms) {
   const d = new Date(ms);
   const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
   const t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return days === 0 ? L('今天 {0}', t) : days === 1 ? L('明天 {0}', t) : `${d.getMonth() + 1}/${d.getDate()} ${t}`;
-}
-
-// Burn rate under a quota bar, for that window alone: the 5-hour one over the last hour (per hour),
-// a weekly one over the week so far (per day). Red with the date and time when it runs out first.
-function burnText(l) {
-  const f = state.forecast?.[l.key];
-  if (!f || f.perHour <= 0) return `<span>${L('已用')}</span>`;
-  const weekly = f.basis === 'week';
-  const pace = weekly ? L('+{0}%/天', Math.round(f.perHour * 24)) : `+${f.perHour}%/h`;
-  const basis = weekly ? L('按本周至今的平均速度：每天约 {0}%', Math.round(f.perHour * 24)) : L('按最近 1 小时的速度：每小时 {0}%', f.perHour);
-  const verdict = f.runsOutAt ? L('{0} 用完，早于重置（{1}）', when(f.runsOutAt), when(l.resetsAt)) : f.lasts ? L('重置前用不完') : '';
-  const tip = esc(`${l.label} · ${basis}${verdict ? ' · ' + verdict : ''}`);
-  if (f.runsOutAt) return `<span class="burn hot" title="${tip}">${L('{0} 用完', when(f.runsOutAt))}</span>`;
-  return `<span class="burn" title="${tip}">${pace}${f.lasts ? ' · ' + L('撑到重置') : ''}</span>`;
 }
 
 function tick() {
@@ -1869,7 +1857,7 @@ if (winBridge?.win) {
   const op = $('operator');
   const bar = $('op-split');
   const MIN = 340; // the left half: its tiles and the master's terminal still fit
-  const RIGHT_MIN = 480; // the right half keeps room for the cards / one terminal
+  const RIGHT_MIN = 760; // the right half keeps room for its tab row (tabs, search, three buttons: ~750px)
   const store = (k, v) => {
     try {
       if (v == null) localStorage.removeItem(k);

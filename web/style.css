@@ -93,8 +93,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .pilot .lang-wrap + .icon-btn { margin-left: 6px; }
 html[lang="en"] .tab .cn { display: none; }
 html[lang="ja"] .tab .cn { font-size: 12px; }
-.energy .burn { color: var(--muted); font-family: var(--display); font-size: 10px; letter-spacing: .5px; }
-.energy .burn.hot { color: var(--red); text-shadow: 0 0 8px rgba(255,77,109,.6); }
+.energy .resets { margin-left: auto; color: var(--soft); }
 .icon-btn { width: 44px; height: 44px; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); display: flex; align-items: center; justify-content: center; }
 
 /* Body */

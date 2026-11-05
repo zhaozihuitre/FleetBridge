@@ -36,18 +36,15 @@ function toast(text) {
 }
 
 function renderQuota() {
-  const f = state.forecast || {};
   $('quota').innerHTML = (state.usage?.limits || [])
     .map((l) => {
       const used = Math.max(0, Math.min(100, l.usedPct));
       const low = 100 - used <= state.thresholds.energyLowPct;
-      const fc = f[l.key];
       const c = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
       const on = Math.round(used / 5);
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
-      const v = fc?.runsOutAt
-        ? `<span class="v hot">${esc(L('{0} 用完', when(fc.runsOutAt)))}</span>`
-        : `<span class="v">${Math.round(used)}%${fc?.perHour > 0 ? `<small>${fc.basis === 'week' ? `+${Math.round(fc.perHour * 24)}/${L('天')}` : `+${fc.perHour}/h`}</small>` : ''}</span>`;
+      // what's used and when it resets (with the date)
+      const v = `<span class="v">${Math.round(used)}%<small>${esc(L('{0} 重置', when(l.resetsAt)))}</small></span>`;
       return `<div class="q" style="--c:${c}"><span class="k">${esc(l.label)}</span>${seg}${v}</div>`;
     })
     .join('');

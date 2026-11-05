@@ -12,7 +12,6 @@ import { searchSessions } from './search.js';
 import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
-import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
@@ -108,10 +107,8 @@ function publish() {
     }
   }
   const merged = withStatusline(usage, STATUSLINE_USAGE);
-  recordUsage(merged); // readings from the status line feed the burn forecast too
   const view = merged && { ...merged, limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
-  const fc = forecast(view?.limits);
-  const base = buildState({ sessions, gitByCwd, usage: view, forecast: fc });
+  const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
     ...base,
     // "owned": launched by the command center, so we can open its terminal (agentId) and type into it
@@ -128,7 +125,6 @@ function publish() {
     master: masterInfo(),
     today,
     orders: recentOrders(),
-    forecast: fc,
     lang: getLang(),
     theme: getTheme(),
   };
@@ -164,7 +160,6 @@ function publish() {
 
 async function refreshUsage(force = false) {
   usage = await collectUsage(force);
-  recordUsage(usage);
   publish();
 }
 
