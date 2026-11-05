@@ -99,13 +99,13 @@ function renderEnergy() {
         const color = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
         const weekly = l.key !== 'session';
         const stale = u.error ? `<span class="stale" title="${esc(errText)}${u.retryAt ? ' · ' + clock(u.retryAt) + L(' 重试') : ''}">${L('缓存 {0}', clock(u.fetchedAt))}</span>` : '';
-        // what's used and when it resets (with the date): nothing more
+        // what's used, how long until it resets (ticking) and when that is (with the date): no forecast
         const resets = L('{0} 重置', when(l.resetsAt));
-        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${resets}`)}">
+        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${L('还剩 {0}', dur(l.resetsAt - Date.now()))} · ${resets}`)}">
           <div class="row"><span class="label">${weekly ? 'RESERVE' : 'ENERGY'} · ${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span class="resets">${esc(resets)}</span></div>
+          <div class="row"><span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span><span class="resets">${esc(resets)}</span></div>
         </div>`;
       })
       .join('');

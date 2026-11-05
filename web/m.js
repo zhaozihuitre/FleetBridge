@@ -8,6 +8,14 @@ translateDom();
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const pad = (n) => String(n).padStart(2, '0');
+// time left until a reset, short: "02:50" or "3天"
+const left = (ms) => {
+  if (!(ms > 0)) return '--';
+  const m = Math.floor(ms / 60_000);
+  const d = Math.floor(m / 1440);
+  return d ? L('{0}天', d) : `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+};
+setInterval(() => document.querySelectorAll('[data-reset]').forEach((el) => (el.textContent = left(+el.dataset.reset - Date.now()))), 30_000);
 const hhmm = (ms) => {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -44,7 +52,7 @@ function renderQuota() {
       const on = Math.round(used / 5);
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
       // what's used and when it resets (with the date)
-      const v = `<span class="v">${Math.round(used)}%<small>${esc(L('{0} 重置', when(l.resetsAt)))}</small></span>`;
+      const v = `<span class="v">${Math.round(used)}%<small><span class="cd" data-reset="${l.resetsAt}">${left(l.resetsAt - Date.now())}</span> · ${esc(L('{0} 重置', when(l.resetsAt)))}</small></span>`;
       return `<div class="q" style="--c:${c}"><span class="k">${esc(l.label)}</span>${seg}${v}</div>`;
     })
     .join('');
