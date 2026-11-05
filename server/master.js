@@ -297,8 +297,33 @@ function doneNotice(x) {
   );
 }
 
-/** A turn the master gave out has ended; told with the next notice that can go out. */
+// Done notices already typed in (the last 50, in <data>/master-told.json): one turn is reported once,
+// even when it is seen ending twice (a restart around its end, as during an update).
+const TOLD_FILE = path.join(DATA_DIR, 'master-told.json');
+let told = (() => {
+  try {
+    const a = JSON.parse(fs.readFileSync(TOLD_FILE, 'utf8'));
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+})(); // { agentId, text, since, at }
+const flat = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+// the same agent, the same order, a turn that began at (about) the same time
+const sameTurn = (a, b) => a.agentId === b.agentId && flat(a.text) === flat(b.text) && Math.abs((a.since || 0) - (b.since || 0)) < 30_000;
+
+function rememberTold(done) {
+  told = [...told, ...done.map((x) => ({ agentId: x.agentId, text: x.text, since: x.since || 0, at: Date.now() }))].slice(-50);
+  try {
+    fs.writeFileSync(TOLD_FILE, JSON.stringify(told));
+  } catch {
+    // kept in memory only
+  }
+}
+
+/** A turn the master gave out has ended; told with the next notice that can go out (once). */
 export function masterTurnDone(x) {
+  if (told.some((y) => sameTurn(y, x)) || finished.some((y) => sameTurn(y, x))) return;
   finished.push({ ...x, at: Date.now() });
   if (finished.length > 20) finished.shift();
   saveFinished();
@@ -331,5 +356,6 @@ export function notifyMaster(asks) {
     return;
   }
   saveFinished();
+  rememberTold(done);
   for (const x of fresh) notified.set(x.agentId, askKey(x.prompt));
 }

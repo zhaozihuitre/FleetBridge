@@ -146,7 +146,7 @@ function publish() {
     if (r?.messaged) continue; // it already answered the master itself (SendMessage)
     const u = owned.find((x) => x.agentId === t.agentId);
     const { text: reply, cut } = clip(r?.reply || u?.lastText || '');
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, reply, cut });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut });
   }
   notifyMaster(asks);
   // phone push: whatever needs you, whether or not anyone is looking at a screen
