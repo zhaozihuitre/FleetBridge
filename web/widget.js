@@ -105,7 +105,7 @@ function renderUnits() {
     const ctx = u.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
     return `<button class="row" style="--c:${look.c}" data-agent="${esc(u.agentId || '')}" data-pid="${u.pid}" title="${esc(u.cwd)}\n${u.owned ? L('点击打开它的终端') : L('点击切到它的终端窗口')}">
       <span class="dot ${look.blink ? 'blink' : ''}"></span>
-      <span class="mid"><span class="p">${esc(u.project)}${u.owned ? `<i>${L('我方')}</i>` : ''}</span><span class="s">${esc(look.s)}</span></span>
+      <span class="mid"><span class="p">${esc(u.name || u.project)}${u.name && u.project && u.name.toLowerCase() !== u.project.toLowerCase() ? `<small>${esc(u.project)}</small>` : ''}${u.owned ? `<i>${L('我方')}</i>` : ''}</span><span class="s">${esc(look.s)}</span></span>
       <span class="r"><span class="ctx" style="--kc:${look.hot ? 'var(--red)' : 'var(--text)'}">${ctx}</span><span>${since(Date.now() - u.statusSince)}</span></span>
     </button>`;
   });

@@ -253,19 +253,22 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .term-grid[data-n="3"], .term-grid[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
 .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--line); background: #050a12; }
 .pane.active { border-color: var(--cyan); box-shadow: 0 0 10px rgba(61,245,255,.2); }
-/* A pane's title bar always stays one line: the name truncates, the path hides once panes get narrow */
+/* A pane's title bar always stays one line. The name comes first and gives way last: the path, the
+   context bar, the project and the state shrink (with …) before it does; only a pane narrower than
+   the name itself cuts the name. */
 .pane .term-head { padding: 4px 6px 4px 10px; gap: 8px; flex-wrap: nowrap; }
 .pane .term-who { flex: 1; min-width: 0; gap: 8px; overflow: hidden; white-space: nowrap; }
-.pane .term-who b { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.pane .term-who .t-state { flex: none; font-size: 11px; }
+.pane .term-who b { font-size: 13px; flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pane .term-who .t-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.pane .term-who .t-cwd { flex: 0 1000 auto; min-width: 0; }
+.pane .term-who .t-ctx { flex: 0 100 auto; min-width: 0; overflow: hidden; }
 .pane .term-actions { flex: none; }
 .term-grid:not([data-n="1"]) .term-cwd { display: none; }
-.pane .t-proj { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-family: var(--body); font-size: 12px; color: var(--amber); }
+.pane .t-proj { flex: 0 10 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; font-family: var(--body); font-size: 12px; color: var(--amber); }
 .pane .t-proj:empty { display: none; }
 /* the narrow side panes keep only what identifies them (name, project, state) and the close button */
 .term-grid.dynamic .pane:not(.active) .t-ctx,
 .term-grid.dynamic .pane:not(.active) .term-actions button:not([data-tact=close]) { display: none; }
-.term-grid.dynamic .pane:not(.active) .t-name { flex: 0 1 auto; }
 .t-state.busy { color: var(--cyan); } .t-state.permit { color: var(--red); animation: pulse 1s ease-in-out infinite; }
 .t-ctx { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .ctx-badge { position: relative; width: 48px; height: 6px; background: var(--off); overflow: hidden; }

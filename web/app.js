@@ -515,7 +515,7 @@ function unitCard(u) {
   return `
   <article class="unit ${cls}" data-unit="${esc(u.key)}">
     <div class="top"><span>◆ ${label}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
-    <div><h3 title="${esc(u.cwd)}">${esc(u.project)}</h3><div class="call">${L('呼号')} ${esc(u.name)} · ${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
+    <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
     <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
