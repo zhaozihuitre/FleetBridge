@@ -241,7 +241,7 @@ export const masterWanted = () => Boolean(load().on);
 // the master as a message, so it hears about them without polling. Once per question: what was
 // sent is remembered per agent and forgotten when the question goes away (answered).
 const notified = new Map(); // agentId -> key of the question last sent
-const TYPING_PAUSE = 20_000;
+const TYPING_PAUSE = 8_000; // after the last real keystroke (inputEmpty() guards text still in the input)
 
 const askKey = (p) => `${p.kind}|${p.text}|${p.options.map((o) => o.label).join('|')}`;
 
@@ -256,8 +256,28 @@ function notice(x) {
   );
 }
 
-// Turns the master gave out that have ended (server/turns.js): waiting here until they can be typed in.
-const finished = []; // { agentId, name, text, ms, reply, cut, at }
+// Turns the master gave out that have ended (server/turns.js): waiting here until they can be typed in
+// (kept in <data>/master-finished.json as well, so an update in between doesn't lose them).
+const FINISHED_FILE = path.join(DATA_DIR, 'master-finished.json');
+const finished = (() => {
+  try {
+    const a = JSON.parse(fs.readFileSync(FINISHED_FILE, 'utf8'));
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+})(); // { agentId, name, text, ms, reply, cut, at }
+let finishedSaved = JSON.stringify(finished);
+function saveFinished() {
+  const s = JSON.stringify(finished);
+  if (s === finishedSaved) return;
+  finishedSaved = s;
+  try {
+    fs.writeFileSync(FINISHED_FILE, s);
+  } catch {
+    // kept in memory only
+  }
+}
 
 const mins = (ms) => {
   const s = Math.max(1, Math.round(ms / 1000));
@@ -281,6 +301,7 @@ function doneNotice(x) {
 export function masterTurnDone(x) {
   finished.push({ ...x, at: Date.now() });
   if (finished.length > 20) finished.shift();
+  saveFinished();
 }
 
 /**
@@ -292,6 +313,7 @@ export function notifyMaster(asks) {
   for (const id of notified.keys()) if (!waiting.has(id)) notified.delete(id); // answered: a new question is new again
   // ended turns wait for the master at most an hour
   while (finished.length && Date.now() - finished[0].at > 3_600_000) finished.shift();
+  saveFinished();
   const m = masterAgent();
   if (!m?.alive) return; // nothing sent: they go out once the master is up
   const fresh = asks.filter((x) => notified.get(x.agentId) !== askKey(x.prompt));
@@ -308,5 +330,6 @@ export function notifyMaster(asks) {
     finished.unshift(...done);
     return;
   }
+  saveFinished();
   for (const x of fresh) notified.set(x.agentId, askKey(x.prompt));
 }

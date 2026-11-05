@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { historyFiles } from './collectors/history.js';
+import { DATA_DIR } from './config.js';
 
 // Turns the master gave out: an order typed into one of our agents by the master (fleet_send, a
 // queued order it sent later, the first order of fleet_spawn). When that turn is over (the agent is
@@ -10,7 +11,30 @@ import { historyFiles } from './collectors/history.js';
 // input box, the phone) are only remembered as "who gave the last order".
 
 const REPLY_MAX = 1500; // characters of the answer in a notice: its start and its end
-const turns = new Map(); // agent id -> { text, at, started }
+// kept in <data>/turns.json too: an update restarts the server, and the turns under way must still
+// be told when they end (they used to be forgotten, and their notices with them)
+const FILE = path.join(DATA_DIR, 'turns.json');
+const turns = new Map(load()); // agent id -> { text, at, started }
+let saved = JSON.stringify(Object.fromEntries(turns));
+
+function load() {
+  try {
+    return Object.entries(JSON.parse(fs.readFileSync(FILE, 'utf8')) || {});
+  } catch {
+    return [];
+  }
+}
+
+function save() {
+  const s = JSON.stringify(Object.fromEntries(turns));
+  if (s === saved) return;
+  saved = s;
+  try {
+    fs.writeFileSync(FILE, s);
+  } catch {
+    // kept in memory only
+  }
+}
 
 /** Who gave an agent its last order: 'master', 'cc' (input box), 'phone', 'terminal' (typed into it). */
 export function noteOrder(agent, by, text, now = Date.now()) {
@@ -18,6 +42,7 @@ export function noteOrder(agent, by, text, now = Date.now()) {
   agent.orderBy = by;
   if (by === 'master') turns.set(agent.id, { text: String(text || ''), at: now, started: false });
   else turns.delete(agent.id); // someone else took over this agent: its next result isn't the master's
+  save();
 }
 
 export const masterTurn = (id) => turns.get(id) || null;
@@ -46,6 +71,7 @@ export function endedTurns(units, waiting, now = Date.now()) {
   // agents that are gone don't finish
   const live = new Set(units.map((u) => u.agentId));
   for (const id of turns.keys()) if (!live.has(id) && now - turns.get(id).at > 600_000) turns.delete(id);
+  save();
   return done;
 }
 

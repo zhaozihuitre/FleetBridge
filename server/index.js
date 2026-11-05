@@ -558,7 +558,12 @@ server.on('upgrade', (req, socket, head) => {
       }
       if (msg.type === 'input' && typeof msg.data === 'string') {
         writeRaw(agent, msg.data);
-        agent.typedAt = Date.now(); // someone is typing here: the master's notices wait for a pause
+        // someone is typing here: the master's notices wait for a pause. Only real keys count: with
+        // Claude Code's mouse tracking (every move) and focus reports on, a pointer resting over the
+        // master's pane used to hold its notices back for minutes. Enter sends what was typed: the
+        // input is empty again, so notices may follow right away.
+        const keys = msg.data.replace(/\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO]/g, '');
+        if (keys) agent.typedAt = /\r/.test(keys) ? 0 : Date.now();
         // Enter on an idle agent with nothing to answer: an order typed straight into its terminal
         // (an Enter that answers a dialog or a question doesn't change who gave the turn)
         const u = msg.data.includes('\r') && state?.units.find((x) => x.agentId === agent.id);
@@ -571,7 +576,11 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 onAgentsChange(() => publish());
-onPromptSent((agent, prompt) => noteOrder(agent, agent.firstOrderBy || 'cc', prompt));
+onPromptSent((agent, prompt) => {
+  noteOrder(agent, agent.firstOrderBy || 'cc', prompt);
+  // a new or resumed agent's first order belongs in the orders log as much as one sent later
+  recordOrder({ kind: 'sent', ...orderTarget(agent), text: prompt, via: agent.firstOrderBy || 'cc' });
+});
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
 /** The app quits: the terminals end with it (continue an agent from the archive later if wanted). */
