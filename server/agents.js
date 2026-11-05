@@ -132,10 +132,32 @@ const SESSION_VARS = [
 ];
 
 function agentEnv() {
-  const env = { ...process.env, FORCE_COLOR: '1' };
+  const env = termEnv();
   for (const k of Object.keys(env)) if (SESSION_VARS.includes(k.toUpperCase())) delete env[k];
   return env;
 }
+
+/**
+ * The environment of every terminal we start. The server runs as Electron-in-node-mode: that switch
+ * must not reach the terminals (an agent starting an Electron app would get a bare node instead), nor
+ * the shell's own variables. TERM is set as a terminal would: started from the Start menu the app has
+ * none, and Claude Code then drew its prompt in ASCII (">" instead of "❯").
+ */
+function termEnv() {
+  const env = { ...process.env, FORCE_COLOR: '1' };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.FLEET_SHELL_API;
+  // the installed app's terminals don't need it (it's the default) and must not pass it on: a dev
+  // run started from one of them would take the installed app's data folder and terminals
+  if (!DEV) delete env.MONITOR_DATA_DIR;
+  env.TERM ||= 'xterm-256color';
+  return env;
+}
+
+// Claude Code's input line: its prompt mark (❯, or > when it draws ASCII) right under the input box's
+// rule. A numbered menu option ("> 1. Yes") is not it.
+const PROMPT = /^[❯>](?!\s*\d\.)/;
+const PROMPT_MARK = /^[❯>]\s*/;
 const agents = new Map(); // sessionId -> agent
 let onChange = () => {};
 
@@ -311,7 +333,7 @@ export function spawnShell({ cwd }) {
   const id = crypto.randomUUID();
   const name = /pwsh/i.test(exe) ? 'PowerShell 7' : /powershell/i.test(exe) ? 'PowerShell' : path.basename(exe);
   const startedAt = Date.now();
-  const term = host.spawn(id, exe, args, { cwd, env: { ...process.env, FORCE_COLOR: '1' }, meta: { kind: 'shell', sessionId: null, name, cwd, startedAt } });
+  const term = host.spawn(id, exe, args, { cwd, env: termEnv(), meta: { kind: 'shell', sessionId: null, name, cwd, startedAt } });
   const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
   const agent = { id, sessionId: null, kind: 'shell', pid: null, name, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   wire(agent);
@@ -344,7 +366,7 @@ function whenQuiet(agent, fn, quietMs = 1200, maxMs = 60_000) {
 /** Claude Code's input line (the ❯ line right under a rule), as text; null while it isn't drawn. */
 function inputLine(agent) {
   const lines = screenLines(agent);
-  for (let i = lines.length - 1; i > 0; i--) if (/^❯/.test(lines[i]) && /^[─━]{5,}/.test(lines[i - 1])) return lines[i].replace(/^❯\s*/, '').trim();
+  for (let i = lines.length - 1; i > 0; i--) if (PROMPT.test(lines[i]) && /^[─━]{5,}/.test(lines[i - 1])) return lines[i].replace(PROMPT_MARK, '').trim();
   return null;
 }
 
@@ -402,8 +424,8 @@ export function sendText(agent, text) {
 function orderInInput(agent, head) {
   const lines = screenLines(agent);
   for (let i = lines.length - 1; i > 0; i--) {
-    if (!/^❯/.test(lines[i]) || !/^[─━]{5,}/.test(lines[i - 1])) continue;
-    const input = lines[i].replace(/^❯\s*/, '').replace(/\s+/g, ' ').trim();
+    if (!PROMPT.test(lines[i]) || !/^[─━]{5,}/.test(lines[i - 1])) continue;
+    const input = lines[i].replace(PROMPT_MARK, '').replace(/\s+/g, ' ').trim();
     return Boolean(input) && (input.startsWith(head) || /^\[Pasted text/i.test(input));
   }
   return false;
@@ -511,7 +533,7 @@ export function inputEmpty(agent) {
   for (let y = b.viewportY + rows - 1; y > b.viewportY; y--) {
     const line = b.getLine(y);
     const text = line?.translateToString(true) || '';
-    if (!/^❯/.test(text)) continue;
+    if (!PROMPT.test(text)) continue;
     const above = b.getLine(y - 1)?.translateToString(true) || '';
     if (!/^[─━]{5,}/.test(above)) continue; // the prompt box opens with a rule; menus don't
     for (let x = 1; x < line.length; x++) {

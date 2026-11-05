@@ -12,7 +12,18 @@ export const DEV_PREFIX = 'dev·';
 
 // Writable state lives outside the app folder (an installed app's files are read-only).
 // server/hook.js writes here too (it follows MONITOR_DATA_DIR, which our agents inherit).
-export const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(os.homedir(), DEV ? '.claude-ops-dev' : '.claude-ops');
+const PROD_DIR = path.join(os.homedir(), '.claude-ops');
+const sameDir = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+// A dev run never uses the installed app's folder, even when told to (an agent of the installed app
+// passes its MONITOR_DATA_DIR on to whatever it starts, a dev run included).
+export const DATA_DIR = (() => {
+  const given = process.env.MONITOR_DATA_DIR;
+  if (DEV && given && sameDir(given, PROD_DIR)) {
+    console.warn(`dev run: not using the installed app's data folder ${given}; using ~/.claude-ops-dev`);
+    return path.join(os.homedir(), '.claude-ops-dev');
+  }
+  return given || (DEV ? path.join(os.homedir(), '.claude-ops-dev') : PROD_DIR);
+})();
 
 const defaults = {
   port: Number(process.env.MONITOR_PORT) || (DEV ? 8790 : 8787),

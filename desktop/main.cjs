@@ -20,7 +20,10 @@ const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
 // as server/config.js: a dev run has its own data folder
 const DEV = process.env.FLEET_DEV === '1' || Boolean(process.env.MONITOR_DEMO);
-const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(os.homedir(), DEV ? '.claude-ops-dev' : '.claude-ops');
+const PROD_DIR = path.join(os.homedir(), '.claude-ops');
+const givenDir = process.env.MONITOR_DATA_DIR;
+// (never the installed app's folder for a dev run, even if inherited from one of its agents)
+const DATA_DIR = DEV && givenDir && path.resolve(givenDir).toLowerCase() === path.resolve(PROD_DIR).toLowerCase() ? path.join(os.homedir(), '.claude-ops-dev') : givenDir || (DEV ? path.join(os.homedir(), '.claude-ops-dev') : PROD_DIR);
 process.env.MONITOR_DATA_DIR = DATA_DIR; // the server child, its PTY host and their agents use the same
 // The installed app always runs from an app folder; a dev run from the checkout, unless FLEET_APPDIR=1
 // (to try the update mechanism there).

@@ -2709,6 +2709,29 @@
       "updated": "2026-11-05 09:26",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-024",
+      "type": "issue",
+      "title": "正式版首条指令不发出；agent 继承 Electron 节点模式和正式版数据目录（0.9.15 修复）",
+      "summary": "fleet_spawn / resume 带的首条 prompt 在正式版都没发出：正式版的终端没有 TERM，Claude Code 改用 ASCII 提示符 >，舰桥只认 ❯；另外 agent 继承了 ELECTRON_RUN_AS_NODE 和正式版的 MONITOR_DATA_DIR",
+      "detail": "原因：从开始菜单启动的舰桥没有 TERM，Claude Code 判断不支持 Unicode，输入行提示符用 >；开发时从 bash 启动带 TERM=xterm-256color，用 ❯。等待首条指令的 inputLine、补发回车的 orderInInput、主控通知用的 inputEmpty 都只认 ❯，于是一直认为输入框没出现。修复：终端环境设置 TERM=xterm-256color；三处检测同时认 ❯ 和 >（排除 > 1. 编号菜单）。同时发现服务端以 Electron 节点模式运行，ELECTRON_RUN_AS_NODE、FLEET_SHELL_API 被所有终端继承（agent 里启动 Electron 程序会变成 node）；正式版的 MONITOR_DATA_DIR 也被继承，导致在正式 agent 里启动的开发实例接管了正式版的数据目录和终端宿主（测试时发生，已强制停止开发外壳、清理误开的测试终端，正式终端未受影响）。修复：终端环境去掉 ELECTRON_RUN_AS_NODE / FLEET_SHELL_API，正式版不传 MONITOR_DATA_DIR；开发模式下即使指定了 ~/.claude-ops 也改用 ~/.claude-ops-dev（config.js、main.cjs）。0.9.13 恢复情况：安装后首次启动阵容恢复确实执行（宿主日志 00:14:45 启动 6 个 agent + 主控），终端是在 00:35 安装 0.9.14 整包时随宿主（同名 Fleet Bridge.exe）一起被结束的。实测（模拟正式环境：无 TERM、继承正式 MONITOR_DATA_DIR）：开发实例保持隔离；空文件夹 spawn+首条指令（信任后）回复 REPRO-OK，只提交一次；resume+首条指令回复 RESUMED-OK；终端环境变量干净。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/config.js",
+        "desktop/main.cjs"
+      ],
+      "tags": [
+        "spawn",
+        "isolation"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 13:36",
+      "updated": "2026-11-05 13:36",
+      "notes": [],
+      "count": 1
     }
   ]
 }
