@@ -7,6 +7,12 @@ import { DATA_DIR } from './config.js';
 const FILE = path.join(DATA_DIR, 'roster.json');
 let last = null;
 let frozen = false; // set while quitting: agents exiting then must not empty the saved roster
+// Nothing is saved until the start-up restore has run: a refresh before it (taking terminals back
+// from the PTY host triggers one) would otherwise overwrite the roster with the few agents running so far.
+let restored = false;
+export function rosterRestored() {
+  restored = true;
+}
 
 // An agent whose process exits stays in the roster for a grace period unless the user ended it:
 // an update or a hard kill takes the agents down first and the app a moment later, and saving the
@@ -15,7 +21,7 @@ let frozen = false; // set while quitting: agents exiting then must not empty th
 const GRACE = 15_000;
 
 export function saveRoster(agents, now = Date.now()) {
-  if (frozen || process.env.MONITOR_DEMO) return;
+  if (frozen || !restored || process.env.MONITOR_DEMO) return;
   const seen = new Set();
   const keep = (a) => a.alive || (!a.endedByUser && a.exitedAt && now - a.exitedAt < GRACE);
   const live = agents.filter((a) => keep(a) && !seen.has(a.sessionId) && seen.add(a.sessionId)); // one entry per session

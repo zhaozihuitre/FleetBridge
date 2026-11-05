@@ -15,6 +15,7 @@ import { buildOffline, offlineSessions } from './offline.js';
 import { forecast, recordUsage } from './forecast.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
+import { hostInfo } from './ptyclient.js';
 import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
 import { pushInfo, pushQuests, setPush, testPush } from './push.js';
 import { screenHtml } from './screenhtml.js';
@@ -23,10 +24,10 @@ import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
-import { freezeRoster, loadRoster, planRestore, saveRoster } from './roster.js';
+import { freezeRoster, loadRoster, planRestore, rosterRestored, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
-import { isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -381,6 +382,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 400, { error: e.message });
     }
   }
+  // For the desktop shell and the update tool (no Origin: not from a page): what runs, and swapping
+  // this server for a newly installed version or back to the previous one.
+  if (req.url === '/api/admin/summary' && req.method === 'GET') {
+    const live = liveAgents();
+    return send(res, 200, { version: appVersion, started: startedUp, root: ROOT, pid: process.pid, hostPid: hostInfo?.pid || null, live: live.map((a) => a.name || a.cwd), liveIds: live.map((a) => a.id), busy: fleetBusy(), shellApi: Number(process.env.FLEET_SHELL_API) || 0 });
+  }
+  if (req.method === 'POST' && (req.url === '/api/admin/reload' || req.url === '/api/admin/rollback')) {
+    if (req.headers.origin) return send(res, 403, { error: 'forbidden' });
+    if (!process.send) return send(res, 400, { error: 'not running under the desktop app' });
+    process.send({ type: req.url.endsWith('rollback') ? 'rollback' : 'reload' });
+    return send(res, 200, { ok: true });
+  }
   // the master drives the command center page: switch tabs, open terminals... (fleet_ui)
   if (req.method === 'POST' && req.url === '/api/ui') return send(res, 200, await uiCommand(await readBody(req)));
   if (req.method === 'POST' && req.url === '/api/ui/done') {
@@ -522,17 +535,28 @@ server.on('upgrade', (req, socket, head) => {
 onAgentsChange(() => publish());
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
-export function shutdown() {
+/** The app quits: the terminals end with it (the roster, kept as it was, brings the agents back). */
+export async function shutdown() {
   stopMobile();
   freezeRoster(); // keep the roster as it was, so the next start restores these agents
-  killAll();
+  await killAll();
+}
+
+/** This server makes way for another (an update): the terminals stay, in the PTY host. */
+export async function detach() {
+  stopMobile();
+  freezeRoster();
+  for (const t of timers) clearInterval(t);
+  await new Promise((r) => server.close(() => r()));
 }
 
 // Bring back the agents the last run left behind (a quit, an update, or a crash).
-async function restoreRoster() {
-  const roster = loadRoster();
+async function restoreRoster(saved) {
+  // the ones still running in the PTY host (taken back at start) need nothing
+  const roster = saved.filter((r) => !listAgents().some((a) => a.alive && (a.id === r.sessionId || a.sessionId === r.sessionId)));
   if (!roster.length || !agentSupport().ok) return;
   const { resume, skipped, killed } = planRestore(roster, collectSessions());
+  console.log(`roster: ${saved.length} saved, ${saved.length - roster.length} still running in the PTY host`);
   if (killed.length) await new Promise((r) => setTimeout(r, 1500)); // let the orphans release their sessions
   for (const r of resume) {
     try {
@@ -553,9 +577,20 @@ export function fleetBusy() {
 export function liveAgents() {
   return listAgents().filter((a) => a.alive);
 }
-process.on('exit', killAll);
+// (no killAll on exit: the terminals live in the PTY host and outlive this process on purpose)
 
 export const url = `http://127.0.0.1:${config.port}`;
+const timers = [];
+let startedUp = false; // start() went all the way (the update tool waits for this)
+
+// This server's version: the app folder it runs from (an update installs a new one, see desktop/appdir.cjs).
+export const appVersion = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).fleetBuild || JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  } catch {
+    return null;
+  }
+})();
 
 // Rejects with EADDRINUSE when another instance already serves the port.
 export async function start() {
@@ -563,7 +598,17 @@ export async function start() {
     server.once('error', reject);
     server.listen(config.port, '127.0.0.1', resolve);
   });
-  await restoreRoster();
+  // the roster as the last run left it, read before anything can save over it
+  const saved = loadRoster();
+  // terminals still running in the PTY host (this server replaced another): taken back as they are
+  const kept = await attachHost();
+  if (kept) console.log(`pty host: took back ${kept} running terminal(s)`);
+  adoptMaster();
+  try {
+    await restoreRoster(saved);
+  } finally {
+    rosterRestored(); // from now on the roster follows the agents
+  }
   if (masterWanted() && agentSupport().ok) {
     try {
       startMaster(url);
@@ -572,13 +617,12 @@ export async function start() {
     }
   }
   await Promise.all([refreshUsage(), refreshGit()]);
-  setInterval(publish, config.intervals.sessions);
-  setInterval(() => refreshUsage(), config.intervals.usage);
-  setInterval(refreshGit, config.intervals.git);
+  timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
   await startMobile({ clients, getState: () => state, action: (b) => agentAction({ ...b, via: 'phone' }), screen: (id) => {
     const a = getAgent(id);
     return { html: screenHtml(a?.screen), menu: a ? menuOptions(a) : [] };
   } });
+  startedUp = true;
   console.log(`FLEET//BRIDGE  ${url}`);
   return server;
 }

@@ -1,9 +1,12 @@
-// Electron shell: runs the monitor server in-process, shows the always-on-top status widget
-// and opens the main screen (command center) on demand.
+// Electron shell: runs the monitor server as a child process from the current app folder (an update
+// replaces that folder's version and restarts only the server; the terminals live in the PTY host and
+// keep running), shows the always-on-top status widget and opens the command center on demand.
 const { app, BrowserWindow, ipcMain, Menu, Notification, screen, shell, Tray } = require('electron');
+const { fork } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const appdir = require('./appdir.cjs');
 const { warmVoice, startVoice, stopVoice } = require('./voice.cjs');
 const { startAwake, setAwake, nextMode, awakeInfo, stopAwake } = require('./awake.cjs');
 
@@ -15,7 +18,13 @@ if (!app.isPackaged && !process.env.FLEET_DEV) process.env.FLEET_DEV = '1';
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
-const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(require('node:os').homedir(), '.claude-ops');
+// as server/config.js: a dev run has its own data folder
+const DEV = process.env.FLEET_DEV === '1' || Boolean(process.env.MONITOR_DEMO);
+const DATA_DIR = process.env.MONITOR_DATA_DIR || path.join(os.homedir(), DEV ? '.claude-ops-dev' : '.claude-ops');
+process.env.MONITOR_DATA_DIR = DATA_DIR; // the server child, its PTY host and their agents use the same
+// The installed app always runs from an app folder; a dev run from the checkout, unless FLEET_APPDIR=1
+// (to try the update mechanism there).
+const USE_APPDIR = app.isPackaged || process.env.FLEET_APPDIR === '1';
 
 // The Notification hook in ~/.claude/settings.json runs ~/.claude-ops/hook.js with plain Node,
 // so keep a copy there that doesn't depend on where (or whether) this app is installed.
@@ -31,7 +40,9 @@ function installHookScript() {
 }
 
 let baseUrl = 'http://127.0.0.1:8787';
-let serverModule = null;
+let serverChild = null;
+let summary = { live: [], busy: false }; // the server's last /api/admin/summary (keep-awake, quit)
+let quitting = false;
 let widget = null;
 let mainWin = null;
 let muted = false;
@@ -51,17 +62,115 @@ function savePrefs(patch) {
   fs.writeFileSync(prefsFile(), JSON.stringify({ ...loadPrefs(), ...patch }));
 }
 
+const SHELL_DIR = path.join(__dirname, '..');
+const apps = USE_APPDIR ? appdir.create(DATA_DIR, SHELL_DIR) : null;
+let restarts = []; // times of unexpected server exits (a crash loop falls back to the previous version)
+
+/** Starts the server child from a folder; resolves with its URL once it is ready. */
+function spawnServer(dir) {
+  return new Promise((resolve, reject) => {
+    const child = fork(path.join(dir, 'server', 'run.mjs'), [], {
+      cwd: dir,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', FLEET_SHELL_API: String(appdir.SHELL_API) },
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      windowsHide: true,
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('the server did not start in 20 s'));
+    }, 20_000);
+    child.on('message', (m) => {
+      if (m?.type === 'ready') {
+        clearTimeout(timer);
+        resolve({ child, url: m.url, version: m.version });
+      } else if (m?.type === 'failed') {
+        clearTimeout(timer);
+        reject(new Error(m.error));
+      } else if (m?.type === 'openMain') openMain();
+      else if (m?.type === 'reload') reloadServer('update');
+      else if (m?.type === 'rollback') reloadServer('rollback');
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`the server exited (${code})`));
+      if (serverChild === child) onServerLost(code);
+    });
+  });
+}
+
+/** The current version's server, falling back to the previous version if it won't start. */
 async function startServer() {
-  const server = await import(pathToFileURL(path.join(__dirname, '..', 'server', 'index.js')).href);
-  baseUrl = server.url;
-  // the master's UI commands open the command center if needed (set before start: the master
-  // is restored during start and may send one right away)
-  server.setUiOpener?.(() => openMain());
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const cur = apps ? apps.resolve(app.getVersion()) : { version: 'checkout', dir: SHELL_DIR };
+    try {
+      const s = await spawnServer(cur.dir);
+      serverChild = s.child;
+      baseUrl = s.url;
+      console.log(`server ${s.version || cur.version} from ${cur.dir}`);
+      return s;
+    } catch (e) {
+      console.error(`server ${cur.version} failed: ${e.message}`);
+      if (/EADDRINUSE/.test(e.message)) return null; // a standalone `npm start` already serves: use it
+      if (!apps?.rollback(e.message)) throw e;
+    }
+  }
+  throw new Error('no version of the server would start');
+}
+
+// The running server crashed: start it again (the terminals are still in the PTY host); crashing
+// again and again right after an update means that version is bad: back to the previous one.
+async function onServerLost(code) {
+  serverChild = null;
+  if (quitting) return;
+  const now = Date.now();
+  restarts = [...restarts.filter((t) => now - t < 120_000), now];
+  if (restarts.length >= 3 && apps?.rollback(`crashed ${restarts.length} times (${code})`)) restarts = [];
   try {
-    await server.start();
-    serverModule = server;
+    await startServer();
+    reloadWindows();
   } catch (e) {
-    if (e.code !== 'EADDRINUSE') throw e; // a standalone `npm start` is already serving: just use it
+    console.error('server could not be restarted', e.message);
+  }
+}
+
+/** Swaps the server for the version current.json now names (an update) or the previous (rollback). */
+// Requests arriving while a swap is under way wait for it (one at a time, none dropped).
+let swaps = Promise.resolve();
+function reloadServer(kind) {
+  if (!apps) return;
+  swaps = swaps.then(() => swapServer(kind)).catch((e) => console.error('swap failed', e.message));
+}
+async function swapServer(kind) {
+  {
+    if (kind === 'rollback') apps.rollback('rolled back by request');
+    const old = serverChild;
+    serverChild = null; // its exit is expected now
+    if (old) {
+      await new Promise((resolve) => {
+        const t = setTimeout(() => (old.kill(), resolve()), 5000);
+        old.once('exit', () => (clearTimeout(t), resolve()));
+        old.send({ type: 'detach' });
+      });
+    }
+    await startServer(); // falls back to the previous version by itself if the new one won't start
+    reloadWindows();
+  }
+}
+
+/** The pages come from the server: after a swap they reload (the command center reopens its panes). */
+function reloadWindows() {
+  for (const w of BrowserWindow.getAllWindows()) {
+    const url = w.webContents.getURL();
+    if (url.startsWith('http://127.0.0.1')) w.webContents.reloadIgnoringCache();
+  }
+}
+
+// What the shell asks of the server now and then (keep-awake, quit confirmation).
+async function refreshSummary() {
+  try {
+    summary = await (await fetch(`${baseUrl}/api/admin/summary`)).json();
+  } catch {
+    // the server is restarting
   }
 }
 
@@ -170,10 +279,11 @@ function runInMain(js) {
 
 // Agents launched from the command center are our child processes and end with the app
 // (the roster is kept and restored on the next start). Confirm in the themed dialog of the page.
-function confirmQuit() {
-  const live = serverModule?.liveAgents() || [];
+async function confirmQuit() {
+  await refreshSummary();
+  const live = summary.live || [];
   if (!live.length) return app.quit();
-  runInMain(`window.opsConfirmQuit && window.opsConfirmQuit(${JSON.stringify(live.map((a) => a.name || a.cwd))})`);
+  runInMain(`window.opsConfirmQuit && window.opsConfirmQuit(${JSON.stringify(live)})`);
 }
 
 // What the widget's own (themed) menu shows.
@@ -288,16 +398,28 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     installHookScript();
     await startServer();
+    refreshSummary();
+    setInterval(refreshSummary, 10_000);
     widgetTucked = Boolean(loadPrefs().tucked);
     createWidget();
     createTray();
     const p = loadPrefs();
-    startAwake({ mode: p.awakeMode, screen: p.awakeScreen, busy: () => serverModule?.fleetBusy(), changed: sendSettings });
+    startAwake({ mode: p.awakeMode, screen: p.awakeScreen, busy: () => summary.busy, changed: sendSettings });
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
-  app.on('before-quit', () => {
+  // Quitting ends the terminals too (the server tells the PTY host); the roster brings the agents
+  // back next start. Waits for that (a few seconds at most) before the app goes.
+  app.on('before-quit', (e) => {
+    if (quitting) return;
+    quitting = true;
     stopVoice();
     stopAwake();
-    serverModule?.shutdown();
-  }); // agents are our child processes
+    const child = serverChild;
+    if (!child) return;
+    e.preventDefault();
+    const done = () => app.quit();
+    const t = setTimeout(done, 5000);
+    child.once('exit', () => (clearTimeout(t), done()));
+    child.send({ type: 'shutdown' });
+  });
 }

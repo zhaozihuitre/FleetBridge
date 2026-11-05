@@ -1038,6 +1038,12 @@ try {
 }
 
 function layoutPanes() {
+  // the open panes survive a reload of the page (an update of the app reloads it)
+  try {
+    sessionStorage.setItem('fb-panes', JSON.stringify({ ids: [...panes.keys()], active: ui.term }));
+  } catch {
+    // not kept
+  }
   const grid = $('term-grid');
   const ids = [...panes.keys()];
   const n = ids.length;
@@ -1802,6 +1808,19 @@ function connect() {
     followTheme(state.theme);
     // deep link: /#term=<id>[,<id>...] opens those agents' terminals (split view)
     const deep = first && location.hash.match(/^#term=([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/);
+    if (first && !deep) {
+      let kept = null;
+      try {
+        kept = JSON.parse(sessionStorage.getItem('fb-panes') || 'null');
+      } catch {
+        // nothing kept
+      }
+      const ids = (kept?.ids || []).filter((id) => state.agents?.some((a) => a.id === id && a.alive));
+      if (ids.length) setTimeout(() => {
+        ids.forEach((id) => openTerm(id));
+        if (kept.active && ids.includes(kept.active)) setActivePane(kept.active);
+      }, 0);
+    }
     if (deep) {
       const ids = deep[1].split(',').filter((id) => state.agents?.some((a) => a.id === id));
       setTimeout(() => ids.forEach((id) => openTerm(id)), 0);

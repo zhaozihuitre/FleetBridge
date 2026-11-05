@@ -2650,6 +2650,40 @@
       "updated": "2026-11-05 08:46",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "M-019",
+      "type": "milestone",
+      "title": "不用安装程序升级 + 终端常驻（0.9.13）",
+      "summary": "外壳与应用分离：server/ 和 web/ 从 <数据目录>/app/<版本>/ 加载，npm run update 就地升级，失败自动退回上一版；终端由独立的 PTY 宿主进程托管，服务端重启、窗口刷新、外壳崩溃都不断",
+      "detail": "PTY 宿主（server/ptyhost.cjs + ptypipe.cjs）：Electron 二进制以 node 模式独立运行，按数据目录区分命名管道，持有所有终端并保留最近 512KB 输出；服务端经 server/ptyclient.js 连接（没有就启动它），重启后 attachHost() 取回终端、重建屏幕，主控重新认领（adoptMaster）；正常退出时 killall 并退出宿主。服务端改为外壳的子进程（server/run.mjs，fork），外壳（desktop/main.cjs）从 desktop/appdir.cjs 选定的版本目录启动它：首次或外壳更新时把外壳自带的 server/web 装成一个版本；版本目录的 node_modules 是指向外壳的目录联接（因此打包改为 asar:false）。tools/update.mjs 安装新版本、切换 current.json、POST /api/admin/reload；外壳分离旧服务端（detach，终端保留）、启动新版、20 秒未就绪或连续崩溃则 rollback 到 previous；窗口刷新后指挥中心按 sessionStorage 重开分屏。另修：启动时接回终端触发的刷新会在恢复前把阵容写空——阵容在恢复完成前不保存、启动时先读入；首条指令要等 Claude Code 输入框画出后再发（慢启动时曾在信任框出现前就发出）；外壳的数据目录也遵循开发隔离。实测（开发实例，FLEET_APPDIR=1）：就地升级前后 Claude agent 与 PowerShell 进程号不变、屏幕保留、升级后可继续交互、分屏自动重开；坏版本启动失败自动退回；手动回滚；服务端子进程被杀后自动拉起；外壳被强杀后终端存活、重启直接接回同一进程；正常退出时终端和宿主结束、重启按阵容恢复。",
+      "status": "done",
+      "files": [
+        "server/ptyhost.cjs",
+        "server/ptypipe.cjs",
+        "server/ptyclient.js",
+        "server/run.mjs",
+        "server/agents.js",
+        "server/index.js",
+        "server/master.js",
+        "server/roster.js",
+        "desktop/main.cjs",
+        "desktop/appdir.cjs",
+        "tools/update.mjs",
+        "web/app.js",
+        "package.json",
+        "README.md"
+      ],
+      "tags": [
+        "update",
+        "pty",
+        "architecture"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 09:11",
+      "updated": "2026-11-05 09:11",
+      "notes": []
     }
   ]
 }

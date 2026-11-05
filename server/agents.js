@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DATA_DIR, DEV, DEV_PREFIX } from './config.js';
 import { L } from './i18n.js';
+import * as host from './ptyclient.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -16,13 +17,9 @@ const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened term
 const { Terminal: Headless } = require('@xterm/headless');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-let pty = null;
-let ptyError = null;
-try {
-  pty = require('@lydell/node-pty');
-} catch (e) {
-  ptyError = e.message;
-}
+// The terminals live in the PTY host (server/ptyhost.cjs), a process of their own that outlives this
+// server: an update or a crash of the server doesn't end them, and the next server takes them back.
+let hostError = null;
 
 function findClaude() {
   try {
@@ -147,8 +144,80 @@ export function onAgentsChange(fn) {
 }
 
 export function agentSupport() {
-  return { ok: Boolean(pty && CLAUDE), error: !pty ? L(`终端组件加载失败：${ptyError}`, `Terminal component failed to load: ${ptyError}`, `ターミナルコンポーネントの読み込みに失敗：${ptyError}`) : !CLAUDE ? L('找不到 claude 命令', 'claude command not found', 'claude コマンドが見つかりません') : null };
+  return { ok: Boolean(!hostError && CLAUDE), error: hostError ? L(`终端组件加载失败：${hostError}`, `Terminal component failed to load: ${hostError}`, `ターミナルコンポーネントの読み込みに失敗：${hostError}`) : !CLAUDE ? L('找不到 claude 命令', 'claude command not found', 'claude コマンドが見つかりません') : null };
 }
+
+const exitNote = (agent, exitCode) =>
+  agent.kind === 'shell'
+    ? `\r\n\x1b[33m${L(`[终端已退出，代码 ${exitCode}]`, `[Shell exited with code ${exitCode}]`, `[ターミナルがコード ${exitCode} で終了しました]`)}\x1b[0m\r\n`
+    : `\r\n\x1b[33m${L(`[进程已退出，代码 ${exitCode}。会话记录还在，可以从存档继续]`, `[Process exited with code ${exitCode}. The session is kept; continue it from the archive]`, `[プロセスがコード ${exitCode} で終了しました。セッション記録は残っているので、アーカイブから続行できます]`)}\x1b[0m\r\n`;
+
+/** Output and exit of a terminal in the host, into the agent's screen, buffer and open panels. */
+function wire(agent) {
+  agent.term.onData((d) => {
+    agent.screen.write(d);
+    agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
+    agent.lastOutputAt = Date.now();
+    for (const ws of agent.clients) ws.send(d);
+  });
+  agent.term.onExit(({ exitCode }) => {
+    if (!agent.alive) return;
+    agent.alive = false;
+    agent.exitCode = exitCode;
+    agent.exitedAt = Date.now(); // the roster keeps it a moment: the whole app may be going down (an update)
+    const note = exitNote(agent, exitCode);
+    agent.buffer += note;
+    for (const ws of agent.clients) ws.send(note);
+    onChange();
+  });
+  agent.term.started?.catch((e) => {
+    agent.term.onExit(() => {}); // no exit event will come for a terminal that never started
+    agent.alive = false;
+    agent.exitCode = -1;
+    const note = `\r\n\x1b[31m${L(`[启动失败：${e.message}]`, `[Failed to start: ${e.message}]`, `[起動に失敗：${e.message}]`)}\x1b[0m\r\n`;
+    agent.buffer += note;
+    for (const ws of agent.clients) ws.send(note);
+    onChange();
+  });
+}
+
+/**
+ * At startup: connect to the PTY host (starting it if needed) and take back the terminals it still
+ * runs from before this server started (an update or a crash of the server), with their screens.
+ */
+export async function attachHost() {
+  try {
+    const list = await host.list();
+    hostError = null;
+    for (const t of list) {
+      if (agents.has(t.id)) continue;
+      const m = t.meta || {};
+      const cols = m.cols || 120;
+      const rows = m.rows || 32;
+      const screen = new Headless({ cols, rows, scrollback: 0, allowProposedApi: true });
+      screen.write(t.buf || '');
+      const agent = { id: t.id, sessionId: m.sessionId ?? null, kind: m.kind === 'claude' ? undefined : m.kind, pid: m.pid || null, name: m.name || null, cwd: m.cwd, alive: t.alive, exitCode: t.exitCode, startedAt: m.startedAt || Date.now(), term: host.handle(t.id), screen, buffer: t.buf || '', clients: new Set(), lastOutputAt: Date.now(), reattached: true };
+      agents.set(t.id, agent);
+      if (t.alive) wire(agent);
+    }
+    onChange();
+    return list.filter((t) => t.alive).length;
+  } catch (e) {
+    hostError = e.message;
+    return 0;
+  }
+}
+
+// the host gone (killed, or it crashed): its terminals went with it
+host.onHostLost(() => {
+  for (const a of agents.values()) {
+    if (!a.alive) continue;
+    a.alive = false;
+    a.exitCode = -1;
+    a.exitedAt = Date.now();
+  }
+  onChange();
+});
 
 export function listAgents() {
   return [...agents.values()].map(({ id, sessionId, kind, name, cwd, alive, exitCode, startedAt, pid, orderBy, exitedAt, endedByUser }) => ({ id, sessionId, kind: kind || 'claude', name, cwd, alive, exitCode, startedAt, pid, orderBy: orderBy || null, exitedAt: exitedAt || null, endedByUser: Boolean(endedByUser) }));
@@ -172,6 +241,12 @@ export function bindAgents(sessions) {
     }
     const now = a.pid && sessions.find((x) => x.pid === a.pid);
     if (now) a.sessionId = now.sessionId; // follow /clear and forks
+    // the host keeps this with the terminal: a server started later knows whose session it is
+    if (a.pid !== a.metaPid || a.sessionId !== a.metaSession) {
+      a.metaPid = a.pid;
+      a.metaSession = a.sessionId;
+      host.setMeta(a.id, { pid: a.pid, sessionId: a.sessionId });
+    }
   }
 }
 
@@ -202,24 +277,11 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   if (settings) args.push('--settings', settings);
   args.push(...extraArgs);
 
-  const term = pty.spawn(CLAUDE, args, { name: 'xterm-256color', cols: 120, rows: 32, cwd, env: agentEnv() });
+  const startedAt = Date.now();
+  const term = host.spawn(sessionId, CLAUDE, args, { cwd, env: agentEnv(), meta: { kind: kind || 'claude', sessionId, name: name || null, cwd, startedAt } });
   const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
-  const agent = { id: sessionId, sessionId, kind, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
-  term.onData((d) => {
-    screen.write(d);
-    agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
-    agent.lastOutputAt = Date.now();
-    for (const ws of agent.clients) ws.send(d);
-  });
-  term.onExit(({ exitCode }) => {
-    agent.alive = false;
-    agent.exitCode = exitCode;
-    agent.exitedAt = Date.now(); // the roster keeps it a moment: the whole app may be going down (an update)
-    const note = `\r\n\x1b[33m${L(`[进程已退出，代码 ${exitCode}。会话记录还在，可以从存档继续]`, `[Process exited with code ${exitCode}. The session is kept; continue it from the archive]`, `[プロセスがコード ${exitCode} で終了しました。セッション記録は残っているので、アーカイブから続行できます]`)}\x1b[0m\r\n`;
-    agent.buffer += note;
-    for (const ws of agent.clients) ws.send(note);
-    onChange();
-  });
+  const agent = { id: sessionId, sessionId, kind, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
+  wire(agent);
   agents.set(sessionId, agent);
   if (prompt) whenQuiet(agent, () => sendText(agent, prompt));
   onChange();
@@ -242,28 +304,17 @@ function findShell() {
 }
 
 export function spawnShell({ cwd }) {
-  if (!pty) throw new Error(agentSupport().error);
+  if (hostError) throw new Error(agentSupport().error);
   if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error(L('文件夹不存在', 'Folder does not exist', 'フォルダが存在しません'));
   const exe = findShell();
   const args = /powershell|pwsh/i.test(exe) ? ['-NoLogo'] : [];
-  const term = pty.spawn(exe, args, { name: 'xterm-256color', cols: 120, rows: 32, cwd, env: { ...process.env, FORCE_COLOR: '1' } });
   const id = crypto.randomUUID();
+  const name = /pwsh/i.test(exe) ? 'PowerShell 7' : /powershell/i.test(exe) ? 'PowerShell' : path.basename(exe);
+  const startedAt = Date.now();
+  const term = host.spawn(id, exe, args, { cwd, env: { ...process.env, FORCE_COLOR: '1' }, meta: { kind: 'shell', sessionId: null, name, cwd, startedAt } });
   const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
-  const agent = { id, sessionId: null, kind: 'shell', pid: null, name: /pwsh/i.test(exe) ? 'PowerShell 7' : /powershell/i.test(exe) ? 'PowerShell' : path.basename(exe), cwd, alive: true, exitCode: null, startedAt: Date.now(), term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
-  term.onData((d) => {
-    screen.write(d);
-    agent.buffer = (agent.buffer + d).slice(-BUFFER_MAX);
-    agent.lastOutputAt = Date.now();
-    for (const ws of agent.clients) ws.send(d);
-  });
-  term.onExit(({ exitCode }) => {
-    agent.alive = false;
-    agent.exitCode = exitCode;
-    const note = `\r\n\x1b[33m${L(`[终端已退出，代码 ${exitCode}]`, `[Shell exited with code ${exitCode}]`, `[ターミナルがコード ${exitCode} で終了しました]`)}\x1b[0m\r\n`;
-    agent.buffer += note;
-    for (const ws of agent.clients) ws.send(note);
-    onChange();
-  });
+  const agent = { id, sessionId: null, kind: 'shell', pid: null, name, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
+  wire(agent);
   agents.set(id, agent);
   onChange();
   return agent;
@@ -273,18 +324,28 @@ export function spawnShell({ cwd }) {
 // The first order of a new agent goes in once its screen settles, but never while a dialog is up:
 // typing it, and its Enter, into the folder-trust dialog picked the default "No, exit" and the agent
 // quit. With a dialog on screen it waits (a person, or the master, answers it), then goes in.
-function whenQuiet(agent, fn, quietMs = 1200, maxMs = 15_000) {
+// It also waits for Claude Code's input box to be drawn: a slow start used to look "quiet" before
+// anything (dialog or input) was on screen, and the order went in too early and was lost.
+function whenQuiet(agent, fn, quietMs = 1200, maxMs = 60_000) {
   let t0 = Date.now();
   const check = () => {
     if (!agent.alive) return;
     if (dialogShowing(agent)) {
-      t0 = Date.now(); // the wait for quiet starts over once it's answered
+      t0 = Date.now(); // the wait starts over once it's answered
       return setTimeout(check, 500);
     }
-    if (Date.now() - agent.lastOutputAt >= quietMs || Date.now() - t0 > maxMs) fn();
+    const ready = inputLine(agent) !== null && Date.now() - agent.lastOutputAt >= quietMs;
+    if (ready || Date.now() - t0 > maxMs) fn();
     else setTimeout(check, 250);
   };
   setTimeout(check, 1500);
+}
+
+/** Claude Code's input line (the ❯ line right under a rule), as text; null while it isn't drawn. */
+function inputLine(agent) {
+  const lines = screenLines(agent);
+  for (let i = lines.length - 1; i > 0; i--) if (/^❯/.test(lines[i]) && /^[─━]{5,}/.test(lines[i - 1])) return lines[i].replace(/^❯\s*/, '').trim();
+  return null;
 }
 
 /**
@@ -517,10 +578,12 @@ export function removeAgent(id) {
   if (!a || a.alive) return false;
   for (const ws of a.clients) ws.close();
   agents.delete(id);
+  host.forget(id);
   onChange();
   return true;
 }
 
-export function killAll() {
-  for (const a of agents.values()) killAgent(a);
+/** The app quits: every terminal ends with it, and the PTY host too (the roster brings agents back). */
+export async function killAll() {
+  await host.killAll();
 }

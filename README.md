@@ -14,6 +14,25 @@ npm run demo         # 假数据演示，端口 8788
 npm run dist         # 打包 Windows 安装程序到 dist/
 ```
 
+## 升级：不用安装程序
+
+安装好的舰桥分成两层：
+
+- **外壳**（安装程序装的）：Electron、窗口代码（`desktop/`）、`node_modules`（含原生终端模块）。
+- **应用**（可以就地更新）：`server/` 和 `web/`，从 `<数据目录>\app\<版本>\` 加载，`current.json` 记录当前版本和上一版。
+
+终端由独立的常驻进程（PTY 宿主，`server/ptyhost.cjs`）托管。服务端重启、窗口刷新、甚至外壳崩溃，终端都继续运行，重启后服务端会把它们接回来，屏幕和会话都还在。只有正常退出舰桥时，终端才会跟着结束（下次启动按阵容恢复）。
+
+```bash
+npm run update -- --prod        # 把当前代码装进正式版并切换（终端不断，窗口刷新）
+npm run update -- --prod --rollback   # 退回上一版
+npm run update                  # 同上，但针对开发实例（~/.claude-ops-dev，端口 8790）
+```
+
+新版本 20 秒内没有正常启动、或启动后反复崩溃，会自动退回上一版，并记进 `current.json` 的 `failed`。
+
+以下情况仍需用安装程序整包安装：改了 `desktop/`（外壳、预加载脚本、托盘、小窗窗口）、改了依赖（`package.json` 的 dependencies / `node_modules`）、升级 Electron、改了 PTY 宿主的通信协议（`server/ptypipe.cjs` 的 `PROTOCOL`），或者服务端需要更高的外壳接口版本（`package.json` 的 `fleetShellApi`）。整包安装后，如果外壳自带的版本比当前应用目录里的新，会自动改用外壳自带的版本。
+
 ## 开发与测试：不要污染正式环境
 
 开发版和安装好的正式版跑在同一台电脑、同一个 Windows 桌面、同一个 `~/.claude` 上，测试时必须隔离：

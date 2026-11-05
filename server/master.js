@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DATA_DIR, ROOT } from './config.js';
-import { getAgent, inputEmpty, killAgent, sendText, spawnAgent } from './agents.js';
+import { getAgent, inputEmpty, killAgent, listAgents, sendText, spawnAgent } from './agents.js';
 import { L } from './i18n.js';
 
 // The master console: a Claude Code session in the command center's left column that commands the
@@ -144,6 +144,15 @@ let savedSession = null;
 export function masterAgent() {
   const a = masterId && getAgent(masterId);
   return a || null;
+}
+
+/** After a server restart: the master still running in the PTY host is ours again. */
+export function adoptMaster() {
+  const a = listAgents().find((x) => x.kind === 'master' && x.alive);
+  if (a) {
+    masterId = a.id;
+    savedSession = a.sessionId;
+  }
 }
 
 export function masterInfo() {
