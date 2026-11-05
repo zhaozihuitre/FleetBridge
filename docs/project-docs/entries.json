@@ -2898,6 +2898,27 @@
       "created": "2026-11-05 15:53",
       "updated": "2026-11-05 15:53",
       "notes": []
+    },
+    {
+      "id": "C-054",
+      "type": "change",
+      "title": "指挥中心左右可拖动调宽、左侧可收起（Ctrl+Shift+B）（0.9.23）",
+      "summary": "分隔条拖动调整总指令台宽度（340–960px），双击恢复默认；‹ 按钮或 Ctrl+Shift+B 收起；宽度本机保存；拖动时终端节流 refit，松手后最终 refit",
+      "detail": "用户要求：指挥中心左右两部分可以拖动调整宽度（左侧总指令台调窄，右侧终端区就更大）；左侧可以一键收起；宽度在本机保存；拖动时终端实时 refit、PTY 列数同步，节流，松手后做最终 refit；手机端不受影响。\n\n实现：\n- 左右之间加一条分隔条（16px，就是原来的间距；中间一条细线，悬停或拖动时发光）。拖动改宽度，限制在 340px 到 min(960px, 窗口宽 − 右侧至少 480px)。双击恢复默认宽度（原来的 clamp(480px, 34vw, 720px)）。\n- 收起：分隔条中间的 ‹ 按钮，或 Ctrl+Shift+B（在终端里也有效，在 xterm 之前拦截；不用 Ctrl+B，因为它在 Claude Code 里是转入后台）。收起后只留分隔条一条细边，按钮变成 ›；双击或再按一次展开。\n- 键盘：焦点在分隔条上时，← → 每次 24px（Shift 96px），Home 恢复默认，Enter 或空格收起/展开。\n- 宽度和收起状态存在 localStorage（fb-op-w、fb-op-collapsed），重启后保持；窗口变小时按新的上限收窄。\n- 终端 refit：terminal.js 的 ResizeObserver 原来只在尺寸稳定 120ms 后 refit；拖动时（body.live-resize）改为最多每 150ms refit 一次，松手后稳定的那次是最终 refit。xterm 的 onResize 会把新列数发给 PTY。\n- 拖动可靠性：拖动在 pointerup、pointercancel、lostpointercapture 或没有按键的移动时都会结束，松手事件丢失也不会卡在拖动状态；拖动时预览 iframe 不吃指针事件。\n- 手机页（m.html）是独立页面，不受影响。\n\n测试（开发实例）：真实鼠标拖动（CDP）时 PTY 列数 151 → 109 → 151，最小、最大限制，双击默认 522px，Ctrl+Shift+B 收起后 PTY 198 列，再按一次展开；收起状态刷新后保持。页面内的指针事件测试：+300、最大 960、最小 340、丢失 capture 和无按键移动都能结束拖动、双击恢复、收起时拖动被忽略、收起时双击展开、键盘 → / Shift+→ / Home。2.1 秒的拖动中 PTY resize 约每 150–200ms 一次（120 → 86 列），松手后一次最终 resize（84 列）。\n\n测试中注意到：开发窗口被遮挡或最小化时，Chromium 会节流计时器、暂停动画帧，CDP 合成的鼠标事件会卡住。这是测试环境的问题，真实拖动不受影响。\n",
+      "status": "done",
+      "files": [
+        "web/index.html",
+        "web/style.css",
+        "web/app.js",
+        "web/terminal.js",
+        "web/i18n.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 16:09",
+      "updated": "2026-11-05 16:09",
+      "notes": []
     }
   ]
 }

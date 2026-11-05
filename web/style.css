@@ -98,9 +98,21 @@ html[lang="ja"] .tab .cn { font-size: 12px; }
 .icon-btn { width: 44px; height: 44px; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); display: flex; align-items: center; justify-content: center; }
 
 /* Body */
-.main { flex: 1; min-height: 0; display: flex; gap: 16px; }
+.main { flex: 1; min-height: 0; display: flex; gap: 0; }
 /* the master console sits on the left; units / terminals to its right */
-.main .operator { order: 0; width: clamp(480px, 34vw, 720px); } /* the same with the master and with the input box */
+.main .operator { order: 0; width: var(--op-w, clamp(480px, 34vw, 720px)); } /* the same with the master and with the input box; --op-w: dragged */
+/* the bar between the two halves (it is the gap): drag for the width, double-click for the default */
+.op-split { order: 0; flex: none; width: 16px; position: relative; cursor: col-resize; touch-action: none; outline: none; }
+.op-split::before { content: ''; position: absolute; top: 10%; bottom: 10%; left: 7px; width: 2px; background: var(--line); transition: background .15s, box-shadow .15s; }
+.op-split:hover::before, .op-split:focus-visible::before, .op-split.dragging::before { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.op-toggle { position: absolute; top: 50%; left: 1px; transform: translateY(-50%); width: 14px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--panel-deep); border: 1px solid var(--line); color: var(--muted); font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.op-split:hover .op-toggle, .op-split:focus-within .op-toggle, .main.op-collapsed .op-toggle { opacity: 1; }
+.op-toggle:hover { color: var(--cyan); border-color: var(--cyan); }
+.main.op-collapsed .operator { display: none; }
+.main.op-collapsed .op-split { cursor: default; }
+.main.op-collapsed .op-split::before { top: 0; bottom: 0; }
+body.op-dragging, body.op-dragging * { cursor: col-resize !important; user-select: none !important; }
+body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer would swallow the drag */
 
 /* Left column: overview numbers, latest activity, operator dialog (top to bottom) */
 .operator { position: relative; width: 420px; flex: none; display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 12px; background: var(--panel-deep); border: 1px solid var(--line); overflow: hidden; clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px); }

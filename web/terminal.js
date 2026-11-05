@@ -70,10 +70,17 @@ export function createTerminal(host, id, opts = {}) {
   term.onResize(sendResize);
 
   // Panes animate when the split view resizes them: refit once they settle, not on every frame,
-  // or claude would redraw its whole screen dozens of times per transition.
+  // or claude would redraw its whole screen dozens of times per transition. While the user drags
+  // something (body.live-resize: the bar between the command center's halves) it follows along, at
+  // most every 150 ms, and the settled refit after letting go is the final one.
   let settle = null;
+  let lastFit = 0;
   const ro = new ResizeObserver(() => {
     clearTimeout(settle);
+    if (document.body.classList.contains('live-resize') && Date.now() - lastFit > 150) {
+      lastFit = Date.now();
+      refit();
+    }
     settle = setTimeout(refit, 120);
   });
   ro.observe(box);

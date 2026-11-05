@@ -1862,6 +1862,110 @@ if (winBridge?.win) {
   });
 }
 
+/* ---------- the command center's two halves: drag the bar between them, or fold the left one away ---------- */
+
+{
+  const main = document.querySelector('.main');
+  const op = $('operator');
+  const bar = $('op-split');
+  const MIN = 340; // the left half: its tiles and the master's terminal still fit
+  const RIGHT_MIN = 480; // the right half keeps room for the cards / one terminal
+  const store = (k, v) => {
+    try {
+      if (v == null) localStorage.removeItem(k);
+      else localStorage.setItem(k, String(v));
+    } catch {
+      // not kept
+    }
+  };
+  const load = (k) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  };
+  const max = () => Math.max(MIN, Math.min(960, main.clientWidth - RIGHT_MIN - bar.offsetWidth));
+  const clamp = (w) => Math.round(Math.max(MIN, Math.min(max(), w)));
+  const setWidth = (w, save = true) => {
+    if (w == null) main.style.removeProperty('--op-w');
+    else main.style.setProperty('--op-w', `${clamp(w)}px`);
+    bar.setAttribute('aria-valuenow', String(Math.round(op.offsetWidth)));
+    if (save) store('fb-op-w', w == null ? null : clamp(w));
+  };
+  const setCollapsed = (on) => {
+    main.classList.toggle('op-collapsed', on);
+    const t = $('op-toggle');
+    t.textContent = on ? '›' : '‹';
+    t.title = on ? L('展开总指令台（Ctrl+Shift+B）') : L('收起总指令台（Ctrl+Shift+B）');
+    t.setAttribute('aria-label', on ? L('展开总指令台') : L('收起总指令台'));
+    t.setAttribute('aria-expanded', String(!on));
+    store('fb-op-collapsed', on ? '1' : null);
+  };
+  bar.setAttribute('aria-valuemin', String(MIN));
+  const saved = Number(load('fb-op-w'));
+  if (saved) setWidth(saved, false);
+  if (load('fb-op-collapsed') === '1') setCollapsed(true);
+  // a smaller window: keep the saved width within what fits now
+  window.addEventListener('resize', () => main.style.getPropertyValue('--op-w') && setWidth(parseFloat(main.style.getPropertyValue('--op-w')), false));
+
+  // drag: the terminals refit as it goes (throttled in terminal.js) and once more after letting go
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.op-toggle') || main.classList.contains('op-collapsed')) return;
+    e.preventDefault();
+    try {
+      bar.setPointerCapture(e.pointerId); // moves keep coming when the pointer leaves the bar
+    } catch {
+      // a pointer that can't be captured: the drag still follows the moves over the bar
+    }
+    const x0 = e.clientX;
+    const w0 = op.offsetWidth;
+    bar.classList.add('dragging');
+    document.body.classList.add('op-dragging', 'live-resize');
+    let done = false;
+    // ends however the drag ends: let go, cancelled, the capture lost (window lost focus), or a move
+    // with no button down (a release that never arrived)
+    const up = () => {
+      if (done) return;
+      done = true;
+      bar.removeEventListener('pointermove', move);
+      for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) bar.removeEventListener(t, up);
+      bar.classList.remove('dragging');
+      document.body.classList.remove('op-dragging', 'live-resize');
+      setWidth(op.offsetWidth);
+    };
+    const move = (ev) => (ev.buttons & 1 ? setWidth(w0 + ev.clientX - x0, false) : up());
+    bar.addEventListener('pointermove', move);
+    for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) bar.addEventListener(t, up);
+  });
+  bar.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.op-toggle')) return;
+    if (main.classList.contains('op-collapsed')) return setCollapsed(false);
+    setWidth(null);
+  });
+  // keyboard on the focused bar: left / right by 24px (Shift: 96px), Home: the default, Enter: fold
+  bar.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 96 : 24;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') setWidth(op.offsetWidth + (e.key === 'ArrowLeft' ? -step : step));
+    else if (e.key === 'Home') setWidth(null);
+    else if (e.key === 'Enter' || e.key === ' ') setCollapsed(!main.classList.contains('op-collapsed'));
+    else return;
+    e.preventDefault();
+  });
+  $('op-toggle').addEventListener('click', () => setCollapsed(!main.classList.contains('op-collapsed')));
+  // Ctrl+Shift+B from anywhere, a terminal included (caught before xterm sees it)
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyB')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setCollapsed(!main.classList.contains('op-collapsed'));
+    },
+    true,
+  );
+}
+
 // The desktop shell calls this directly when the window is already open.
 window.opsOpenTerm = (id) => {
   if (state?.agents?.some((a) => a.id === id)) openTerm(id);
