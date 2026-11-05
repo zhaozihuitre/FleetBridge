@@ -2782,6 +2782,31 @@
       "updated": "2026-11-05 15:05",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-026",
+      "type": "issue",
+      "title": "预览互相挤掉、第一次打开不显示、fleet-open 报告不准（0.9.18 修复）",
+      "summary": "预览改为一个带标签页的面板，数量不限；分屏满时收起最早的终端面板而不是静默丢预览；首个指令在页面就绪前不再丢弃；fleet-open 等页面确认后才报已打开",
+      "detail": "原因：预览和终端共用分屏 4 格，满了时新面板替换当前面板，前面的预览被静默挤掉；指挥中心在收到首份状态前收到的界面指令被直接丢弃（窗口刚打开时的第一次 fleet-open）；服务端登记预览后就回复成功，没有等页面确认。修复：所有预览合进一个标签页面板（只占一格，标签可单独关闭/弹出，切换不重载），分屏满时收起最早的终端（继续运行）并提示；打开终端时也不再替换预览面板；首份状态前的界面指令排队稍后执行；/api/preview 等待页面确认，没显示则 409 并给出原因，fleet-open / fleet_open 报告真实结果与标签数；刷新页面后按 sessionStorage 恢复全部预览标签；fleet_ui 视图列出预览。主控缺少 fleet_open：主控启动时复制的 fleet-mcp.cjs 与授权列表来自升级前，重启主控后即有（开发实例验证：复制的脚本含 fleet_open、--allowedTools 含 mcp__fleet__fleet_open）。实测：指挥中心关闭时连开 5 个预览全部成为标签、第一个也显示；刷新后 5 个都恢复；预览面板+4 个终端时预览不丢；4 个终端占满时打开预览，最早的终端被收起。",
+      "status": "resolved",
+      "files": [
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js",
+        "server/index.js",
+        "server/preview.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [
+        "preview"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 15:14",
+      "updated": "2026-11-05 15:14",
+      "notes": [],
+      "count": 1
     }
   ]
 }

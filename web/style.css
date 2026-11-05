@@ -592,3 +592,13 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 /* previews in the split view (fleet-open): the page fills the pane */
 .pane.preview .pv-host { padding: 0; background: #fff; }
 .pane.preview .pv-host iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+
+/* the preview pane: its pages as tabs */
+.pane.preview .term-head { gap: 6px; }
+.pv-tabs { flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
+.pv-tab { flex: none; max-width: 220px; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 10px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-family: var(--body); font-size: 12px; }
+.pv-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-tab i { font-style: normal; padding: 0 4px; color: var(--muted); }
+.pv-tab i:hover { color: var(--red); }
+.pv-tab.on { border-color: var(--cyan); color: var(--text); background: rgba(61,245,255,.08); }
+.pane.preview .pv-host iframe[hidden] { display: none; }

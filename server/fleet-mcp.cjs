@@ -179,6 +179,7 @@ const TOOLS = [
             `tab: ${v.tab}${v.showing !== v.tab ? ` (showing ${v.showing})` : ''} · page ${v.page}/${v.pages}${v.archiveFolder ? ` · folder ${v.archiveFolder}` : ''}${v.search ? ` · search "${v.search}"` : ''}`,
             v.onPage?.length ? `on this page: ${v.onPage.join(', ')}` : null,
             `terminals open: ${v.terminals?.length ? v.terminals.map((t) => `${t.name}${t.active ? ' (active)' : ''}`).join(', ') : 'none'} · split ${v.split}`,
+            v.previews?.length ? `previews (tabs of the preview pane): ${v.previews.map((p) => `${p.title}${p.active ? ' (shown)' : ''}`).join(', ')}` : null,
             `left column: ${v.operator}${v.fullscreen ? ' · fullscreen' : ''}`,
           ]
             .filter(Boolean)
@@ -193,7 +194,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { target: { type: 'string' }, cwd: { type: 'string' } }, required: ['target'] },
     async run({ target, cwd }) {
       const r = await api('/api/preview', { target, cwd: cwd || require('node:os').homedir() });
-      return r.external ? `opened in the system browser: ${r.url}` : `opened in Fleet Bridge: ${r.title} (${r.target})`;
+      return r.external ? `opened in the system browser: ${r.url}` : `opened in Fleet Bridge: ${r.title} (${r.target})${r.previews > 1 ? `; ${r.previews} previews are open, as tabs of the preview pane` : ''}`;
     },
   },
   {

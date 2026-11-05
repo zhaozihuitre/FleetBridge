@@ -402,8 +402,10 @@ const server = http.createServer(async (req, res) => {
     const { target, cwd } = await readBody(req);
     try {
       const r = openPreview(target, cwd);
-      if (!r.external) uiCommand({ action: 'preview', preview: r }).catch(() => {}); // opens the window if needed
-      return send(res, 200, r);
+      if (r.external) return send(res, 200, r);
+      // the page confirms the preview is on screen (it opens the window first if needed)
+      const ui = await uiCommand({ action: 'preview', preview: r });
+      return send(res, ui.ok ? 200 : 409, { ...r, shown: Boolean(ui.ok), error: ui.ok ? undefined : ui.error, previews: ui.view?.previews?.length });
     } catch (e) {
       return send(res, 400, { error: e.message });
     }

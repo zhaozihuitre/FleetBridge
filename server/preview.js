@@ -274,8 +274,8 @@ if (!args.length || args[0] === '-h' || args[0] === '--help') {
     try {
       const r = await fetch('http://127.0.0.1:__PORT__/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target, cwd: process.cwd() }) });
       const j = await r.json();
-      if (!r.ok || j.error) throw new Error(j.error || 'HTTP ' + r.status);
-      console.log(j.external ? 'opened in the system browser: ' + j.url : 'opened in Fleet Bridge: ' + j.title);
+      if (!r.ok || j.error) throw new Error((j.shown === false ? 'not shown: ' : '') + (j.error || 'HTTP ' + r.status));
+      console.log(j.external ? 'opened in the system browser: ' + j.url : 'opened in Fleet Bridge: ' + j.title + (j.previews > 1 ? ' (' + j.previews + ' previews open, as tabs)' : ''));
     } catch (e) {
       failed = true;
       console.error('fleet-open: ' + (e.cause?.code === 'ECONNREFUSED' ? 'Fleet Bridge is not running' : e.message));
