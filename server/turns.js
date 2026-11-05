@@ -34,7 +34,11 @@ export function endedTurns(units, waiting, now = Date.now()) {
     if (u.status === 'busy') t.started = true;
     // started: seen busy, or its status changed after the order went out (a quick turn can go
     // busy -> idle between two polls). Stopped on a permission dialog or a question: not over yet.
-    const started = t.started || (u.statusSince || 0) > t.at + 500;
+    // (the second way also needs the session's last order to be this one: a resumed session shows up
+    // idle with a fresh status time before anything was typed, and that used to count as done)
+    const head = t.text.replace(/\s+/g, ' ').trim().slice(0, 30);
+    const ours = !head || String(u.lastPrompt || '').replace(/\s+/g, ' ').trim().startsWith(head);
+    const started = t.started || ((u.statusSince || 0) > t.at + 500 && ours);
     if (!started || u.status !== 'idle' || waiting.has(u.agentId)) continue;
     turns.delete(u.agentId);
     done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at });

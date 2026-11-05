@@ -27,7 +27,7 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -359,7 +359,9 @@ const server = http.createServer(async (req, res) => {
       } else {
         agent = spawnAgent({ cwd: String(cwd || '').trim(), name: name ? String(name).trim() : undefined, prompt: prompt ? String(prompt) : undefined });
       }
-      if (prompt) noteOrder(agent, via === 'master' ? 'master' : 'cc', prompt); // fleet_spawn's first order is the master's turn
+      // fleet_spawn's first order is the master's turn: it begins when the order is typed in (a resumed
+      // session loads first), see onPromptSent below
+      if (prompt) agent.firstOrderBy = via === 'master' ? 'master' : 'cc';
       setTimeout(refreshGit, 4000); // pick up the new unit's repos without waiting for the next scan
       return send(res, 200, { ok: true, id: agent.id });
     } catch (e) {
@@ -554,6 +556,7 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 onAgentsChange(() => publish());
+onPromptSent((agent, prompt) => noteOrder(agent, agent.firstOrderBy || 'cc', prompt));
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
 /** The app quits: the terminals end with it (continue an agent from the archive later if wanted). */

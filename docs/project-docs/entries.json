@@ -2760,6 +2760,28 @@
       "created": "2026-11-05 14:26",
       "updated": "2026-11-05 14:26",
       "notes": []
+    },
+    {
+      "id": "I-025",
+      "type": "issue",
+      "title": "resume + prompt 的完成通知发早了（0.9.17 修复）",
+      "summary": "fleet_spawn(resume, prompt) 后几秒就收到完成通知，附带上一轮的旧回答：这一轮从开 agent 时就开始计，resume 的会话一接上就是空闲且状态时间较新，被当成已做完",
+      "detail": "修复：首条指令真正打进去时（whenQuiet 回调里 sendText 成功后，onPromptSent）才开始计主控派的这一轮；不靠看到 busy 判定开始时，还要求会话的最后一条指令就是这一轮的指令（unit.lastPrompt 前缀匹配）；读回答从发出时间往后找，不会拿到旧回复。实测（开发实例）：resume 06:04:16，首条指令 06:04:20 提交，回复 06:04:22，完成通知 06:04:25，内容为本轮回答 SECOND-TURN。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/index.js",
+        "server/turns.js"
+      ],
+      "tags": [
+        "master"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 15:05",
+      "updated": "2026-11-05 15:05",
+      "notes": [],
+      "count": 1
     }
   ]
 }

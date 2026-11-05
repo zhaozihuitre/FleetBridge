@@ -170,6 +170,11 @@ const OPEN_HINT =
 const PROMPT_MARK = /^[❯>]\s*/;
 const agents = new Map(); // sessionId -> agent
 let onChange = () => {};
+let promptSent = () => {};
+/** Called when a new agent's first order (fleet_spawn's prompt) actually goes in. */
+export function onPromptSent(fn) {
+  promptSent = fn;
+}
 
 export function onAgentsChange(fn) {
   onChange = fn;
@@ -317,7 +322,10 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   const agent = { id: sessionId, sessionId, kind, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   wire(agent);
   agents.set(sessionId, agent);
-  if (prompt) whenQuiet(agent, () => sendText(agent, prompt));
+  if (prompt)
+    whenQuiet(agent, () => {
+      if (sendText(agent, prompt)) promptSent(agent, prompt); // the order's turn starts now, not at the spawn
+    });
   onChange();
   return agent;
 }
