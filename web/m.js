@@ -11,6 +11,12 @@ const hhmm = (ms) => {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+// "today 16:20", "tomorrow 09:00", or "11/9 14:00"
+const when = (ms) => {
+  const d = new Date(ms);
+  const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
+  return days === 0 ? L('今天 {0}', hhmm(ms)) : days === 1 ? L('明天 {0}', hhmm(ms)) : `${d.getMonth() + 1}/${d.getDate()} ${hhmm(ms)}`;
+};
 const post = (url, body) =>
   fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => {
     if (r.status === 401) location.reload(); // signed out (PIN changed, session expired): to the PIN page
@@ -50,8 +56,8 @@ function renderQuota() {
       const on = Math.round(used / 5);
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
       const v = fc?.runsOutAt
-        ? `<span class="v hot">${esc(L('约 {0} 用完', hhmm(fc.runsOutAt)))}</span>`
-        : `<span class="v">${Math.round(used)}%${fc?.perHour > 0 ? `<small>+${fc.perHour}/h</small>` : ''}</span>`;
+        ? `<span class="v hot">${esc(L('{0} 用完', when(fc.runsOutAt)))}</span>`
+        : `<span class="v">${Math.round(used)}%${fc?.perHour > 0 ? `<small>${fc.basis === 'week' ? `+${Math.round(fc.perHour * 24)}/${L('天')}` : `+${fc.perHour}/h`}</small>` : ''}</span>`;
       return `<div class="q" style="--c:${c}"><span class="k">${esc(l.label)}</span>${seg}${v}</div>`;
     })
     .join('');

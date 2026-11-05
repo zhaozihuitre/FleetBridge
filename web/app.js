@@ -113,14 +113,26 @@ function renderEnergy() {
   $('pilot').title = a ? `${a.email || ''} · ${a.org || ''}` : '';
 }
 
-// Burn rate under a quota bar: "+12%/h", or in red when it runs out before the reset.
+// When a forecast time is: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
+function when(ms) {
+  const d = new Date(ms);
+  const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
+  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return days === 0 ? L('今天 {0}', t) : days === 1 ? L('明天 {0}', t) : `${d.getMonth() + 1}/${d.getDate()} ${t}`;
+}
+
+// Burn rate under a quota bar, for that window alone: the 5-hour one over the last hour (per hour),
+// a weekly one over the week so far (per day). Red with the date and time when it runs out first.
 function burnText(l) {
   const f = state.forecast?.[l.key];
   if (!f || f.perHour <= 0) return `<span>${L('已用')}</span>`;
-  const tip = esc(L('最近每小时用掉 {0}%', f.perHour));
-  return f.runsOutAt
-    ? `<span class="burn hot" title="${tip}">${L('约 {0} 用完', clock(f.runsOutAt))}</span>`
-    : `<span class="burn" title="${tip}">+${f.perHour}%/h</span>`;
+  const weekly = f.basis === 'week';
+  const pace = weekly ? L('+{0}%/天', Math.round(f.perHour * 24)) : `+${f.perHour}%/h`;
+  const basis = weekly ? L('按本周至今的平均速度：每天约 {0}%', Math.round(f.perHour * 24)) : L('按最近 1 小时的速度：每小时 {0}%', f.perHour);
+  const verdict = f.runsOutAt ? L('{0} 用完，早于重置（{1}）', when(f.runsOutAt), when(l.resetsAt)) : f.lasts ? L('重置前用不完') : '';
+  const tip = esc(`${l.label} · ${basis}${verdict ? ' · ' + verdict : ''}`);
+  if (f.runsOutAt) return `<span class="burn hot" title="${tip}">${L('{0} 用完', when(f.runsOutAt))}</span>`;
+  return `<span class="burn" title="${tip}">${pace}${f.lasts ? ' · ' + L('撑到重置') : ''}</span>`;
 }
 
 function tick() {

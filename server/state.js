@@ -108,14 +108,17 @@ function buildQuests(units, usage, now, forecast = {}) {
     const f = forecast[l.key];
     const left = remaining(l);
     if (!f?.runsOutAt || left === null || left <= th.energyLowPct || f.runsOutAt - now > 2 * 3_600_000) continue;
-    const at = (loc) => new Date(f.runsOutAt).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false });
-    const reset = (loc) => new Date(l.resetsAt).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false });
+    // with the date: a time alone reads as today
+    const at = (loc) => new Date(f.runsOutAt).toLocaleString(loc, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    const reset = (loc) => new Date(l.resetsAt).toLocaleString(loc, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
     q.push({
       key: `burn:${l.key}:${l.resetsAt}`,
       kind: 'ALERT',
       lv: 'A',
       title: L(`按当前速度，额度（${l.label}）约 ${at('zh-CN')} 用完`, `At this pace the quota (${l.label}) runs out around ${at('en-US')}`, `このペースだと利用枠（${l.label}）は ${at('ja-JP')} ごろに尽きます`),
-      goal: L(`每小时 +${f.perHour}%，${reset('zh-CN')} 才重置；放慢节奏，先做最要紧的`, `+${f.perHour}% an hour, resets only at ${reset('en-US')}; slow down and do what matters first`, `1 時間あたり +${f.perHour}%、リセットは ${reset('ja-JP')}。ペースを落とし、重要なものから`),
+      goal: f.basis === 'week'
+        ? L(`本周平均每天 +${Math.round(f.perHour * 24)}%，${reset('zh-CN')} 才重置；放慢节奏，先做最要紧的`, `+${Math.round(f.perHour * 24)}% a day this week, resets only at ${reset('en-US')}; slow down and do what matters first`, `今週は 1 日あたり +${Math.round(f.perHour * 24)}%、リセットは ${reset('ja-JP')}。ペースを落とし、重要なものから`)
+        : L(`最近 1 小时 +${f.perHour}%，${reset('zh-CN')} 才重置；放慢节奏，先做最要紧的`, `+${f.perHour}% in the last hour, resets only at ${reset('en-US')}; slow down and do what matters first`, `直近 1 時間で +${f.perHour}%、リセットは ${reset('ja-JP')}。ペースを落とし、重要なものから`),
       since: now,
     });
   }
