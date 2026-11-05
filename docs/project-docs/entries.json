@@ -806,7 +806,7 @@
       "type": "change",
       "title": "每个仓库显示推送目标远程",
       "summary": "仓库行与终端标题栏显示 git push 会推到哪个远程仓库，避免提交到错误的仓库",
-      "detail": "**背景**：同一个项目文件夹下有个人仓库（zhaozihuitre/AiPacer）也有公司仓库（retail-ai-inc/…），看不出推送目标容易提交错。\n**改动内容**：git 采集新增 `remote`（上游所属远程 → origin → 唯一远程）与 `remotes[]`；仓库行显示 `origin  github.com/owner/repo`（可点开），多个远程标「另有 …」，无远程橙色提示；终端标题栏显示 `⎇ owner/repo · 分支`。\n**注意事项**：URL 中的用户名 / 令牌在后端去掉，前端只拿到 host 与 owner/repo。桌面版点击仓库链接用默认浏览器打开（仅 https）。\n",
+      "detail": "**背景**：同一个项目文件夹下既有个人仓库也有公司仓库，看不出推送目标容易提交错。\n**改动内容**：git 采集新增 `remote`（上游所属远程 → origin → 唯一远程）与 `remotes[]`；仓库行显示 `origin  github.com/owner/repo`（可点开），多个远程标「另有 …」，无远程橙色提示；终端标题栏显示 `⎇ owner/repo · 分支`。\n**注意事项**：URL 中的用户名 / 令牌在后端去掉，前端只拿到 host 与 owner/repo。桌面版点击仓库链接用默认浏览器打开（仅 https）。\n",
       "status": "done",
       "files": [
         "server/collectors/git.js",
