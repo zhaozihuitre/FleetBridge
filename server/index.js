@@ -24,7 +24,6 @@ import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
-import { freezeRoster, loadRoster, planRestore, rosterRestored, saveRoster } from './roster.js';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
 import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
@@ -76,7 +75,6 @@ function publish() {
   const running = new Map(sessions.map((s) => [s.sessionId, s.pid]));
   const all = listAgents();
   const agents = all.filter((a) => a.kind !== 'shell' && a.kind !== 'master'); // plain shells aren't agents: no unit, no roster
-  saveRoster(agents); // after binding, so /clear'd agents are saved under their current session
   const live = agents.filter((a) => a.alive);
   const byPid = new Map(live.filter((a) => a.pid).map((a) => [a.pid, a.id]));
   const bySession = new Map(live.map((a) => [a.sessionId, a.id]));
@@ -535,38 +533,19 @@ server.on('upgrade', (req, socket, head) => {
 onAgentsChange(() => publish());
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
-/** The app quits: the terminals end with it (the roster, kept as it was, brings the agents back). */
+/** The app quits: the terminals end with it (continue an agent from the archive later if wanted). */
 export async function shutdown() {
   stopMobile();
-  freezeRoster(); // keep the roster as it was, so the next start restores these agents
   await killAll();
 }
 
 /** This server makes way for another (an update): the terminals stay, in the PTY host. */
 export async function detach() {
   stopMobile();
-  freezeRoster();
   for (const t of timers) clearInterval(t);
   await new Promise((r) => server.close(() => r()));
 }
 
-// Bring back the agents the last run left behind (a quit, an update, or a crash).
-async function restoreRoster(saved) {
-  // the ones still running in the PTY host (taken back at start) need nothing
-  const roster = saved.filter((r) => !listAgents().some((a) => a.alive && (a.id === r.sessionId || a.sessionId === r.sessionId)));
-  if (!roster.length || !agentSupport().ok) return;
-  const { resume, skipped, killed } = planRestore(roster, collectSessions());
-  console.log(`roster: ${saved.length} saved, ${saved.length - roster.length} still running in the PTY host`);
-  if (killed.length) await new Promise((r) => setTimeout(r, 1500)); // let the orphans release their sessions
-  for (const r of resume) {
-    try {
-      spawnAgent({ cwd: r.cwd, resume: r.sessionId, name: r.name || undefined });
-    } catch (e) {
-      console.error('restore failed', r.cwd, e.message);
-    }
-  }
-  console.log(`roster: restored ${resume.length}, cleaned ${killed.length} orphan(s), skipped ${skipped.length} running elsewhere`);
-}
 
 // For keep-awake: something is working, waiting on a permission prompt, or has orders queued.
 export function fleetBusy() {
@@ -593,22 +572,21 @@ export const appVersion = (() => {
 })();
 
 // Rejects with EADDRINUSE when another instance already serves the port.
-export async function start() {
+// onListening: called as soon as the port is open. The desktop shell waits for that (not for the
+// whole start-up): restoring agents and the first git scan of every repo can take well over its
+// patience on a cold start, and it used to kill the server as "not starting" (a black window).
+export async function start({ onListening } = {}) {
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(config.port, '127.0.0.1', resolve);
   });
-  // the roster as the last run left it, read before anything can save over it
-  const saved = loadRoster();
-  // terminals still running in the PTY host (this server replaced another): taken back as they are
+  onListening?.();
+  // Terminals still running in the PTY host (this server replaced another, or the shell crashed)
+  // are taken back as they are. Agents that ended (the app quit) are not brought back: the user
+  // continues one from the archive when wanted.
   const kept = await attachHost();
   if (kept) console.log(`pty host: took back ${kept} running terminal(s)`);
   adoptMaster();
-  try {
-    await restoreRoster(saved);
-  } finally {
-    rosterRestored(); // from now on the roster follows the agents
-  }
   if (masterWanted() && agentSupport().ok) {
     try {
       startMaster(url);
@@ -616,7 +594,8 @@ export async function start() {
       console.error('master failed', e.message);
     }
   }
-  await Promise.all([refreshUsage(), refreshGit()]);
+  // the first usage and git scans fill the cards when they're done; the page works meanwhile
+  Promise.all([refreshUsage(), refreshGit()]).catch((e) => console.error('first refresh failed', e.message));
   timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
   await startMobile({ clients, getState: () => state, action: (b) => agentAction({ ...b, via: 'phone' }), screen: (id) => {
     const a = getAgent(id);

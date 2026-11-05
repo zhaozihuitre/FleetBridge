@@ -72,13 +72,13 @@ function spawnServer(dir) {
     const child = fork(path.join(dir, 'server', 'run.mjs'), [], {
       cwd: dir,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', FLEET_SHELL_API: String(appdir.SHELL_API) },
-      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'], // the server writes <data>/server.log itself
       windowsHide: true,
     });
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error('the server did not start in 20 s'));
-    }, 20_000);
+      reject(new Error('the server did not start in 60 s'));
+    }, 60_000);
     child.on('message', (m) => {
       if (m?.type === 'ready') {
         clearTimeout(timer);
@@ -129,7 +129,9 @@ async function onServerLost(code) {
     await startServer();
     reloadWindows();
   } catch (e) {
-    console.error('server could not be restarted', e.message);
+    // never give up for good (that left a black window): try again in a while
+    console.error('server could not be restarted, retrying in 15 s:', e.message);
+    setTimeout(() => !serverChild && !quitting && onServerLost('retry'), 15_000);
   }
 }
 
@@ -278,7 +280,7 @@ function runInMain(js) {
 }
 
 // Agents launched from the command center are our child processes and end with the app
-// (the roster is kept and restored on the next start). Confirm in the themed dialog of the page.
+// (they don't come back on the next start; any can be continued from the archive). Confirm in the themed dialog of the page.
 async function confirmQuit() {
   await refreshSummary();
   const live = summary.live || [];
@@ -397,7 +399,12 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => openMain());
   app.whenReady().then(async () => {
     installHookScript();
-    await startServer();
+    try {
+      await startServer();
+    } catch (e) {
+      console.error('server did not start, retrying in 15 s:', e.message);
+      setTimeout(() => !serverChild && !quitting && onServerLost('retry'), 15_000);
+    }
     refreshSummary();
     setInterval(refreshSummary, 10_000);
     widgetTucked = Boolean(loadPrefs().tucked);
@@ -407,7 +414,7 @@ if (!app.requestSingleInstanceLock()) {
     startAwake({ mode: p.awakeMode, screen: p.awakeScreen, busy: () => summary.busy, changed: sendSettings });
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
-  // Quitting ends the terminals too (the server tells the PTY host); the roster brings the agents
+  // Quitting ends the terminals too (the server tells the PTY host); they are not brought
   // back next start. Waits for that (a few seconds at most) before the app goes.
   app.on('before-quit', (e) => {
     if (quitting) return;

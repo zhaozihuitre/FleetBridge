@@ -164,7 +164,7 @@ function wire(agent) {
     if (!agent.alive) return;
     agent.alive = false;
     agent.exitCode = exitCode;
-    agent.exitedAt = Date.now(); // the roster keeps it a moment: the whole app may be going down (an update)
+    agent.exitedAt = Date.now();
     const note = exitNote(agent, exitCode);
     agent.buffer += note;
     for (const ws of agent.clients) ws.send(note);
@@ -290,7 +290,7 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
 
 // A plain shell in the split view (PowerShell 7 if installed, else Windows PowerShell; $SHELL elsewhere),
 // for git, npm and friends next to the agents. Not an agent: never bound to a session, saved in the
-// roster, sent orders or counted as a unit.
+// sent orders or counted as a unit.
 let SHELL;
 function findShell() {
   if (SHELL !== undefined) return SHELL;
@@ -567,7 +567,7 @@ export function killAgent(agent) {
   if (agent?.alive) agent.term.kill();
 }
 
-/** Ended by the user (the ■ button, the phone, the master): leaves the roster at once. */
+/** Ended by the user (the ■ button, the phone, the master). */
 export function endAgent(agent) {
   if (agent) agent.endedByUser = true;
   killAgent(agent);
@@ -583,7 +583,7 @@ export function removeAgent(id) {
   return true;
 }
 
-/** The app quits: every terminal ends with it, and the PTY host too (the roster brings agents back). */
+/** The app quits: every terminal ends with it, and the PTY host too. */
 export async function killAll() {
   await host.killAll();
 }
