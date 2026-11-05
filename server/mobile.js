@@ -24,6 +24,7 @@ const FILES = new Set(['/web/m.html', '/web/m.js', '/web/m.css', '/web/i18n.js',
 let settings = load();
 const auth = createAuth(settings, save);
 let server = null;
+const PHONE_KEYS = new Set(['esc', 'enter', 'up', 'down', 'left', 'right', 'tab', 'shift-tab', 'backspace', '1', '2', '3']);
 let hooks = null; // { clients, getState, publish, action, screen }
 
 function load() {
@@ -218,7 +219,8 @@ async function handle(req, res) {
     const body = await readBody(req);
     // the phone may talk to agents, nothing more: no spawning, killing, git, or settings
     if (!['text', 'queue', 'unqueue', 'answer', 'key'].includes(body.action)) return send(res, 400, { error: 'not_allowed' });
-    if (body.action === 'key' && body.key !== 'esc') return send(res, 400, { error: 'not_allowed' });
+    // keys for dialogs and the input line; not Ctrl+C (twice ends the session)
+    if (body.action === 'key' && !PHONE_KEYS.has(body.key)) return send(res, 400, { error: 'not_allowed' });
     return send(res, 200, hooks.action(body));
   }
   return send(res, 404, { error: 'not_found' });

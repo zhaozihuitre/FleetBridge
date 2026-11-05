@@ -452,7 +452,7 @@ function orderInInput(agent, head) {
 }
 
 // what a button can press: the command center uses esc; the phone page drives any dialog with the rest
-const KEYS = { esc: '\x1b', 'ctrl-c': '\x03', enter: '\r', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', tab: '\t', 'shift-tab': '\x1b[Z', space: ' ', backspace: '\x7f' };
+const KEYS = { esc: '\x1b', 'ctrl-c': '\x03', enter: '\r', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D', tab: '\t', 'shift-tab': '\x1b[Z', space: ' ', backspace: '\x7f', 1: '1', 2: '2', 3: '3' };
 
 export function sendKey(agent, key) {
   if (!agent?.alive || !KEYS[key]) return false;

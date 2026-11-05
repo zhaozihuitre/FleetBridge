@@ -1,5 +1,6 @@
-// The phone page: what needs you (answerable right here), every unit, a read-only view of an
-// agent's screen, and one input to send or queue orders. Talks only to the phone server.
+// The phone page: the units at a glance, and any of our terminals on the whole screen to read, type
+// into and answer (keys for dialogs: Esc, arrows, 1–3, Tab, Enter). No message list: what needs you
+// shows up as a unit waiting for approval. Talks only to the phone server.
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
 
@@ -22,12 +23,8 @@ const post = (url, body) =>
     if (r.status === 401) location.reload(); // signed out (PIN changed, session expired): to the PIN page
     return r.json();
   });
-const KIND = { PERMIT: 'var(--red)', ALERT: 'var(--red)', OVERLOAD: 'var(--red)', READY: 'var(--amber)', GIT: 'var(--amber)', ENGAGED: 'var(--cyan)', STANDBY: 'var(--muted)' };
-const AMBIENT = new Set(['engaged', 'calm', 'standby', 'empty']);
 
 let state = null;
-let view = 'msgs';
-let queueMode = false;
 let screenId = null;
 let screenTimer = 0;
 
@@ -37,13 +34,6 @@ function toast(text) {
   clearTimeout(toast.t);
   toast.t = setTimeout(() => $('toast').classList.remove('on'), 2200);
 }
-
-const ours = () => (state?.agents || []).filter((a) => a.alive);
-const nameOf = (id) => {
-  const a = (state?.agents || []).find((x) => x.id === id);
-  const u = state?.units.find((x) => x.agentId === id);
-  return a?.name || u?.project || id.slice(0, 8);
-};
 
 function renderQuota() {
   const f = state.forecast || {};
@@ -63,89 +53,92 @@ function renderQuota() {
     .join('');
 }
 
-function renderChips() {
-  const busy = state.units.filter((u) => u.status === 'busy').length;
-  const permit = state.units.filter((u) => u.permission).length;
-  const chip = (n, label, c, alarm) => `<span class="chip ${n ? '' : 'zero'} ${alarm && n ? 'alarm' : ''}" style="--c:${c}"><b>${n}</b>${esc(label)}</span>`;
-  $('chips').innerHTML = chip(busy, L('作战中'), 'var(--cyan)') + chip(state.units.length - busy, L('待命'), 'var(--amber)') + chip(permit, L('等你授权'), 'var(--red)', true);
+/* ---------- units: every terminal of ours (agents and plain shells) and the sessions outside ---------- */
+
+const ST = {
+  permit: () => [L('等授权'), 'var(--red)', 0],
+  busy: () => [L('作战中'), 'var(--cyan)', 1],
+  starting: () => [L('启动中'), 'var(--cyan)', 2],
+  idle: () => [L('待命'), 'var(--amber)', 3],
+  shell: () => [L('终端'), 'var(--green)', 4],
+};
+
+function rows() {
+  const out = [];
+  const seen = new Set();
+  for (const u of state.units) {
+    const kind = u.permission ? 'permit' : u.status === 'busy' ? 'busy' : 'idle';
+    const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
+    if (a) seen.add(a.id);
+    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
+    out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a) });
+  }
+  for (const a of state.agents || []) {
+    if (!a.alive || seen.has(a.id)) continue;
+    const project = String(a.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
+    out.push({ id: a.id, name: a.name || project, project, kind: a.kind === 'shell' ? 'shell' : 'starting', since: a.startedAt, text: '', ours: true });
+  }
+  // ours first; within that, what needs you first
+  return out.sort((x, y) => Number(y.ours) - Number(x.ours) || ST[x.kind]()[2] - ST[y.kind]()[2] || String(x.name).localeCompare(String(y.name)));
 }
 
 const EMPTY = '<svg width="40" height="40" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="#4f7a90" stroke-width="1.4"/><path d="M11 17l4 4 8-8" stroke="#4dffa6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-function renderMsgs() {
-  const lines = state.operator?.lines || [];
-  $('n-msgs').textContent = lines.filter((l) => !AMBIENT.has(l.key)).length || '';
-  if (view !== 'msgs') return;
-  $('list').innerHTML =
-    lines
-      .map((l) => {
-        const live = l.unit ? state.units.find((u) => u.sessionId === l.unit.sessionId) : null;
-        const pp = l.kind === 'PERMIT' && live?.owned ? live.permission?.prompt : null;
-        const answer = pp
-          ? `${pp.text ? `<pre>${esc(pp.text)}</pre>` : ''}<div class="acts">${pp.options
-              .map((o) => `<button type="button" class="${o.key === '1' ? 'yes' : ''}" data-answer="${esc(live.agentId)}" data-choice="${esc(o.key)}"><span class="n">${esc(o.key)}</span>${esc(o.label)}</button>`)
-              .join('')}<button type="button" class="no" data-answer="${esc(live.agentId)}" data-choice="esc"><span class="n">✕</span>${L('拒绝（Esc）')}</button></div>`
-          : '';
-        const look = live?.owned && !pp ? `<div class="acts row"><button type="button" class="go" data-screen="${esc(live.agentId)}">▣ ${L('看屏幕')}</button><button type="button" data-to="${esc(live.agentId)}">✎ ${L('发指令')}</button></div>` : '';
-        return `<article class="card ${l.kind === 'PERMIT' ? 'permit' : ''}" style="--c:${KIND[l.kind] || 'var(--cyan)'}">
-          <div class="head"><span class="tag">${esc(l.kind)}</span>${l.unit ? `<span class="p">${esc(l.unit.project.toUpperCase())}</span>` : ''}${l.at ? `<time>${hhmm(l.at)}</time>` : ''}</div>
-          <div class="text">${esc(l.text)}</div>${answer}${look}</article>`;
-      })
-      .join('') || `<div class="empty">${EMPTY}${L('一切正常，没有需要你处理的事')}</div>`;
+function renderChips() {
+  const all = rows();
+  const n = (k) => all.filter((r) => r.kind === k).length;
+  const chip = (c, label, color, alarm) => `<span class="chip ${c ? '' : 'zero'} ${alarm && c ? 'alarm' : ''}" style="--c:${color}"><b>${c}</b>${esc(label)}</span>`;
+  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit'), L('等授权'), 'var(--red)', true);
 }
 
 function renderUnits() {
-  $('n-units').textContent = state.units.length || '';
-  if (view !== 'units') return;
   const now = Date.now();
-  $('list').innerHTML =
-    state.units
-      .map((u) => {
-        const st = u.permission ? [L('等你授权'), 'var(--red)'] : u.status === 'busy' ? [L('作战中'), 'var(--cyan)'] : [L('待命'), 'var(--amber)'];
-        const mins = Math.max(0, Math.round((now - u.statusSince) / 60_000));
-        const text = u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
-        const acts = u.owned ? `<div class="acts row"><button type="button" class="go" data-screen="${esc(u.agentId)}">▣ ${L('看屏幕')}</button><button type="button" data-to="${esc(u.agentId)}">✎ ${L('发指令')}</button></div>` : '';
-        const pct = u.contextPct == null ? null : Math.round(u.contextPct);
-        const kc = pct != null && pct >= state.thresholds.contextWarnPct ? 'var(--red)' : 'var(--cyan)';
-        const ctx = `<div class="ctxbar" style="--kc:${kc}"><span>LOAD</span><span class="bar"><i style="width:${Math.min(100, pct ?? 0)}%"></i></span><b>${pct == null ? '--' : pct + '%'}</b></div>`;
-        return `<article class="card ${u.permission ? 'permit' : ''}" style="--c:${st[1]}">
-          <div class="head"><span class="dot ${u.permission ? 'blink' : ''}"></span><span class="p">${esc(u.project.toUpperCase())}</span>${u.owned ? `<span class="ours">${L('我方')}</span>` : ''}<span class="st">${esc(st[0])}</span><time>${mins}m</time></div>
-          ${text ? `<div class="sub">${esc(text)}</div>` : ''}${ctx}${acts}</article>`;
+  const html =
+    rows()
+      .map((r) => {
+        const [label, color] = ST[r.kind]();
+        const mins = r.since ? Math.max(0, Math.round((now - r.since) / 60_000)) : null;
+        const age = mins == null ? '' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h${pad(mins % 60)}`;
+        const inner = `<div class="head"><span class="dot ${r.kind === 'permit' ? 'blink' : ''}"></span><b class="nm">${esc(r.name)}</b><span class="st">${esc(label)}</span></div>
+          <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${age ? `<time>${age}</time>` : ''}</div>
+          ${r.text ? `<div class="sub">${esc(r.text)}</div>` : ''}`;
+        return r.ours
+          ? `<button type="button" class="card ${r.kind === 'permit' ? 'permit' : ''}" style="--c:${color}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
+          : `<div class="card ext" style="--c:${color}" title="${esc(L('不是舰桥启动的会话，只能查看状态'))}">${inner}</div>`;
       })
       .join('') || `<div class="empty">${EMPTY}${L('没有运行中的会话')}</div>`;
+  if (renderUnits.last !== html) $('list').innerHTML = renderUnits.last = html;
 }
 
-function renderTargets() {
-  const sel = $('target');
-  const keep = sel.value;
-  const opts = [`<option value="all">${L('全部我方 agent（{0}）', ours().length)}</option>`, ...ours().map((a) => `<option value="${esc(a.id)}">${esc(nameOf(a.id))}</option>`)];
-  const html = opts.join('');
-  if (renderTargets.last !== html) {
-    sel.innerHTML = renderTargets.last = html;
-    sel.value = [...sel.options].some((o) => o.value === keep) ? keep : 'all';
+function renderSheet() {
+  if (!screenId) return;
+  const r = rows().find((x) => x.id === screenId);
+  if (!r) {
+    $('sheet-st').textContent = L('已结束');
+    $('sheet-st').style.color = 'var(--muted)';
+    return;
   }
-  $('send').disabled = !ours().length;
+  const [label, color] = ST[r.kind]();
+  $('sheet-name').textContent = r.name;
+  $('sheet-st').textContent = `${label} · ${r.project}`;
+  $('sheet-st').style.color = color;
 }
 
 function render() {
   if (!state) return;
   renderQuota();
   renderChips();
-  renderMsgs();
   renderUnits();
-  renderTargets();
+  renderSheet();
 }
 
-function setView(v) {
-  view = v;
-  for (const b of document.querySelectorAll('.tabs [data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === v));
-  render();
-  window.scrollTo(0, 0);
-}
+/* ---------- one terminal on the whole screen ---------- */
 
 async function refreshScreen() {
   if (!screenId) return;
-  const r = await fetch(`/api/screen?id=${encodeURIComponent(screenId)}`).then((x) => x.json()).catch(() => ({ lines: [] }));
+  const id = screenId;
+  const r = await fetch(`/api/screen?id=${encodeURIComponent(id)}`, { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+  if (!r || id !== screenId) return;
   const el = $('screen');
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
   // colored by the server (text already escaped there)
@@ -157,82 +150,104 @@ async function refreshScreen() {
     const label = text.replace(/[─━═╌┄]+/g, ' ').replace(/\s+/g, ' ').trim();
     return label.length <= 40 ? `<span class="rule" data-label="${esc(label)}"></span>` : null;
   };
-  if (r.html?.length) el.innerHTML = r.html.map((l) => rule(l) ?? l).join('\n');
-  else el.textContent = L('（没有内容）');
-  if (atBottom) el.scrollTop = el.scrollHeight;
+  const html = r.html?.length ? r.html.map((l) => rule(l) ?? l).join('\n') : esc(L('（没有内容）'));
+  if (el.dataset.last !== html) {
+    el.innerHTML = el.dataset.last = html;
+    if (atBottom || el.dataset.fresh) el.scrollTop = el.scrollHeight;
+    delete el.dataset.fresh;
+  }
+  // a dialog's choices as big buttons (permission prompts, questions, menus)
   const menu = r.menu || [];
-  const html = menu.map((o) => `<button type="button" class="${o.current ? 'cur' : ''}" data-choice="${esc(o.key)}">${esc(o.key)}. ${esc(o.label)}</button>`).join('');
-  if ($('sheet-menu').dataset.last !== html) $('sheet-menu').innerHTML = $('sheet-menu').dataset.last = html;
+  const mh = menu.map((o) => `<button type="button" class="${o.current ? 'cur' : ''}" data-choice="${esc(o.key)}"><span class="n">${esc(o.key)}</span>${esc(o.label)}</button>`).join('');
+  if ($('sheet-menu').dataset.last !== mh) $('sheet-menu').innerHTML = $('sheet-menu').dataset.last = mh;
 }
 
-function openScreen(id) {
+function openScreen(id, push = true) {
   screenId = id;
-  $('sheet-name').textContent = nameOf(id);
+  $('screen').dataset.last = '';
+  $('screen').dataset.fresh = '1';
+  $('screen').textContent = '';
+  $('sheet-menu').innerHTML = $('sheet-menu').dataset.last = '';
   $('sheet').hidden = false;
-  $('target').value = id;
+  document.body.classList.add('in-term');
+  if (push) history.pushState({ term: id }, '', `#t=${encodeURIComponent(id)}`);
+  renderSheet();
   refreshScreen();
   clearInterval(screenTimer);
-  screenTimer = setInterval(refreshScreen, 2000);
+  screenTimer = setInterval(refreshScreen, 1500);
 }
 
 function closeScreen() {
   screenId = null;
   clearInterval(screenTimer);
   $('sheet').hidden = true;
+  document.body.classList.remove('in-term');
+  $('text').blur();
 }
 
-/* ---------- events ---------- */
+// the phone's back button and the ‹ button both go back to the units
+window.addEventListener('popstate', () => {
+  const id = new URLSearchParams(location.hash.slice(1)).get('t');
+  if (id) openScreen(id, false);
+  else closeScreen();
+});
+$('sheet-close').addEventListener('click', () => (history.state?.term ? history.back() : (history.replaceState(null, '', location.pathname), closeScreen())));
 
-document.querySelector('.tabs').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-view]');
-  if (b) setView(b.dataset.view);
+$('list').addEventListener('click', (e) => {
+  const c = e.target.closest('[data-open]');
+  if (c) openScreen(c.dataset.open);
 });
 
-$('list').addEventListener('click', async (e) => {
-  const an = e.target.closest('[data-answer]');
-  if (an) {
-    an.disabled = true;
-    const r = await post('/api/action', { id: an.dataset.answer, action: 'answer', choice: an.dataset.choice });
-    return toast(r.results?.[0] ? L('已回应授权') : L('回应失败：agent 可能已经退出'));
-  }
-  const sc = e.target.closest('[data-screen]');
-  if (sc) return openScreen(sc.dataset.screen);
-  const to = e.target.closest('[data-to]');
-  if (to) {
-    $('target').value = to.dataset.to;
-    $('text').focus();
-  }
-});
-
-$('queue').addEventListener('click', () => {
-  queueMode = !queueMode;
-  $('queue').setAttribute('aria-pressed', String(queueMode));
-});
-
-$('composer').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const text = $('text').value.trim();
-  if (!text) return;
-  const ids = $('target').value === 'all' ? ours().map((a) => a.id) : [$('target').value];
-  if (!ids.length) return toast(L('还没有我方 agent'));
-  $('send').disabled = true;
-  const r = await post('/api/action', { id: ids, action: queueMode ? 'queue' : 'text', text });
-  $('send').disabled = false;
-  const ok = (r.results || []).filter(Boolean).length;
-  if (!ok) return toast(L('发送失败'));
-  $('text').value = '';
-  toast(queueMode ? L('已加入 {0} 个 agent 的队列，做完当前的再发', ok) : L('已发给 {0} 个 agent', ok));
-  if (screenId) setTimeout(refreshScreen, 1200);
-});
-
-$('sheet-close').addEventListener('click', closeScreen);
 // keys and menu choices go straight to the agent shown, then the screen refreshes soon after
 async function press(body) {
   if (!screenId) return;
-  await post('/api/action', { id: screenId, ...body });
-  setTimeout(refreshScreen, 400);
+  const r = await post('/api/action', { id: screenId, ...body }).catch(() => null);
+  if (!r?.results?.[0]) toast(L('发送失败：终端可能已经结束'));
+  setTimeout(refreshScreen, 250);
+  setTimeout(refreshScreen, 900);
 }
-document.querySelector('.sheet-head .esc').addEventListener('click', () => press({ action: 'key', key: 'esc' }));
+$('keys').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-key]');
+  if (b) press({ action: 'key', key: b.dataset.key });
+});
+// keep the soft keyboard up when a key button is tapped while typing
+$('keys').addEventListener('pointerdown', (e) => {
+  if (document.activeElement === $('text')) e.preventDefault();
+});
+$('sheet-menu').addEventListener('click', (e) => {
+  const c = e.target.closest('[data-choice]');
+  if (c) press({ action: 'answer', choice: c.dataset.choice });
+});
+
+// typing: the text goes in with Enter; an empty send is a bare Enter
+$('input').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('text').value;
+  if (!screenId) return;
+  if (!text.trim()) return press({ action: 'key', key: 'enter' });
+  $('send').disabled = true;
+  const r = await post('/api/action', { id: screenId, action: 'text', text: text.trim() }).catch(() => null);
+  $('send').disabled = false;
+  if (!r?.results?.[0]) return toast(L('发送失败：终端可能已经结束'));
+  $('text').value = '';
+  fit();
+  setTimeout(refreshScreen, 400);
+  setTimeout(refreshScreen, 1500);
+});
+const fit = () => {
+  const t = $('text');
+  t.style.height = 'auto';
+  t.style.height = `${Math.min(t.scrollHeight, 120)}px`;
+};
+$('text').addEventListener('input', fit);
+$('text').addEventListener('keydown', (e) => {
+  // Enter sends (Shift+Enter: a new line); not while an input method is composing
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+    e.preventDefault();
+    $('input').requestSubmit();
+  }
+});
+
 // long lines wrap on a phone by default; off: the terminal as it is, scrolled sideways
 function setWrap(on) {
   $('screen').classList.toggle('wrap', on);
@@ -251,26 +266,25 @@ try {
 }
 setWrap(wrapOn);
 $('wrap').addEventListener('click', () => setWrap($('wrap').getAttribute('aria-pressed') !== 'true'));
-$('sheet-menu').addEventListener('click', (e) => {
-  const c = e.target.closest('[data-choice]');
-  if (c) press({ action: 'answer', choice: c.dataset.choice });
-});
 
-/* ---------- the on-screen keyboard must not cover the composer ---------- */
+/* ---------- the on-screen keyboard must not cover the input ---------- */
 
 // Android Chrome resizes the page for the keyboard (interactive-widget in the viewport meta);
-// iOS Safari and others only shrink the visual viewport, so lift the composer by what it hides.
+// iOS Safari and others only shrink the visual viewport: the terminal sheet takes that height.
 const vv = window.visualViewport;
 if (vv) {
-  const fit = () => {
-    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-    document.documentElement.style.setProperty('--kb', `${kb}px`);
+  const kb = () => {
+    const h = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    document.documentElement.style.setProperty('--kb', `${h}px`);
+    if (screenId) {
+      const el = $('screen');
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
+    }
   };
-  vv.addEventListener('resize', fit);
-  vv.addEventListener('scroll', fit);
-  fit();
+  vv.addEventListener('resize', kb);
+  vv.addEventListener('scroll', kb);
+  kb();
 }
-$('text').addEventListener('focus', () => setTimeout(() => $('text').scrollIntoView({ block: 'nearest' }), 300));
 
 /* ---------- live state ---------- */
 
@@ -308,5 +322,17 @@ function connect() {
 }
 connect();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (!es || es.readyState === EventSource.CLOSED)) connect();
+  if (document.visibilityState !== 'visible') return;
+  if (!es || es.readyState === EventSource.CLOSED) connect();
+  if (screenId) refreshScreen();
 });
+
+// a reload inside a terminal stays in it
+{
+  const id = new URLSearchParams(location.hash.slice(1)).get('t');
+  if (id) {
+    history.replaceState(null, '', location.pathname);
+    history.pushState({ term: id }, '', `#t=${encodeURIComponent(id)}`);
+    openScreen(id, false);
+  }
+}
