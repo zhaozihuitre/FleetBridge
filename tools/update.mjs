@@ -7,6 +7,9 @@
 //   node tools/update.mjs --prod     update the installed app (~/.claude-ops, port 8787)
 //   node tools/update.mjs --rollback [--prod]   back to the previous version
 //   --from <dir>                     install from another source tree (testing)
+//   --data-dir <dir> --port <n>      another app (e.g. a test install)
+// The installer's app and an npm-installed one keep their version folders apart (<data>/app,
+// <data>/app-npm): the one the running server comes from is updated.
 //
 // A full install (the installer) is still needed when the shell changes: desktop/*, node_modules,
 // Electron, or a server that needs a newer shell API (package.json fleetShellApi).
@@ -57,9 +60,12 @@ async function waitSwap(beforePid, timeout = 60_000) {
 
 const before = await summary();
 if (!before) fail(`no Fleet Bridge answers on ${base} (is it running?)`);
-const apps = appdir.create(dataDir, ROOT); // shellDir only matters for the node_modules junction
-const cur = apps.read();
-if (!cur) fail(`${dataDir} has no app folder: that app runs from its install (needs 0.9.13+, or FLEET_APPDIR=1 for a dev run)`);
+// the version folders of the app that is running: <data>/<base>/<version>/
+const inData = before.root && path.resolve(before.root).toLowerCase().startsWith(path.resolve(dataDir).toLowerCase() + path.sep);
+const baseName = inData ? path.basename(path.dirname(path.resolve(before.root))) : 'app';
+const apps = appdir.create(dataDir, ROOT, baseName); // shellDir only matters for the node_modules junction
+const cur = inData ? apps.read() : null;
+if (!cur) fail(before.variant === 'headless' ? 'the headless server is not updated in place: install the new version with npm and start it again' : `${dataDir} has no app folder: that app runs from its install (needs 0.9.13+, or FLEET_APPDIR=1 for a dev run)`);
 console.log(`running: ${before.version} (pid ${before.pid}), terminals: ${before.liveIds.length}`);
 
 if (flag('--rollback')) {
@@ -77,7 +83,7 @@ const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
 const version = `${pkg.version}-${stamp}`;
 // the shell's node_modules: where the current version's junction points
 const shellModules = fs.realpathSync(path.join(cur.dir, 'node_modules'));
-const target = appdir.create(dataDir, path.dirname(shellModules));
+const target = appdir.create(dataDir, path.dirname(shellModules), baseName);
 const dir = target.install(ROOT, version);
 if (!target.usable(dir)) fail(`installed ${dir} but it is incomplete`);
 target.switchTo(version, dir);

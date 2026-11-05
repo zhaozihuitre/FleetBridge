@@ -1,17 +1,28 @@
 {
   "name": "fleet-bridge",
-  "version": "0.9.21",
+  "version": "0.9.22",
   "private": true,
   "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
   "main": "desktop/main.cjs",
+  "bin": {
+    "fleet-bridge": "bin/fleet-bridge.cjs"
+  },
+  "files": [
+    "bin/",
+    "desktop/",
+    "server/",
+    "web/",
+    "tools/update.mjs"
+  ],
   "scripts": {
     "start": "node server/index.js",
     "app": "electron .",
     "demo": "node -e \"process.env.MONITOR_DEMO='1';process.env.MONITOR_PORT='8788';import('./server/index.js').then((m)=>m.start())\"",
     "probe": "node server/probe.js",
-    "dist": "electron-builder --win nsis",
-    "update": "node tools/update.mjs"
+    "dist": "node tools/dist.mjs",
+    "update": "node tools/update.mjs",
+    "postinstall": "node -e \"try{require('electron')}catch(e){console.warn('Electron not ready: '+e.message)}\""
   },
   "build": {
     "appId": "local.claude-ops.monitor",
@@ -66,7 +77,6 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "electron": "^45.1.0",
     "electron-builder": "^26.18.0"
   },
   "dependencies": {
@@ -78,5 +88,8 @@
     "qrcode": "^1.5.4",
     "ws": "^8.22.0"
   },
-  "fleetShellApi": 1
+  "fleetShellApi": 1,
+  "optionalDependencies": {
+    "electron": "^45.1.0"
+  }
 }

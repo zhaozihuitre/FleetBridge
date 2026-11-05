@@ -3,7 +3,12 @@
 游戏风格的 Claude Code 多项目指挥舰桥：额度、各会话状态（记忆负载、子 agent、git）、等你授权 / 做完了的提醒，
 还能在指挥中心里直接启动 Claude、分屏操作多个终端。只在本机 `127.0.0.1` 上运行。
 
-## 运行
+## 安装
+
+- **安装包**：`FleetBridge-Setup-x.y.z.exe`（`npm run dist` 生成）。
+- **npm（Windows）**：`npm i -g github:zhaozihuitre/FleetBridge#<tag>`，然后运行 `fleet-bridge`。安装、升级、卸载和与安装包版的关系见 [docs/npm-install.md](docs/npm-install.md)。两种装法同一时间只能运行一个。
+
+## 运行（开发）
 
 ```bash
 npm install          # Electron、终端组件（node-pty / xterm.js）、ws
@@ -11,7 +16,7 @@ npm run app          # 战况小窗 + 后端（推荐）。⤢ 打开指挥中�
 npm start            # 只开后端，浏览器访问 http://127.0.0.1:8787 （/widget 是小窗页）
 npm run probe        # 命令行打印一次采集结果
 npm run demo         # 假数据演示，端口 8788
-npm run dist         # 打包 Windows 安装程序到 dist/
+npm run dist         # 打包 Windows 安装程序到 dist/（tools/dist.mjs）
 ```
 
 ## 预览：页面在舰桥里打开
@@ -19,7 +24,7 @@ npm run dist         # 打包 Windows 安装程序到 dist/
 终端里的 agent 运行 `fleet-open <文件 | 文件夹 | http://localhost:端口/…>`，页面会在指挥中心的分屏里打开（可以弹出成独立窗口），不跳到 Chrome。主控用 `fleet_open` 工具。
 
 - 支持本地 HTML、Markdown（渲染成页面）、图片、PDF、带 index.html / README.md 的文件夹，以及 localhost 地址（开发服务器）。本地文件改动后自动刷新。
-- `fleet-open` 在 `<数据目录>in`，已加进舰桥启动的终端的 PATH，并设为 `BROWSER`，所以用 BROWSER 的工具（如 Python 的 `webbrowser`）也会在舰桥里打开。舰桥启动的 Claude agent 的系统提示里也写了用它。
+- `fleet-open` 在 `<数据目录>\bin`，已加进舰桥启动的终端的 PATH，并设为 `BROWSER`，所以用 BROWSER 的工具（如 Python 的 `webbrowser`）也会在舰桥里打开。舰桥启动的 Claude agent 的系统提示里也写了用它。
 - 非本机的 http(s) 地址仍交给系统浏览器；预览面板上的 ↗ 也可以把当前页面交给系统浏览器。
 - 预览页面来自另一个端口（与指挥中心不同源），放在受限的 iframe 里，读不到舰桥页面，也调用不了舰桥的接口。
 - 拦不住的：`start xxx.html`、`Invoke-Item` 这类直接交给 Windows 打开的方式，会用系统默认浏览器。系统设置不改。

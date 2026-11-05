@@ -388,7 +388,15 @@ const server = http.createServer(async (req, res) => {
   // this server for a newly installed version or back to the previous one.
   if (req.url === '/api/admin/summary' && req.method === 'GET') {
     const live = liveAgents();
-    return send(res, 200, { version: appVersion, started: startedUp, root: ROOT, pid: process.pid, hostPid: hostInfo?.pid || null, live: live.map((a) => a.name || a.cwd), liveIds: live.map((a) => a.id), busy: fleetBusy(), shellApi: Number(process.env.FLEET_SHELL_API) || 0 });
+    return send(res, 200, { version: appVersion, started: startedUp, root: ROOT, pid: process.pid, hostPid: hostInfo?.pid || null, live: live.map((a) => a.name || a.cwd), liveIds: live.map((a) => a.id), busy: fleetBusy(), shellApi: Number(process.env.FLEET_SHELL_API) || 0, variant: process.env.FLEET_VARIANT || (process.send ? 'app' : 'headless') });
+  }
+  // `fleet-bridge stop`: the whole app quits (its terminals end, as with Quit in the widget)
+  if (req.method === 'POST' && req.url === '/api/admin/quit') {
+    if (req.headers.origin) return send(res, 403, { error: 'forbidden' });
+    send(res, 200, { ok: true });
+    if (process.send) process.send({ type: 'quit' });
+    else if (quitHandler) setTimeout(quitHandler, 100); // headless: the command that started it ends
+    return;
   }
   if (req.method === 'POST' && (req.url === '/api/admin/reload' || req.url === '/api/admin/rollback')) {
     if (req.headers.origin) return send(res, 403, { error: 'forbidden' });
@@ -572,6 +580,12 @@ onPromptSent((agent, prompt) => noteOrder(agent, agent.firstOrderBy || 'cc', pro
 
 // Agents are our child processes: end them with the app rather than leaving orphans.
 /** The app quits: the terminals end with it (continue an agent from the archive later if wanted). */
+let quitHandler = null;
+/** What /api/admin/quit does without a desktop shell (the headless command). */
+export function setQuitHandler(fn) {
+  quitHandler = fn;
+}
+
 export async function shutdown() {
   stopMobile();
   stopPreview();

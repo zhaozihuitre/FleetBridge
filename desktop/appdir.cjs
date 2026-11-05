@@ -33,8 +33,10 @@ function readJson(file) {
   }
 }
 
-function create(dataDir, shellDir) {
-  const base = path.join(dataDir, 'app');
+// The installer's shell and an npm-installed one each keep their own version folders ('app',
+// 'app-npm'): a version folder's node_modules junction points into the shell that installed it.
+function create(dataDir, shellDir, baseName = 'app') {
+  const base = path.join(dataDir, baseName);
   const currentFile = path.join(base, 'current.json');
 
   const read = () => readJson(currentFile);

@@ -2872,6 +2872,32 @@
       "created": "2026-11-05 15:36",
       "updated": "2026-11-05 15:36",
       "notes": []
+    },
+    {
+      "id": "M-020",
+      "type": "milestone",
+      "title": "npm 安装（Windows）：fleet-bridge 命令、与安装包版互斥、就地升级兼容（0.9.22）",
+      "summary": "npm i -g github:<仓库>#<tag> 后运行 fleet-bridge；--headless 只起服务端；版本文件夹 app-npm 与安装包版分开；同一时间只运行一个；安装包继续提供",
+      "detail": "用户决定（经主控）：按评估的方案 B 实现 npm 安装；先只做 Windows，平台相关部分隔离好；从私有 GitHub 仓库安装，不发布到公共 npm；安装包继续维护；npm 版和安装包版不能同时运行。\n\n实现：\n- `bin/fleet-bridge.cjs`：`fleet-bridge`（后台启动 Electron 外壳）、`--headless`（只起服务端，在 Node 里跑）、`status`、`stop`、`cleanup`（卸载前删快捷方式和开机启动）、`--version`。\n- `desktop/platform.cjs`：变体判断（installer / npm / dev / headless）和所有平台相关的事：开始菜单快捷方式（Windows 通知需要带 AppUserModelId 的快捷方式）、开机启动（npm 外壳是 electron.exe，要带上程序目录）、打开浏览器。Mac 的空缺标了 todo(mac)。\n- 外壳：npm 版按正式版运行（数据目录 ~/.claude-ops、端口 8787、显示通知）；版本文件夹放在 `app-npm`，和安装包版的 `app` 分开（各自的 node_modules 联接指向自己的外壳）；启动前检查端口上是否已有别的舰桥（另一种装法或 headless），有就提示并退出。\n- 服务端：/api/admin/summary 带 variant；新增 /api/admin/quit（`fleet-bridge stop` 用；只对 npm 版和 headless 有效）。\n- 更新工具：按正在运行的服务端所在目录找版本文件夹（app 或 app-npm），npm 版也能就地升级。\n- package.json：electron 从 devDependencies 移到 optionalDependencies（npm 安装时带上），新增 bin、files、postinstall（安装时预下载 Electron 二进制；Electron 45.2 起不在安装时下载）。`npm run dist` 改为 tools/dist.mjs：打包期间把 electron 临时移回 devDependencies（electron-builder 要求，否则还会把 250 MB 的 Electron 打进安装包），打完还原。\n\n测试（隔离的 npm 前缀、测试数据目录、端口 8795，不碰正式环境）：npm pack → 全新安装（下载 Electron 约 4 分钟）→ `fleet-bridge` 启动为 npm 版、从 app-npm 运行、生成开始菜单快捷方式 → 开终端 → tools/update.mjs 就地升级，终端 1/1 保留 → `fleet-bridge stop` 退出并结束终端和宿主 → 正式安装包版运行时，`fleet-bridge`、`--headless` 拒绝启动，直接启动 npm 外壳弹出提示且不启动任何东西 → headless 启动、开终端、页面 200、拒绝就地升级、stop 退出 → cleanup 删除快捷方式 → npm uninstall 干净。安装包构建仍正常（114.7 MB，与之前相同，不含 Electron 包），package.json 自动还原。\n",
+      "status": "done",
+      "files": [
+        "bin/fleet-bridge.cjs",
+        "desktop/platform.cjs",
+        "desktop/main.cjs",
+        "desktop/appdir.cjs",
+        "server/index.js",
+        "tools/update.mjs",
+        "tools/dist.mjs",
+        "package.json",
+        "docs/npm-install.md",
+        "README.md"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-05 15:53",
+      "updated": "2026-11-05 15:53",
+      "notes": []
     }
   ]
 }

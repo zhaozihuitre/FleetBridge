@@ -1,19 +1,25 @@
 // Electron shell: runs the monitor server as a child process from the current app folder (an update
 // replaces that folder's version and restarts only the server; the terminals live in the PTY host and
 // keep running), shows the always-on-top status widget and opens the command center on demand.
-const { app, BrowserWindow, ipcMain, Menu, Notification, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell, Tray } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const appdir = require('./appdir.cjs');
+const platform = require('./platform.cjs');
 const { warmVoice, startVoice, stopVoice } = require('./voice.cjs');
 const { startAwake, setAwake, nextMode, awakeInfo, stopAwake } = require('./awake.cjs');
 
-// A development run (not the installed app) is kept apart from it: its own data folder and port
+// installer / npm (`npm i -g` from the repository) / dev (a checkout): see platform.cjs.
+// A development run is kept apart from the installed app: its own data folder and port
 // (server/config.js) and agents named dev·…; it shows no toasts unless MONITOR_DEV_NOTIFY=1, so a
 // test session or the demo's made-up projects never pop up over the user's work.
-if (!app.isPackaged && !process.env.FLEET_DEV) process.env.FLEET_DEV = '1';
+const SHELL_DIR = path.join(__dirname, '..');
+const VARIANT = platform.variantOf({ packaged: app.isPackaged, shellDir: SHELL_DIR });
+const INSTALLED = VARIANT !== 'dev'; // the installer's app or the npm one: the real thing
+if (!INSTALLED && !process.env.FLEET_DEV) process.env.FLEET_DEV = '1';
+if (INSTALLED) delete process.env.FLEET_DEV; // inherited from a dev run's terminal: not this one
 
 const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
@@ -27,7 +33,7 @@ const DATA_DIR = DEV && givenDir && path.resolve(givenDir).toLowerCase() === pat
 process.env.MONITOR_DATA_DIR = DATA_DIR; // the server child, its PTY host and their agents use the same
 // The installed app always runs from an app folder; a dev run from the checkout, unless FLEET_APPDIR=1
 // (to try the update mechanism there).
-const USE_APPDIR = app.isPackaged || process.env.FLEET_APPDIR === '1';
+const USE_APPDIR = INSTALLED || process.env.FLEET_APPDIR === '1';
 
 // The Notification hook in ~/.claude/settings.json runs ~/.claude-ops/hook.js with plain Node,
 // so keep a copy there that doesn't depend on where (or whether) this app is installed.
@@ -65,8 +71,8 @@ function savePrefs(patch) {
   fs.writeFileSync(prefsFile(), JSON.stringify({ ...loadPrefs(), ...patch }));
 }
 
-const SHELL_DIR = path.join(__dirname, '..');
-const apps = USE_APPDIR ? appdir.create(DATA_DIR, SHELL_DIR) : null;
+const apps = USE_APPDIR ? appdir.create(DATA_DIR, SHELL_DIR, platform.appBase(VARIANT)) : null;
+const PORT = Number(process.env.MONITOR_PORT) || (DEV ? 8790 : 8787); // as server/config.js
 let restarts = []; // times of unexpected server exits (a crash loop falls back to the previous version)
 
 /** Starts the server child from a folder; resolves with its URL once it is ready. */
@@ -74,7 +80,7 @@ function spawnServer(dir) {
   return new Promise((resolve, reject) => {
     const child = fork(path.join(dir, 'server', 'run.mjs'), [], {
       cwd: dir,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', FLEET_SHELL_API: String(appdir.SHELL_API) },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', FLEET_SHELL_API: String(appdir.SHELL_API), FLEET_VARIANT: VARIANT },
       stdio: ['ignore', 'ignore', 'ignore', 'ipc'], // the server writes <data>/server.log itself
       windowsHide: true,
     });
@@ -92,6 +98,7 @@ function spawnServer(dir) {
       } else if (m?.type === 'openMain') openMain();
       else if (m?.type === 'reload') reloadServer('update');
       else if (m?.type === 'rollback') reloadServer('rollback');
+      else if (m?.type === 'quit') app.quit(); // `fleet-bridge stop` (the server already asked nobody: it's the user's command)
     });
     child.once('exit', (code) => {
       clearTimeout(timer);
@@ -293,7 +300,7 @@ async function confirmQuit() {
 
 // What the widget's own (themed) menu shows.
 function widgetSettings() {
-  return { muted, packaged: app.isPackaged, autostart: app.isPackaged && app.getLoginItemSettings().openAtLogin, ...awakeInfo() };
+  return { muted, packaged: INSTALLED, autostart: INSTALLED && app.getLoginItemSettings(platform.loginItem(VARIANT, SHELL_DIR)).openAtLogin, ...awakeInfo() };
 }
 
 function sendSettings() {
@@ -347,7 +354,11 @@ const ACTIONS = {
     placeWidget(widget.getBounds().height);
   },
   // only meaningful for the installed app; a dev run would register the bare electron.exe
-  'toggle-autostart': () => app.isPackaged && app.setLoginItemSettings({ openAtLogin: !app.getLoginItemSettings().openAtLogin }),
+  'toggle-autostart': () => {
+    if (!INSTALLED) return;
+    const item = platform.loginItem(VARIANT, SHELL_DIR); // the npm shell is electron.exe: it needs the folder to run
+    app.setLoginItemSettings({ ...item, openAtLogin: !app.getLoginItemSettings(item).openAtLogin });
+  },
   quit: () => confirmQuit(),
 };
 
@@ -372,7 +383,7 @@ ipcMain.on('ops:action', (_e, name) => {
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
 ipcMain.on('ops:notify', (_e, title, body) => {
   if (muted || !Notification.isSupported()) return;
-  if (!app.isPackaged && process.env.MONITOR_DEV_NOTIFY !== '1') {
+  if (!INSTALLED && process.env.MONITOR_DEV_NOTIFY !== '1') {
     console.log(`notify (dev, not shown): ${String(title).slice(0, 40)}`);
     return;
   }
@@ -381,7 +392,7 @@ ipcMain.on('ops:notify', (_e, title, body) => {
   // (the command center or a popped-out terminal; the small widget having focus doesn't count)
   const focused = BrowserWindow.getFocusedWindow();
   const looking = Boolean(focused && focused !== widget && focused.isVisible() && !focused.isMinimized());
-  if (!app.isPackaged) console.log(`notify ${looking ? 'suppressed' : 'shown'} (focused: ${focused === mainWin ? 'command center' : focused === widget ? 'widget' : focused ? 'other' : 'none'}${focused?.isMinimized() ? ', minimized' : ''}): ${String(title).slice(0, 40)}`);
+  if (!INSTALLED) console.log(`notify ${looking ? 'suppressed' : 'shown'} (focused: ${focused === mainWin ? 'command center' : focused === widget ? 'widget' : focused ? 'other' : 'none'}${focused?.isMinimized() ? ', minimized' : ''}): ${String(title).slice(0, 40)}`);
   if (looking) return;
   const n = new Notification({ title: String(title).slice(0, 80), body: String(body).slice(0, 200), silent: false });
   n.on('click', () => openMain());
@@ -389,8 +400,22 @@ ipcMain.on('ops:notify', (_e, title, body) => {
 });
 
 // The dev build gets its own profile, so it can run beside the installed app (the single-instance
-// lock is per profile) instead of quitting and raising the installed one.
-if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'fleet-bridge-dev'));
+// lock is per profile) instead of quitting and raising the installed one. The npm install has its own
+// too; it must not run beside the installer's app (one data folder, one port): see otherRunning().
+if (VARIANT === 'dev') app.setPath('userData', path.join(app.getPath('appData'), 'fleet-bridge-dev'));
+else if (VARIANT === 'npm') app.setPath('userData', path.join(app.getPath('appData'), 'fleet-bridge-npm'));
+
+const VARIANT_NAME = { installer: '安装包版', npm: 'npm 版', headless: '无界面（--headless）', dev: '开发版', app: '安装包版' };
+
+/** Another Fleet Bridge (the other install, or a headless one) already serves this data folder's port. */
+async function otherRunning() {
+  try {
+    const r = await fetch(`http://127.0.0.1:${PORT}/api/admin/summary`, { signal: AbortSignal.timeout(1500) });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -398,9 +423,18 @@ if (!app.requestSingleInstanceLock()) {
   // Windows takes the taskbar icon and toast sender from the Start-menu shortcut with this same id.
   // It must equal the build appId, which the installer writes onto its shortcut: the old
   // 'claude-ops-monitor' matched only a stale CLAUDE OPS shortcut whose exe is gone (blank icon).
-  app.setAppUserModelId(app.isPackaged ? 'local.claude-ops.monitor' : 'local.claude-ops.monitor.dev');
+  app.setAppUserModelId(VARIANT === 'installer' ? 'local.claude-ops.monitor' : VARIANT === 'npm' ? platform.NPM_APP_ID : 'local.claude-ops.monitor.dev');
   app.on('second-instance', () => openMain());
   app.whenReady().then(async () => {
+    // one Fleet Bridge per data folder: the other install (or a headless one) is running already
+    const other = INSTALLED && (await otherRunning());
+    if (other) {
+      const who = VARIANT_NAME[other.variant] || VARIANT_NAME.installer;
+      dialog.showMessageBoxSync({ type: 'warning', title: 'Fleet Bridge', message: `舰桥（${who}）已经在运行`, detail: `同一时间只能运行一个舰桥（它们共用 ${DATA_DIR} 和端口 ${PORT}）。先退出正在运行的那个，再启动这个。` });
+      app.exit(0);
+      return;
+    }
+    if (VARIANT === 'npm') platform.ensureNpmShortcut(shell, SHELL_DIR); // Windows shows our toasts only with it
     installHookScript();
     try {
       await startServer();
