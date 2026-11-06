@@ -3421,6 +3421,27 @@
       "created": "2026-11-06 16:46",
       "updated": "2026-11-06 16:46",
       "notes": []
+    },
+    {
+      "id": "I-034",
+      "type": "issue",
+      "title": "手机上点通知链接进终端，登录后终端内容不显示（0.9.45 修复）",
+      "summary": "手机页带着 #t=<id> 打开时，在第一份状态到达前就打开了终端，renderSheet 读 state.units 报错，屏幕拉取和定时刷新都没启动，终端一直是空的。",
+      "detail": "复现：开发实例里开一个 shell 终端并输出标记行，用真实链接 /#term=<id>、未登录的模拟手机走登录 → 电脑允许 → 跳到 /m#t=<id>：屏幕为空，页面报错 Cannot read properties of null (reading 'units')。hash 在登录跳转中没有丢，WebSocket / 接口没有被 cookie、SameSite 或同源检查挡（/api/me 的 401 是登录页自己在未登录时的检查，属正常），/api/screen 正常返回内容。原因：m.js 加载时发现 #t= 就调用 openScreen，openScreen 先调 renderSheet，此时 state 还是 null，抛错后 refreshScreen 和每 1.5 秒的刷新都没执行（在终端里刷新页面也会这样）。完整版（平板、电脑）不受影响：终端经 WebSocket 正常显示。修改：renderSheet 在 state 未到时先返回，第一份状态到达后再填名称和状态。验证：同一流程下手机页截图里能看到标记行，平板截图里分屏终端也显示内容。正式版的服务器日志只有启动记录，没有请求日志；用户那次访问在 0.9.44 之前，新的登录记录（web-auth.jsonl）当时还没有。",
+      "status": "done",
+      "files": [
+        "web/m.js"
+      ],
+      "tags": [
+        "web",
+        "bug"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 16:49",
+      "updated": "2026-11-06 16:49",
+      "notes": [],
+      "count": 1
     }
   ]
 }

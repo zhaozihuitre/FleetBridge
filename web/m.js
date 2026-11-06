@@ -127,7 +127,8 @@ function renderUnits() {
 }
 
 function renderSheet() {
-  if (!screenId) return;
+  // (a link straight to a terminal opens it before the first state is here: its name and state come with it)
+  if (!screenId || !state) return;
   const r = rows().find((x) => x.id === screenId);
   if (!r) {
     $('sheet-st').textContent = L('已结束');
