@@ -92,7 +92,8 @@ export function endedTurns(units, waiting, now = Date.now()) {
 const found = new Map();
 function transcriptOf(sessionId) {
   if (historyFiles.has(sessionId)) return historyFiles.get(sessionId);
-  if (found.has(sessionId)) return found.get(sessionId);
+  const hit = found.get(sessionId);
+  if (hit && (hit.file || Date.now() - hit.at < 5000)) return hit.file;
   let file = null;
   try {
     const root = path.join(os.homedir(), '.claude', 'projects');
@@ -106,7 +107,7 @@ function transcriptOf(sessionId) {
   } catch {
     // no projects folder
   }
-  found.set(sessionId, file);
+  found.set(sessionId, { file, at: Date.now() }); // a new session's file may not be there yet: not found is retried after 5 s
   return file;
 }
 

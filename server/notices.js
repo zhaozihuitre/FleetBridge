@@ -6,13 +6,15 @@ import { clipSentence, kindIcon, kindWord, lastTurn, notifySettings, summarize }
 // channel the same way (desktop toasts from the widget, phone push, the lists): each says which
 // terminal, what kind of thing happened, and for a finished turn a summary of its answer.
 //   permit / question       a dialog waits on you (approval vs a question or choice), told at once
-//   done / ask              a turn ended (idle 20 s): its summary; "ask" when the answer asks you something
+//   done / ask              a turn ended: its summary; "ask" when the answer asks you something. Told as
+//                           soon as the transcript says the turn is over (end_turn, interrupted, an API
+//                           error), after at most 15 s for the model's summary; idle 20 s otherwise
 //   interrupted / error     a turn stopped by you (Esc, a tool use turned down) or by an API error
 //   never_ran               an order of the master's that never ran (from the master's turns)
 //   overload / alert        context nearly full (hourly per session), quota low
 // Nothing that was already pending when the server started is told (no burst after an update).
 
-const READY_AFTER = 20_000; // idle this long before a turn counts as done (not the pauses between steps)
+const READY_AFTER = 20_000; // without word from the transcript: idle this long before a turn counts as done
 const MODEL_WAIT = 15_000; // a finished turn waits this long at most for the model's summary
 const OVERLOAD_EVERY = 3_600_000;
 const KEEP_MS = 15 * 60_000;
@@ -64,16 +66,23 @@ export function updateNotices(units, quests, prompts, o = {}) {
       told.add(key);
       continue;
     }
-    if (now - (u.statusSince || now) < READY_AFTER) continue; // the pauses between steps are not "done"
     const turn = lastTurn(u.sessionId);
+    // over by its transcript: at once; else only after a while idle (the pauses between steps are not "done")
+    const wait = turn?.ended ? 0 : READY_AFTER;
+    if (now - (u.statusSince || now) < wait) continue;
+    // no transcript yet (a brand-new session): look again, give up after two minutes
+    if (!turn) {
+      if (now - (u.statusSince || now) > 120_000) told.add(key);
+      continue;
+    }
     // nothing new: a resumed session shows up idle with its old answer, which is no news
-    if (!turn || !turn.lastAt || turn.lastAt < (u.statusSince || 0) - 120_000) {
+    if (!turn.lastAt || turn.lastAt < (u.statusSince || 0) - 120_000) {
       told.add(key);
       continue;
     }
     // the model summarizes our own agents' turns; outside sessions only when you chose so (it costs quota)
     const s = summarize(key, turn, { useModel: u.owned || notifySettings().modelExternal, quotaLow: o.quotaLow });
-    const late = now - (u.statusSince || now) > READY_AFTER + MODEL_WAIT;
+    const late = now - (u.statusSince || now) > wait + MODEL_WAIT;
     if (!s.done && !late) continue; // the model's summary is on its way
     let kind = turn.error ? 'error' : turn.interrupted ? 'interrupted' : s.summary.needs ? 'ask' : 'done';
     let { title, result, needs, by } = s.summary;

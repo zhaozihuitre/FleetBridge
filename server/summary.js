@@ -40,7 +40,8 @@ export function setNotifySettings(p) {
 const found = new Map();
 function transcriptOf(sessionId) {
   if (historyFiles.has(sessionId)) return historyFiles.get(sessionId);
-  if (found.has(sessionId)) return found.get(sessionId);
+  const hit = found.get(sessionId);
+  if (hit && (hit.file || Date.now() - hit.at < 5000)) return hit.file;
   let file = null;
   try {
     const root = path.join(os.homedir(), '.claude', 'projects');
@@ -54,7 +55,7 @@ function transcriptOf(sessionId) {
   } catch {
     // no projects folder
   }
-  found.set(sessionId, file);
+  found.set(sessionId, { file, at: Date.now() }); // a new session's file may not be there yet: not found is retried after 5 s
   return file;
 }
 
@@ -95,7 +96,9 @@ function isPrompt(e) {
 
 /**
  * The session's last turn: its prompt and what followed.
- * @returns {null | { prompt: string, promptAt: number, reply: string, said: string, lastAt: number, lastTool: string, interrupted: boolean, error: string }}
+ * ended: the turn is over by the transcript itself (its last answer says end_turn, it was interrupted,
+ * or it stopped on an API error), not just a pause between two steps.
+ * @returns {null | { prompt: string, promptAt: number, reply: string, said: string, lastAt: number, lastTool: string, interrupted: boolean, error: string, ended: boolean }}
  */
 export function lastTurn(sessionId) {
   const file = sessionId && transcriptOf(sessionId);
@@ -113,17 +116,21 @@ export function lastTurn(sessionId) {
   }
   if (start < 0) return null;
   const p = entries[start];
-  const turn = { prompt: textsOf(p.message.content).join('\n').trim(), promptAt: Date.parse(p.timestamp || '') || 0, reply: '', said: '', lastAt: 0, lastTool: '', interrupted: false, error: '' };
+  const turn = { prompt: textsOf(p.message.content).join('\n').trim(), promptAt: Date.parse(p.timestamp || '') || 0, reply: '', said: '', lastAt: 0, lastTool: '', interrupted: false, error: '', ended: false };
   const all = [];
   for (const e of entries.slice(start + 1)) {
     const at = Date.parse(e.timestamp || '') || 0;
     if (e.type === 'user' && textsOf(e.message?.content).some((t) => INTERRUPT.test(t.trim()))) {
       turn.interrupted = true;
+      turn.ended = true;
       if (at) turn.lastAt = at;
       continue;
     }
+    // a tool result: the turn goes on (a local command like /login or a reminder afterwards doesn't)
+    if (e.type === 'user' && Array.isArray(e.message?.content) && e.message.content.some((c) => c?.type === 'tool_result')) turn.ended = false;
     if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
     if (at) turn.lastAt = at;
+    turn.ended = e.isApiErrorMessage || e.message.stop_reason === 'end_turn' || e.message.stop_reason === 'stop_sequence';
     for (const c of e.message.content) {
       if (c.type === 'text' && c.text?.trim()) {
         if (e.isApiErrorMessage) turn.error = c.text.trim();
