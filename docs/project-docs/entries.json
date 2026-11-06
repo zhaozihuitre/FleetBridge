@@ -3088,6 +3088,31 @@
       "created": "2026-11-06 13:32",
       "updated": "2026-11-06 13:32",
       "notes": []
+    },
+    {
+      "id": "C-058",
+      "type": "change",
+      "title": "界面美化第二批：指令表、浅色主题、本地字体、终端字号、窄屏（0.9.32）",
+      "summary": "docs/ui-polish.md 第 6、7、9、10、11 条",
+      "detail": "6. 指令记录表：固定列（时间 46 / 状态 128 / 目标 210 / 来源 46 / 指令），目标名超长省略、悬停看全名和项目，来源标签（主控 / 手机 / Web）单独一列不再左右跳；指令正文最多两行；按天加分隔（今天 / 昨天 / 11-04）。\n7. 浅色主题：终端底色从偏暖的 #f6f6f3 改为和面板同色系的 #f8f9fb；卡片（.box / .unit / .quest / .save / .folder）用较深的边线和页面区分（写成霓虹调色板的强线色，由主题按角色换算）；手机页「外部会话」卡片不再整体调淡，只淡化副信息，名字保持正常对比度、加虚线边框。\n9. 字体打包到本地：Orbitron（可变字重）和 Rajdhani 500/600/700 的拉丁子集放在 web/fonts/（共约 58 KB，OFL 许可，附 OFL.txt），所有页面改为引用 /web/fonts/fonts.css，不再请求 Google Fonts。中文改用系统字体链：Noto Sans SC（如已安装）→ Microsoft YaHei UI → PingFang SC → Hiragino Sans GB。手机服务的白名单也加上了字体文件。小窗里的名字改用名字字体，不再大写。\n10. 终端字号可调：终端栏加 A− / A+（双击恢复默认 13），存在本机 localStorage（fb-term-font，11~22），分屏、主控终端、弹出窗口都跟随（弹出窗口通过 storage 事件）。分屏缩小的面板比基准小 1~2 号，但不低于 12px（原来会缩到 11px）。\n11. 窄屏：≤1400 额度框去掉 ENERGY/RESERVE 前缀、隐藏 PILOT 行；≤1250 隐藏重置时间（悬停可见）、搜索框收窄、「全军出击 / 出击」只显示图标、标签页计数只显示运行中数；<1100 总指令台自动收起（变宽后恢复原来的选择），品牌副标题、翻页快捷键提示隐藏。终端栏的「1 / 4」不再换行。\n\n另外确认：之前截图里「终端字很小、PowerShell 提示符在面板中间」是测试用无头浏览器的软件渲染造成的，真实 Electron 里提示符在第一行、字号正常（CDP 截图对比）。\n\n测试：demo 实例（无头浏览器）1600 / 1300 宽、浅色主题、指令页；开发实例真实 Electron 窗口（CDP 截图）里 A+ 生效、终端栏不换行。\n",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/style.css",
+        "web/theme.js",
+        "web/terminal.js",
+        "web/term.js",
+        "web/m.css",
+        "web/fonts/*",
+        "web/*.html",
+        "server/mobile.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 13:41",
+      "updated": "2026-11-06 13:41",
+      "notes": []
     }
   ]
 }

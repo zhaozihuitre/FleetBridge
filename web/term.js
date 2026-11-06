@@ -1,5 +1,5 @@
 // Popped-out terminal window: one agent, full window.
-import { createTerminal } from './terminal.js';
+import { createTerminal, onTermFont, paneFont } from './terminal.js';
 import { ask } from './ui.js';
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
@@ -9,7 +9,8 @@ translateDom();
 const id = location.hash.slice(1);
 const pane = document.getElementById('pane');
 const q = (s) => pane.querySelector(s);
-const t = createTerminal(document.getElementById('host'), id, { fontSize: 14 });
+const t = createTerminal(document.getElementById('host'), id, { fontSize: paneFont() + 1 });
+onTermFont(() => t.setFontSize(paneFont() + 1));
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
 

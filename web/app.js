@@ -1,4 +1,4 @@
-import { createTerminal } from './terminal.js';
+import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
@@ -102,7 +102,7 @@ function renderEnergy() {
         // what's used, how long until it resets (ticking) and when that is (with the date): no forecast
         const resets = L('{0} 重置', when(l.resetsAt));
         return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${L('还剩 {0}', dur(l.resetsAt - Date.now()))} · ${resets}`)}">
-          <div class="row"><span class="label">${weekly ? 'RESERVE' : 'ENERGY'} · ${esc(l.label)}</span>${stale}
+          <div class="row"><span class="label"><span class="lk">${weekly ? 'RESERVE' : 'ENERGY'} · </span>${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
           <div class="row"><span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span><span class="resets">${esc(resets)}</span></div>
@@ -608,17 +608,33 @@ function ordersPage() {
         .join('')
     : `<div class="o-empty">${L('没有排队的指令。打开总指挥台的「⏱ 排队」后发出的指令会在这里等，agent 每做完一条自动发下一条。')}</div>`;
   const log = state.orders || [];
+  // fixed columns (time, what happened, to whom, from where, the order), a divider per day
+  let day = '';
   const rows = log.length
     ? log
         .map((o) => {
           const k = ORDER_KIND[o.kind] || ORDER_KIND.sent;
           const waited = o.kind === 'dispatched' && o.queuedAt ? L('（排队 {0}）', waitText(o.at - o.queuedAt)) : '';
-          return `<div class="o-row" style="--oc:${k.c}"><span class="o-time">${clock(o.at, now - o.at > 86_400_000)}</span><span class="o-kind">${k.label()}${waited}</span><span class="o-who">→ ${orderWho(o.agentId, o.name, o.project)}${o.via === 'phone' ? `<span class="o-via">${L('手机')}</span>` : o.via === 'master' ? `<span class="o-via">${L('主控')}</span>` : ''}</span><span class="o-text" title="${esc(o.text)}">${esc(o.text)}</span></div>`;
+          const via = o.via === 'phone' ? L('手机') : o.via === 'master' ? L('主控') : o.via === 'web' ? 'Web' : '';
+          const d = dayLabel(o.at, now);
+          const sep = d !== day ? `<div class="o-day">${esc(d)}</div>` : '';
+          day = d;
+          return `${sep}<div class="o-row" style="--oc:${k.c}"><span class="o-time">${clock(o.at)}</span><span class="o-kind" title="${esc(k.label() + waited)}">${k.label()}${waited}</span><span class="o-who" title="${esc([o.name, o.project].filter(Boolean).join(' · '))}">→ ${orderWho(o.agentId, o.name, o.project)}</span><span class="o-src">${via ? `<span class="o-via">${esc(via)}</span>` : ''}</span><span class="o-text" title="${esc(o.text)}">${esc(o.text)}</span></div>`;
         })
         .join('')
     : `<div class="o-empty">${L('还没有指令记录。')}</div>`;
   return `<div class="orders"><section><div class="archive-head"><span class="mono">QUEUE</span><span>${L('排队中 · {0} 条', waiting.reduce((n, a) => n + a.queue.length, 0))}</span></div>${queued}</section>
     <section><div class="archive-head"><span class="mono">LOG</span><span>${L('指令记录 · 最近 {0} 条', log.length)}</span></div>${rows}</section></div>`;
+}
+
+/** 今天 / 昨天 / 11-04: the day a time falls on, for the dividers in the orders log. */
+function dayLabel(ms, now = Date.now()) {
+  const start = (t) => new Date(new Date(t).toDateString()).getTime();
+  const days = Math.round((start(now) - start(ms)) / 86_400_000);
+  if (days === 0) return L('今天');
+  if (days === 1) return L('昨天');
+  const d = new Date(ms);
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function waitText(ms) {
@@ -824,7 +840,7 @@ function renderMaster() {
   $('master-start').disabled = !state.agentSupport?.ok;
   if (alive && masterTerm?.id !== m.id) {
     masterTerm?.dispose();
-    masterTerm = createTerminal($('master-term'), m.id, { fontSize: 12, onInput: mentionInput });
+    masterTerm = createTerminal($('master-term'), m.id, { fontSize: paneFont(1), onInput: mentionInput });
   } else if (!alive && masterTerm) {
     masterTerm.dispose();
     masterTerm = null;
@@ -1160,7 +1176,7 @@ function layoutPanes() {
     grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
     grid.style.gridTemplateRows = 'minmax(0, 1fr)';
     panes.get(ui.solo).el.style.gridArea = '1 / 1 / 2 / 2';
-    panes.get(ui.solo).t.setFontSize(13);
+    panes.get(ui.solo).t.setFontSize(paneFont());
     for (const b of document.querySelectorAll('.pane [data-tact=solo], .pane [data-pact=solo]')) b.setAttribute('aria-pressed', String(b.closest('.pane').dataset.pane === ui.solo));
     return;
   }
@@ -1182,7 +1198,7 @@ function layoutPanes() {
     for (const [id, { el }] of panes) el.style.gridArea = id === ui.term ? '1 / 1 / -1 / 2' : `${row++} / 2 / ${row} / 3`;
   }
   // the big pane gets a normal font, small ones a smaller one to keep enough columns
-  for (const [id, { t }] of panes) t.setFontSize(n === 1 ? 13 : act >= 0 && id === ui.term ? 13 : act >= 0 ? 11 : 12);
+  for (const [id, { t }] of panes) t.setFontSize(n === 1 || (act >= 0 && id === ui.term) ? paneFont() : paneFont(act >= 0 ? 2 : 1));
   $('term-dyn').setAttribute('aria-pressed', String(dynamicSplit));
   // the label names the current mode, so an accidental click is easy to spot
   $('term-dyn').textContent = dynamicSplit ? L('⇔ 动态') : L('▦ 等分');
@@ -1225,7 +1241,7 @@ function openTerm(id) {
   el.dataset.pane = id;
   el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
   $('term-grid').appendChild(el);
-  const t = createTerminal(el.querySelector('.term-host'), id, { fontSize: panes.size ? 12 : 13, onFocus: () => setActivePane(id) });
+  const t = createTerminal(el.querySelector('.term-host'), id, { fontSize: paneFont(panes.size ? 1 : 0), onFocus: () => setActivePane(id) });
   panes.set(id, { el, t });
   layoutPanes();
   setActivePane(id);
@@ -1468,6 +1484,14 @@ function nextLine() {
 }
 
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
+// terminal font size: A− / A+ (double-click either: back to the default); every pane and the master follow
+$('font-dn').addEventListener('click', () => stepTermFont(-1));
+$('font-up').addEventListener('click', () => stepTermFont(1));
+for (const b of ['font-dn', 'font-up']) $(b).addEventListener('dblclick', () => stepTermFont(0));
+onTermFont(() => {
+  layoutPanes();
+  masterTerm?.setFontSize(paneFont(1));
+});
 $('prev').addEventListener('click', () => turn(-1));
 $('next').addEventListener('click', () => turn(1));
 $('refresh').addEventListener('click', async () => {
@@ -1905,6 +1929,20 @@ if (winBridge?.win) {
   const saved = Number(load('fb-op-w'));
   if (saved) setWidth(saved, false);
   if (load('fb-op-collapsed') === '1') setCollapsed(true);
+  // A narrow window (under 1100 px, e.g. a tablet in portrait or a window on half a screen): the
+  // console folds away on its own so the tabs get the room; back to wide, it returns to how you
+  // had it (unfolding or folding it by hand meanwhile is saved as usual).
+  const narrow = matchMedia('(max-width: 1099px)');
+  const followWidth = () => {
+    if (narrow.matches) {
+      const was = load('fb-op-collapsed');
+      main.classList.add('op-collapsed');
+      $('op-toggle').textContent = '›';
+      store('fb-op-collapsed', was); // folding for width is not your choice: keep the saved one
+    } else setCollapsed(load('fb-op-collapsed') === '1');
+  };
+  narrow.addEventListener('change', followWidth);
+  if (narrow.matches) followWidth();
   // a smaller window: keep the saved width within what fits now
   window.addEventListener('resize', () => main.style.getPropertyValue('--op-w') && setWidth(parseFloat(main.style.getPropertyValue('--op-w')), false));
 

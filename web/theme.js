@@ -34,9 +34,9 @@ export const THEMES = {
   light: {
     name: '浅色',
     glow: 'none',
-    ui: { bg: '#e7e9ec', panel: '#f3f4f6', panelDeep: '#eceef1', line: '#d3d7dd', lineHi: '#aeb6c1', text: '#48515e', soft: '#58626f', muted: '#66707b', dim: '#838c96', accent: '#2a6f96', amber: '#905e10', red: '#b9434d', green: '#3a744a', termBg: '#f6f6f3' },
+    ui: { bg: '#e7e9ec', panel: '#f3f4f6', panelDeep: '#eceef1', line: '#d3d7dd', lineHi: '#aeb6c1', text: '#48515e', soft: '#58626f', muted: '#66707b', dim: '#838c96', accent: '#2a6f96', amber: '#905e10', red: '#b9434d', green: '#3a744a', termBg: '#f8f9fb' },
     // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a light gray here
-    term: { background: '#f6f6f3', foreground: '#474f5b', cursor: '#2a6f97', cursorAccent: '#f6f6f3', selectionBackground: 'rgba(42,111,151,.18)', black: '#3a414a', red: '#bb434e', green: '#3b764c', yellow: '#8b6314', blue: '#336db6', magenta: '#8f56a6', cyan: '#287380', white: '#585e66', brightBlack: '#d9dde3', brightRed: '#2a6f96', brightGreen: '#3b6a48', brightYellow: '#7c5a1a', brightBlue: '#38649a', brightMagenta: '#7f5092', brightCyan: '#2c6872', brightWhite: '#363e47' },
+    term: { background: '#f8f9fb', foreground: '#474f5b', cursor: '#2a6f97', cursorAccent: '#f8f9fb', selectionBackground: 'rgba(42,111,151,.18)', black: '#3a414a', red: '#bb434e', green: '#3b764c', yellow: '#8b6314', blue: '#336db6', magenta: '#8f56a6', cyan: '#287380', white: '#585e66', brightBlack: '#d9dde3', brightRed: '#2a6f96', brightGreen: '#3b6a48', brightYellow: '#7c5a1a', brightBlue: '#38649a', brightMagenta: '#7f5092', brightCyan: '#2c6872', brightWhite: '#363e47' },
   },
 };
 export const THEME_KEYS = ['auto', ...Object.keys(THEMES)];

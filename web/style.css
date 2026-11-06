@@ -14,9 +14,9 @@
   --green: #4dffa6;
   --off: #10263a;
   --display: 'Orbitron', sans-serif;
-  --label: 'Rajdhani', 'Noto Sans SC', sans-serif;
-  --body: 'Noto Sans SC', system-ui, sans-serif;
-  --name: 'Rajdhani', 'Noto Sans SC', system-ui, sans-serif; /* names of terminals, projects, folders */
+  --label: 'Rajdhani', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --body: 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --name: 'Rajdhani', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif; /* names of terminals, projects, folders */
 }
 
 * { box-sizing: border-box; }
@@ -236,6 +236,7 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .term-bar { flex: none; display: flex; align-items: center; gap: 12px; padding: 6px 10px 6px 14px; border-bottom: 1px solid var(--line); font-family: var(--body); font-size: 12px; color: var(--muted); }
 .term-bar .mono { color: var(--cyan); letter-spacing: 2px; font-size: 12px; }
 .term-bar .hint { color: var(--dim); white-space: nowrap; }
+#term-count { flex: none; white-space: nowrap; }
 .term-add { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .term-add button { flex: none; height: 26px; padding: 0 10px; background: rgba(61,245,255,.08); border: 1px dashed var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; white-space: nowrap; }
 .term-add button:hover { border-style: solid; border-color: var(--cyan); color: var(--text); }
@@ -541,16 +542,18 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .o-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .o-x { height: 24px; min-width: 24px; padding: 0 6px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 12px; cursor: pointer; }
 .o-x:hover { border-color: var(--red); color: #ff8fa3; }
-.o-row { display: grid; grid-template-columns: 92px 150px minmax(120px, 220px) minmax(0, 1fr); align-items: center; gap: 12px; padding: 7px 12px; border-left: 3px solid var(--oc); background: rgba(255,255,255,.02); font-size: 13px; }
+.o-row { display: grid; grid-template-columns: 46px 128px minmax(0, 210px) 46px minmax(0, 1fr); align-items: center; gap: 12px; padding: 7px 12px; border-left: 3px solid var(--oc); background: rgba(255,255,255,.02); font-size: 13px; }
 .o-row:nth-child(even) { background: rgba(255,255,255,.035); }
 .o-row .o-kind { color: var(--oc); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .o-row .o-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); }
 .o-row .o-who b { color: var(--text); font-weight: 600; }
-.o-via { margin-left: 8px; padding: 0 5px; border: 1px solid var(--cyan); color: var(--cyan); font-size: 11px; }
+.o-src { display: flex; }
+.o-day { margin: 6px 0 0; padding: 2px 0; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.o-row .o-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
+.o-via { padding: 0 5px; white-space: nowrap; border: 1px solid var(--cyan); color: var(--cyan); font-size: 11px; }
 /* four tabs + search + three buttons: make room so no tab badge gets cut */
 .tabs .key { display: none; }
 .tab .en { font-size: 13px; letter-spacing: .5px; }
-.o-row { grid-template-columns: 70px 240px minmax(120px, 220px) minmax(0, 1fr); }
 @media (max-width: 1700px) { .tab .en { display: none; } }
 
 /* Master console: a Claude Code terminal in the left column that commands the other agents */
@@ -626,3 +629,32 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .pane[hidden] { display: none !important; }
 .pane [data-tact=solo][aria-pressed="true"], .pane [data-pact=solo][aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
 .pane .term-head { user-select: none; }
+
+/* light theme: cards stand off the page by a firmer edge (#1b6f80 is the palette's strong line) */
+html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="light"] .quest, html[data-theme="light"] .save, html[data-theme="light"] .folder, html[data-theme="light"] .o-row { border-top-color: #1b6f80; border-right-color: #1b6f80; border-bottom-color: #1b6f80; }
+
+/* terminal font size buttons in the terminals bar */
+.term-bar .font-step { display: flex; margin-left: auto; flex: none; }
+.term-bar .font-step button { height: 28px; min-width: 34px; padding: 0 6px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
+.term-bar .font-step button + button { border-left: 0; }
+.term-bar .font-step button:hover { color: var(--cyan); border-color: var(--cyan); }
+.term-bar .font-step + #term-dyn { margin-left: 0; }
+
+/* Narrower windows (laptops, a tablet in landscape, half a screen): the top bar and the tab row
+   drop their extras before anything gets cut (the full texts stay in the tooltips) */
+@media (max-width: 1400px) {
+  .energy .lk { display: none; }
+  .pilot small { display: none; }
+}
+@media (max-width: 1250px) {
+  .energy .resets { display: none; }
+  .search { flex-basis: 120px; }
+  /* the two deploy buttons show their icon only (⚡ / ＋); the title says what they do */
+  .tabs #deploy-all, .tabs #deploy-open { width: 40px; padding: 0 0 0 12px; overflow: hidden; white-space: nowrap; text-overflow: clip; }
+  .tab .n small { display: none; }
+}
+@media (max-width: 1099px) {
+  .brand small { display: none; }
+  .pager button { min-width: 0; padding: 0 12px; }
+  .pager kbd { display: none; }
+}

@@ -1,0 +1,7 @@
+/* Display fonts shipped with the app (Latin subsets from Google Fonts, SIL Open Font License 1.1,
+   see OFL.txt): no request to the internet, and the same widths offline. Chinese and Japanese use
+   the system's own fonts (Noto Sans SC if installed, else Microsoft YaHei UI / PingFang / Yu Gothic). */
+@font-face { font-family: 'Orbitron'; font-style: normal; font-weight: 400 900; font-display: swap; src: url(/web/fonts/orbitron.woff2) format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 500; font-display: swap; src: url(/web/fonts/rajdhani-500.woff2) format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 600; font-display: swap; src: url(/web/fonts/rajdhani-600.woff2) format('woff2'); }
+@font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700; font-display: swap; src: url(/web/fonts/rajdhani-700.woff2) format('woff2'); }

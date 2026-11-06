@@ -6,8 +6,7 @@
 <title>舰桥 · Fleet Bridge</title>
 <link rel="icon" href="/web/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/web/icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="/web/fonts/fonts.css" rel="stylesheet">
 <link rel="stylesheet" href="/lib/xterm/css/xterm.css">
 <link rel="stylesheet" href="/web/style.css">
 </head>
@@ -111,6 +110,7 @@
 <header class="term-bar">
 <span class="mono">TERMINALS</span><span id="term-count"></span>
 <span class="term-add" id="term-add"></span>
+<span class="font-step" role="group" aria-label="终端字号"><button type="button" id="font-dn" title="终端字号变小">A−</button><button type="button" id="font-up" title="终端字号变大（双击 A+ / A− 恢复默认）">A+</button></span>
 <button id="term-dyn" aria-pressed="true" title="动态分屏：当前 / 刚收到指令的终端变大，其他变小">⇔ 动态</button>
 <button id="term-close-all" title="收起所有终端（agent 继续运行）">✕ 全部收起</button>
 </header>

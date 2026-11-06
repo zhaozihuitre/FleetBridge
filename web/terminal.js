@@ -14,6 +14,41 @@ onTermTheme((theme) => {
   for (const term of live) term.options.theme = { ...theme };
 });
 
+// The terminals' base font size, chosen with A− / A+ (kept in this browser). Panes size their font
+// from it (a small pane a step or two below, never under 12 px); every page with terminals follows
+// a change, popped-out windows too (the storage event).
+const FONT_KEY = 'fb-term-font';
+const FONT_MIN = 11;
+const FONT_MAX = 22;
+const fontListeners = new Set();
+export function termFontBase() {
+  let n = 13;
+  try {
+    n = Number(localStorage.getItem(FONT_KEY)) || 13;
+  } catch {
+    // storage unavailable: the default
+  }
+  return Math.min(FONT_MAX, Math.max(FONT_MIN, n));
+}
+/** Moves the base size by d (0: back to the default); returns the new size. */
+export function stepTermFont(d) {
+  const n = d === 0 ? 13 : Math.min(FONT_MAX, Math.max(FONT_MIN, termFontBase() + d));
+  try {
+    localStorage.setItem(FONT_KEY, String(n));
+  } catch {
+    // only this page follows
+  }
+  for (const fn of fontListeners) fn(n);
+  return n;
+}
+/** Called with the new base size whenever it changes (here or in another window). */
+export function onTermFont(fn) {
+  fontListeners.add(fn);
+}
+addEventListener('storage', (e) => e.key === FONT_KEY && fontListeners.forEach((fn) => fn(termFontBase())));
+/** A pane's font size from the base: step 0 for a full-size pane, 1 or 2 for smaller ones. */
+export const paneFont = (step = 0) => Math.max(12, termFontBase() - step);
+
 /**
  * @param {HTMLElement} host
  * @param {string} id agent id
@@ -26,7 +61,7 @@ export function createTerminal(host, id, opts = {}) {
   // and the right edge were cut off, under the scrollbar)
   host.innerHTML = '<div class="term-fit" style="width:100%;height:100%;overflow:hidden"></div>';
   const box = host.firstElementChild;
-  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: { ...termTheme() }, minimumContrastRatio: 3 });
+  const term = new Terminal({ fontFamily: "'Cascadia Mono', Consolas, 'Noto Sans SC', 'Microsoft YaHei UI', 'PingFang SC', monospace", fontSize: opts.fontSize || 13, cursorBlink: true, scrollback: 5000, theme: { ...termTheme() }, minimumContrastRatio: 3 });
   live.add(term);
   const fit = new FitAddon();
   term.loadAddon(fit);

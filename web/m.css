@@ -4,8 +4,8 @@
   --text: #ddf6ff; --soft: #a9c4d3; --muted: #7fa3b8; --dim: #4f7a90;
   --cyan: #3df5ff; --amber: #ffb020; --red: #ff4d6d; --green: #4dffa6;
   --display: 'Orbitron', 'Rajdhani', system-ui, sans-serif;
-  --label: 'Rajdhani', 'Noto Sans SC', system-ui, sans-serif;
-  --body: 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --label: 'Rajdhani', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --body: 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, -apple-system, sans-serif;
   --mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
   --cut: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
 }
@@ -127,7 +127,9 @@ main { flex: 1; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); disp
 button.card { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; padding-right: 34px; }
 button.card:active { filter: brightness(1.35); }
 .card .go { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 26px; color: var(--c); opacity: .8; }
-.card.ext { opacity: .55; }
+/* outside sessions are view-only: their details are quieter, the name stays readable */
+.card.ext { border-style: dashed; }
+.card.ext .meta, .card.ext .sub, .card.ext .st { opacity: .7; }
 .card .nm { min-width: 0; flex: 1; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
 .card .meta .pj { min-width: 0; font-family: var(--display); letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

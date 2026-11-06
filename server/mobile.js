@@ -18,8 +18,8 @@ const QRCode = require('qrcode');
 const FILE = path.join(DATA_DIR, 'mobile.json');
 const PORT = Number(process.env.MONITOR_MOBILE_PORT) || config.port + 2;
 const COOKIE = 'fbm';
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
-const FILES = new Set(['/web/m.html', '/web/m.js', '/web/m.css', '/web/i18n.js', '/web/style.css', '/web/theme.js', '/web/favicon.svg', '/web/icon.png']);
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+const FILES = new Set(['/web/m.html', '/web/m.js', '/web/m.css', '/web/i18n.js', '/web/style.css', '/web/theme.js', '/web/favicon.svg', '/web/icon.png', '/web/fonts/fonts.css', '/web/fonts/orbitron.woff2', '/web/fonts/rajdhani-500.woff2', '/web/fonts/rajdhani-600.woff2', '/web/fonts/rajdhani-700.woff2']);
 
 let settings = load();
 const auth = createAuth(settings, save);
