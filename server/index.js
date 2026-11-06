@@ -17,7 +17,7 @@ import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
-import { mobileInfo, pendingDevices, phoneUrl, setMobile, startMobile, stopMobile, webSetupNeeded } from './mobile.js';
+import { mobileInfo, pendingDevices, setMobile, startMobile, stopMobile, webSetupNeeded, webUrl } from './mobile.js';
 import { pushInfo, pushNotices, setPush, testPush } from './push.js';
 import { lineText, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
 import { lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
@@ -166,8 +166,8 @@ function publish() {
     const lt = lastTurn(t.sessionId);
     const turn = lt && lt.promptAt >= t.since - 5000 ? lt : { prompt: t.text, reply: r?.reply || '', said: r?.reply || '' };
     const summaryKey = `master:${t.agentId}:${t.since}`;
-    if (!t.neverRan && !r?.interrupted && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan, summaryKey });
+    if (!t.neverRan && !r?.interrupted && !r?.error && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
     if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);
@@ -192,7 +192,7 @@ function publish() {
     return n && u.status === 'idle' && n.key === `ready:${u.sessionId}:${u.statusSince}` ? { ...u, summary: n.line } : u;
   });
   // phone push: whatever needs you, whether or not anyone is looking at a screen
-  if (!process.env.MONITOR_DEMO) pushNotices(state.notices, phoneUrl()); // never push made-up sessions to a phone
+  if (!process.env.MONITOR_DEMO) pushNotices(state.notices, webUrl()); // never push made-up sessions to a phone
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
   stateJson = json;
@@ -516,7 +516,7 @@ async function handleRequest(req, res) {
   if (req.url === '/api/mobile') return send(res, 200, req.method === 'POST' ? await setMobile(await readBody(req)) : await mobileInfo());
   // phone push (ntfy): on / off, new channel, a test message
   if (req.url === '/api/push') return send(res, 200, req.method === 'POST' ? await setPush(await readBody(req)) : await pushInfo());
-  if (req.method === 'POST' && req.url === '/api/push/test') return send(res, 200, await testPush(phoneUrl()));
+  if (req.method === 'POST' && req.url === '/api/push/test') return send(res, 200, await testPush(webUrl()));
   // notice summaries: by the model (our agents; outside sessions optional) or by rules only
   if (req.url === '/api/notify') return send(res, 200, req.method === 'POST' ? setNotifySettings(await readBody(req)) : notifySettings());
   // Review / commit / push: only repos the git collector found (live and offline projects).

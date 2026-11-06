@@ -13,7 +13,8 @@ const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 if (!LOCAL) {
   document.documentElement.classList.add('web');
   // one address for every device: a phone goes on to the phone page (unless it chose the full one)
-  if (wantedView() === 'phone') location.replace('/m');
+  // (a notification's link to a terminal, #term=<id>, goes along as the phone page's #t=<id>)
+  if (wantedView() === 'phone') location.replace('/m' + location.hash.replace(/^#term=([0-9a-f-]{36}).*$/, '#t=$1'));
 }
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
 const ITEM = { unitW: 400, unitH: 330, unitGap: 16, questH: 92, questGap: 10, saveH: 64, saveGap: 6 };

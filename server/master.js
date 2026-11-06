@@ -5,6 +5,7 @@ import { DATA_DIR, ROOT } from './config.js';
 import { getAgent, inputEmpty, killAgent, listAgents, sendText, spawnAgent } from './agents.js';
 import { L } from './i18n.js';
 import { cachedSummary } from './summary.js';
+import { currentOrg, LIMIT_RE, orgAt, orgInfo } from './accounts.js';
 
 // The master console: a Claude Code session in the command center's left column that commands the
 // other agents through the fleet MCP tools (server/fleet-mcp.cjs). It works in its own folder, so its
@@ -285,7 +286,7 @@ const mins = (ms) => {
   return s < 60 ? L(`${s} 秒`, `${s}s`, `${s} 秒`) : s < 3600 ? L(`${Math.round(s / 60)} 分钟`, `${Math.round(s / 60)} min`, `${Math.round(s / 60)} 分`) : L(`${(s / 3600).toFixed(1)} 小时`, `${(s / 3600).toFixed(1)} h`, `${(s / 3600).toFixed(1)} 時間`);
 };
 
-function doneNotice(x) {
+export function doneNotice(x) {
   const order = x.text.replace(/\s+/g, ' ').trim();
   const head = order.length > 40 ? order.slice(0, 40) + '…' : order;
   const reply = x.reply
@@ -305,6 +306,22 @@ function doneNotice(x) {
       `[Fleet notice] Interrupted: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": stopped after ${mins(x.ms)} (Esc, or a tool use turned down) and waits for what to do instead.\n${x.reply ? reply : '(no answer before it stopped: see fleet_read_screen)'}`,
       `【艦橋通知】中断：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了せず、${mins(x.ms)} 後に中断されました（Esc またはツール実行の拒否）。次の指示を待っています。\n${x.reply ? reply : '（中断前の回答なし。画面は fleet_read_screen で確認）'}`,
     );
+  // stopped on an API error: not done. The quota used up (or credits needed) says whose quota it was
+  if (x.error) {
+    if (LIMIT_RE.test(x.error)) {
+      const org = orgInfo(orgAt(Date.now()) || currentOrg())?.name || L('组织未知', 'unknown organization', '組織不明');
+      return L(
+        `【舰桥通知】⛔ 额度到限：${x.name}（${x.agentId.slice(0, 8)}）没做完你派的指令「${head}」：「${org}」的额度用完了（${x.error}）。等额度重置后它会接着做，或者用 /login 换到另一个组织。`,
+        `[Fleet notice] ⛔ Quota used up: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": the quota of "${org}" is used up (${x.error}). It goes on after the reset, or /login to the other organization.`,
+        `【艦橋通知】⛔ 利用枠上限：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了していません。「${org}」の利用枠を使い切りました（${x.error}）。リセット後に再開するか、/login で別の組織へ。`,
+      );
+    }
+    return L(
+      `【舰桥通知】❗ 出错：${x.name}（${x.agentId.slice(0, 8)}）没做完你派的指令「${head}」，停在一个 API 错误上：${x.error}\n${x.reply ? reply : ''}`,
+      `[Fleet notice] ❗ Error: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": it stopped on an API error: ${x.error}\n${x.reply ? reply : ''}`,
+      `【艦橋通知】❗ エラー：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了していません。API エラーで停止：${x.error}\n${x.reply ? reply : ''}`,
+    ).trim();
+  }
   // a summary first (the conclusion, what it did, what it needs of the user), then the answer itself
   const s = (x.summaryKey && cachedSummary(x.summaryKey)?.summary) || null;
   const sum = s

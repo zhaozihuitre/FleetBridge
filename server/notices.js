@@ -50,11 +50,12 @@ export function updateNotices(units, quests, prompts, o = {}) {
     const who = { agentId: u.agentId || null, sessionId: u.sessionId, name: u.name || u.project, project: u.project, owned: Boolean(u.owned) };
     if (u.permission) {
       const p = prompts.get(u.sessionId);
-      const kind = p?.kind === 'question' ? 'question' : 'permit';
+      let kind = p?.kind === 'question' ? 'question' : 'permit';
       const opts = p?.options?.length ? p.options.map((x) => `${x.key}. ${x.label}`).join(' / ') : '';
       const q = (p?.text || u.permission.message || '').split('\n').map((l) => l.trim()).filter(Boolean);
       // a dialog about the quota ("… now uses usage credits"): whose quota
-      const quota = LIMIT_RE.test(q.join(' ')) ? orgInfo(currentOrg())?.name : '';
+      const quota = LIMIT_RE.test(q.join(' ')) ? orgInfo(currentOrg())?.name || L('组织未知', 'unknown organization', '組織不明') : '';
+      if (quota) kind = 'limit'; // "… now uses usage credits": the quota's business, its choices still answer it
       prime(`ask:${u.sessionId}:${u.permission.at}`, () => ({ kind, ...who, org: quota || undefined, title: (quota ? `[${quota}] ` : '') + clipSentence(q[0] || '', 50), result: clipSentence(q.slice(1).join(' '), 120), needs: opts ? clipSentence(opts, 120) : '' }));
       continue;
     }
@@ -92,10 +93,14 @@ export function updateNotices(units, quests, prompts, o = {}) {
     let org;
     if (kind === 'error') {
       [title, result, needs] = [clipSentence(turn.error, 50), title ? L('出错前：', 'Before it: ', 'エラー前：') + title : '', ''];
-      // the quota ran out: say whose (the organization signed in when it happened)
+      // the quota ran out: a kind of its own, saying whose (the organization signed in when it happened)
       if (LIMIT_RE.test(turn.error)) {
-        org = orgInfo(orgAt(turn.lastAt) || currentOrg())?.name;
-        title = L('「{0}」额度到限：', '{0} quota used up: ', '「{0}」の利用枠が上限：').replace('{0}', org || L('组织未知', 'unknown organization', '組織不明')) + title;
+        kind = 'limit';
+        org = orgInfo(orgAt(turn.lastAt) || currentOrg())?.name || L('组织未知', 'unknown organization', '組織不明');
+        // short enough for a phone's title line: whose, and when it comes back ("resets 6pm")
+        const back = turn.error.match(/resets?\s+(?:at\s+)?([^·(（\n]+?)\s*(?:[·(（]|$)/i)?.[1];
+        title = L('「{0}」额度用完', '{0} quota used up', '「{0}」の利用枠を使い切り').replace('{0}', org) + (back ? L('，{0} 重置', ', back {0}', '、{0} にリセット').replace('{0}', back) : '');
+        result = turn.error + (result ? '\n' + result : '');
         needs = L('等额度重置，或 /login 换到另一个组织。', 'Wait for the reset, or /login to the other organization.', 'リセットを待つか、/login で別の組織へ。');
       }
     }

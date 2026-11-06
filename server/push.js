@@ -73,12 +73,16 @@ export function testPush(click) {
 }
 
 // what each kind of notice is worth on a phone: things that need you ring loudest
-const PRIORITY = { permit: 5, question: 5, error: 4, interrupted: 4, never_ran: 4, alert: 4, ask: 4, done: 3, overload: 3 };
-const TAGS = { permit: 'rotating_light', question: 'question', error: 'x', interrupted: 'pause_button', never_ran: 'no_entry', alert: 'warning', ask: 'yellow_circle', done: 'white_check_mark', overload: 'warning' };
+const PRIORITY = { permit: 5, question: 5, error: 4, limit: 4, interrupted: 4, never_ran: 4, alert: 4, ask: 4, done: 3, overload: 3 };
+const TAGS = { permit: 'rotating_light', question: 'question', error: 'x', limit: 'no_entry', interrupted: 'pause_button', never_ran: 'no_entry_sign', alert: 'warning', ask: 'yellow_circle', done: 'white_check_mark', overload: 'warning' };
 const sent = new Set();
 
-/** Called on every publish: push each new notice once (with its summary only if you chose so). */
-export function pushNotices(notices, click) {
+/**
+ * Called on every publish: push each new notice once. Tapping it opens the web page at that terminal
+ * (base: the web address, or null when web access is off): #term=<our agent> (an outside session has
+ * no terminal to open here: the page itself).
+ */
+export function pushNotices(notices, base) {
   if (!settings.enabled || !settings.topic) return;
   for (const n of notices) {
     if (sent.has(n.key)) continue;
@@ -86,6 +90,7 @@ export function pushNotices(notices, click) {
     if (sent.size > 1000) sent.delete(sent.values().next().value);
     if (!primed) continue; // what was there when push was turned on (or the server started) is not news
     const t = pushText(n, settings.content !== false);
+    const click = base ? base + (n.agentId ? `#term=${n.agentId}` : '') : undefined;
     send({ title: t.title, message: t.body, priority: PRIORITY[n.kind] || 3, tags: [TAGS[n.kind] || 'bell'], click });
   }
   primed = true;

@@ -3360,6 +3360,39 @@
       "created": "2026-11-06 16:20",
       "updated": "2026-11-06 16:20",
       "notes": []
+    },
+    {
+      "id": "C-067",
+      "type": "change",
+      "title": "点通知直接到对应终端（手机推送、桌面通知）；额度到限单独分类（0.9.43）",
+      "summary": "手机推送带网页端链接 /#term=<agent>，按设备进手机页或完整版并打开该终端，没登录先登录再跳；桌面通知点击后指挥中心到前台并打开该终端；额度用完从「完成」里分出来，⛔ 额度到限并写明组织。",
+      "detail": "推送：ntfy 的 Click 设为 http://<地址>:8789/#term=<agent id>，地址优先用 Tailscale（不在局域网也能开），否则局域网 IP；外部会话没有可打开的终端，只打开页面。链接里没有任何凭据：没登录时同一地址显示登录页（口令 + 电脑上允许），登录后带着 #term 继续（登录页地址和目标相同时原来只改了 hash 不刷新，改为刷新）。手机按设备跳到 /m 时 #term= 转成 #t=，手机页里打开该终端；平板、电脑留在 / 打开分屏终端；手动切换版本时也带着目标。桌面通知：widget 调 notify 时带上 agent id（外部会话带 s:<session>），点击后主进程把它交回 widget，按列表行同样处理：我方终端在指挥中心打开（窗口没开就新开并定位，开着就恢复、到前台、打开），外部会话把它的终端窗口切到前台。额度到限：原来主控通知用 turnReply 取最后一段文字，把 API 错误「You've hit your 5-hour limit」当成了回答，判成 ✅ 完成；现在 turnReply 把 API 错误单独返回，主控通知写「⛔ 额度到限：…「组织」的额度用完了」，其他 API 错误写「❗ 出错」；通知新增 limit 类（⛔ 额度到限，标题「「组织」额度用完，6pm 重置」，正文先「需要你：等额度重置，或 /login 换到另一个组织」），额度/credits 选择框也归入这一类；未执行改用 🚫。测试：开发实例里用模拟手机和 iPad 打开通知链接：登录页 → 电脑允许 → 分别进 /m 和 / 并打开该终端，已登录时直接打开；桌面通知点击用主进程调试接口发出点击事件，窗口未开 / 已开（含最小化）都到前台并打开对应终端；额度到限用合成会话记录验证主控通知、桌面通知、推送三处文字。",
+      "status": "done",
+      "files": [
+        "server/mobile.js",
+        "server/push.js",
+        "server/index.js",
+        "server/turns.js",
+        "server/master.js",
+        "server/notices.js",
+        "server/summary.js",
+        "desktop/main.cjs",
+        "desktop/preload.cjs",
+        "web/widget.js",
+        "web/app.js",
+        "web/m.js",
+        "docs/notify-summary-plan.md"
+      ],
+      "tags": [
+        "notify",
+        "push",
+        "web"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 16:34",
+      "updated": "2026-11-06 16:34",
+      "notes": []
     }
   ]
 }

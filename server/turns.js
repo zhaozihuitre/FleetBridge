@@ -141,7 +141,9 @@ function tail(file) {
  * already messaged the master itself (SendMessage) in that turn, and whether the turn was cut short
  * (Esc, or a tool use turned down: "[Request interrupted by user…]" with no answer after it).
  * Only this turn counts: a turn that wrote no text has no reply (not the one before it).
- * @returns {{ reply: string, messaged: boolean, interrupted: boolean } | null} null: no transcript to read
+ * An API error (the quota used up, "needs credits", an overloaded server) is not an answer: it is error,
+ * until a real answer after it.
+ * @returns {{ reply: string, messaged: boolean, interrupted: boolean, error: string } | null} null: no transcript to read
  */
 export function turnReply(sessionId, since) {
   const file = sessionId && transcriptOf(sessionId);
@@ -155,20 +157,26 @@ export function turnReply(sessionId, since) {
   let reply = '';
   let messaged = false;
   let interrupted = false;
+  let error = '';
   for (const e of entries) {
     const at = Date.parse(e.timestamp || '') || 0;
     if (!at || at < since - 2000) continue; // before this turn (entries with no time aren't messages)
     if (e.type === 'user' && cutShort(e.message?.content)) interrupted = true;
     if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
     for (const c of e.message.content) {
+      if (c.type === 'text' && c.text?.trim() && e.isApiErrorMessage) {
+        error = c.text.trim();
+        continue;
+      }
       if (c.type === 'text' && c.text?.trim()) {
         reply = c.text.trim();
+        error = '';
         interrupted = false; // it went on and answered after all
       }
       if (c.type === 'tool_use' && c.name === 'SendMessage') messaged = true;
     }
   }
-  return { reply, messaged, interrupted };
+  return { reply, messaged, interrupted, error };
 }
 
 /** Whether the transcript has anything of the turn that started at `since` (null: no transcript to read). */

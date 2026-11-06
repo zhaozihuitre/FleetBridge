@@ -384,7 +384,7 @@ ipcMain.on('ops:action', (_e, name) => {
   sendSettings();
 });
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
-ipcMain.on('ops:notify', (_e, title, body) => {
+ipcMain.on('ops:notify', (_e, title, body, tag) => {
   if (muted || !Notification.isSupported()) return;
   if (!INSTALLED && process.env.MONITOR_DEV_NOTIFY !== '1') {
     console.log(`notify (dev, not shown): ${String(title).slice(0, 40)}`);
@@ -398,7 +398,11 @@ ipcMain.on('ops:notify', (_e, title, body) => {
   if (!INSTALLED) console.log(`notify ${looking ? 'suppressed' : 'shown'} (focused: ${focused === mainWin ? 'command center' : focused === widget ? 'widget' : focused ? 'other' : 'none'}${focused?.isMinimized() ? ', minimized' : ''}): ${String(title).slice(0, 40)}`);
   if (looking) return;
   const n = new Notification({ title: String(title).slice(0, 80), body: String(body).slice(0, 200), silent: false });
-  n.on('click', () => openMain());
+  // clicked: the widget goes to that terminal (opens ours in the command center, brings an outside one forward)
+  n.on('click', () => {
+    if (tag && widget && !widget.isDestroyed()) widget.webContents.send('ops:notify-click', tag);
+    else openMain();
+  });
   n.show();
 });
 

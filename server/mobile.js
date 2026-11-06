@@ -107,11 +107,17 @@ function addresses() {
   return out;
 }
 
-/** The phone page address for a notification to open, or null when web access is off. */
-export function phoneUrl() {
+/**
+ * The web page a notification opens on a phone or tablet (it goes on to the phone page or the command
+ * center by the device itself): the Tailscale address first, which also works away from the local
+ * network, else the local one; null when web access is off. No credential in it: a device that is not
+ * signed in gets the sign-in (password, then this computer's OK) and goes on to the target after.
+ */
+export function webUrl() {
   if (!settings.enabled || !server?.listening) return null;
-  const a = addresses().find((x) => !x.tailscale) || addresses()[0];
-  return a ? `http://${a.ip}:${PORT}/m` : null;
+  const list = addresses();
+  const a = list.find((x) => x.tailscale) || list[0];
+  return a ? `http://${a.ip}:${PORT}/` : null;
 }
 
 /** Devices waiting for the computer's OK (shown as a dialog in the command center). */
@@ -253,13 +259,15 @@ button{height:54px;font-size:18px;font-weight:700;background:#3df5ff;color:#0406
 <div class="msg" id="msg" role="alert">${note}</div><button id="go">${t.go}</button></form>
 <script>
 const T=${JSON.stringify(t)},NEXT=${JSON.stringify(next)};const f=document.getElementById('f'),pw=document.getElementById('pw'),msg=document.getElementById('msg'),go=document.getElementById('go');
+// signed in: on to the page (with the link's target, #term=…); the same address only reloads
+const go2=()=>{if(location.pathname===NEXT)location.reload();else location.replace(NEXT+location.hash)};
 const fmt=(s)=>s>=60?Math.ceil(s/60)+' min':s+' s';
 const wait=async(id)=>{msg.className='msg ok';msg.textContent=T.wait;go.disabled=true;pw.disabled=true;
 for(;;){await new Promise(r=>setTimeout(r,1500));let j;try{j=await (await fetch('/api/login/wait?id='+encodeURIComponent(id))).json()}catch{continue}
-if(j.state==='allowed'){location.replace(NEXT);return}if(j.state!=='pending'){msg.className='msg';msg.textContent=j.state==='denied'?T.denied:T.expired;go.disabled=false;pw.disabled=false;pw.value='';return}}};
+if(j.state==='allowed'){go2();return}if(j.state!=='pending'){msg.className='msg';msg.textContent=j.state==='denied'?T.denied:T.expired;go.disabled=false;pw.disabled=false;pw.value='';return}}};
 f.addEventListener('submit',async(e)=>{e.preventDefault();if(!pw.value)return;go.disabled=true;msg.className='msg';msg.textContent='';
 try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw.value})});const j=await r.json();
-if(j.ok){if(j.pending)return wait(j.pending);location.replace(NEXT);return}msg.textContent=j.wait?T.locked.replace('{0}',fmt(j.wait)):T.wrong.replace('{0}',j.left);pw.value='';pw.focus()}
+if(j.ok){if(j.pending)return wait(j.pending);go2();return}msg.textContent=j.wait?T.locked.replace('{0}',fmt(j.wait)):T.wrong.replace('{0}',j.left);pw.value='';pw.focus()}
 catch{msg.textContent=T.fail}go.disabled=false});
 </script></body></html>`);
 }

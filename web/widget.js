@@ -156,7 +156,7 @@ function notifyNew() {
   for (const n of state.notices || []) {
     if (told.has(n.key)) continue;
     told.add(n.key);
-    if (primed && !muted && n.toast) bridge?.notify(n.toast.title, n.toast.body);
+    if (primed && !muted && n.toast) bridge?.notify(n.toast.title, n.toast.body, n.agentId || (n.sessionId ? 's:' + n.sessionId : ''));
   }
   primed = true; // the first state only records what was already there
 }
@@ -170,6 +170,13 @@ async function go(el) {
   if (pid) await fetch('/api/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pid }) });
   else bridge ? bridge.openMain() : window.open('/', 'fleet-bridge');
 }
+
+// a toast clicked: the terminal it is about, as a click on its row would (our agent's id, or s:<session>)
+bridge?.onNotifyClick?.((tag) => {
+  if (!tag.startsWith('s:')) return go({ dataset: { agent: tag } });
+  const u = (state?.units || []).find((x) => x.sessionId === tag.slice(2));
+  go({ dataset: { agent: u?.agentId || '', pid: u?.agentId ? '' : String(u?.pid || '') } });
+});
 
 $('units').addEventListener('click', (e) => {
   const row = e.target.closest('.row');

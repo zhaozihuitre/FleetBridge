@@ -7,7 +7,9 @@ import { switchView, wantedView } from './device.js';
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
 // (unless it chose this one); the switch stays at hand either way
-if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname) && wantedView() === 'full') location.replace('/');
+// a notification links every device to /#term=<id>: here that terminal is #t=<id> (and back again)
+if (/^#term=[0-9a-f-]{36}$/.test(location.hash)) history.replaceState(null, '', location.pathname + '#t=' + location.hash.slice(6));
+if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname) && wantedView() === 'full') location.replace('/' + location.hash.replace(/^#t=([0-9a-f-]{36}).*$/, '#term=$1'));
 
 translateDom();
 document.getElementById('view-full').addEventListener('click', () => switchView('full'));
