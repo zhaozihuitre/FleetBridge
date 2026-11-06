@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { config, DATA_DIR, ROOT } from './config.js';
 import { L } from './i18n.js';
-import { createAuth, isPrivateAddress, normPassword, PASSWORD_MIN, SESSION_DAYS } from './phoneauth.js';
+import { createAuth, isPrivateAddress, normPassword, PASSWORD_MIN, SESSION_DAYS, TRUST_DAYS } from './phoneauth.js';
 
 // Web access: the command center (the same page as on the computer) and the phone page, for other
 // devices on the local network (a tablet, a phone, another computer), on a second server; the main one
@@ -155,6 +155,7 @@ export async function mobileInfo() {
     devices: auth.devices().map((d) => ({ ...d, device: deviceName(d.ua) })),
     pending: pendingDevices(),
     sessionDays: SESSION_DAYS,
+    trustDays: TRUST_DAYS,
     passwordMin: PASSWORD_MIN,
   };
 }
@@ -179,14 +180,7 @@ export async function setMobile({ enabled, password, logoutAll, revoke, approve,
   }
   if (logoutAll) auth.logoutAll();
   if (revoke) auth.revoke(String(revoke));
-  if (approve?.id && pending.has(approve.id)) {
-    const p = pending.get(approve.id);
-    if (p.state === 'pending') {
-      p.state = approve.allow ? 'allowed' : 'denied';
-      if (approve.allow) p.token = auth.issue(p.ua, p.ip);
-    }
-    hooks?.changed?.();
-  }
+  if (approve?.id) decide(approve.id, Boolean(approve.allow), { trust: Boolean(approve.trust), by: 'pc' });
   if (typeof enabled === 'boolean') settings.enabled = enabled;
   save();
   if (shouldListen()) await listen();
@@ -224,8 +218,40 @@ function page(res, code, text) {
   res.end(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="background:#04060c;color:#ddf6ff;font-family:system-ui;padding:24px;line-height:1.7">${text}</body>`);
 }
 
-// Strict: no other site's page can make a browser send this cookie along
-const sessionCookie = (token) => `${COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86_400}`;
+// Lax, not Strict: a link opened from another app (a phone push, a chat) is a cross-site navigation,
+// and Strict kept the cookie off it: a signed-in phone got the sign-in page (and the computer's OK)
+// on every tap. Lax sends it on such a top-level GET only; no other site's page can make a browser
+// send it with a POST, a fetch or a WebSocket, and those also have to come from this server's own page
+// (Origin, checked in handle), as do cross-site GETs of the API.
+const sessionCookie = (token, trusted) => `${COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${(trusted ? TRUST_DAYS : SESSION_DAYS) * 86_400}`;
+
+// Sign-in records (<data>/web-auth.jsonl, the last 500): who got the sign-in page and why (no cookie,
+// a cookie we don't know, an expired one; and whether the browser said it came from another site),
+// who was allowed or turned down and by whom. Never a password or a token.
+const AUTH_LOG = path.join(DATA_DIR, 'web-auth.jsonl');
+function authLog(ev, req, extra = {}) {
+  try {
+    const line = JSON.stringify({ at: Date.now(), ev, ip: String(req?.socket?.remoteAddress || extra.ip || '').replace(/^::ffff:/, ''), device: deviceName(req?.headers?.['user-agent'] || extra.ua || ''), site: req?.headers?.['sec-fetch-site'] || undefined, ...extra, ua: undefined });
+    fs.appendFileSync(AUTH_LOG, line + '\n');
+    if (fs.statSync(AUTH_LOG).size > 200_000) fs.writeFileSync(AUTH_LOG, fs.readFileSync(AUTH_LOG, 'utf8').split('\n').slice(-500).join('\n'));
+  } catch {
+    // no record
+  }
+}
+
+/** Allows or turns down a waiting device (by this computer, or by a trusted device). */
+function decide(id, allow, { trust = false, by = 'pc' } = {}) {
+  const p = pending.get(id);
+  if (!p || p.state !== 'pending') return false;
+  p.state = allow ? 'allowed' : 'denied';
+  if (allow) {
+    p.trusted = Boolean(trust);
+    p.token = auth.issue(p.ua, p.ip, { trusted: p.trusted });
+  }
+  authLog(allow ? 'allowed' : 'denied', null, { ip: p.ip, ua: p.ua, by, trusted: allow ? p.trusted : undefined });
+  hooks?.changed?.();
+  return true;
+}
 
 // Sign-in, self-contained (nothing else is served before it): the password, then waiting for the
 // computer's OK. `next` is where to go after (the command center, or the phone page).
@@ -259,8 +285,13 @@ button{height:54px;font-size:18px;font-weight:700;background:#3df5ff;color:#0406
 <div class="msg" id="msg" role="alert">${note}</div><button id="go">${t.go}</button></form>
 <script>
 const T=${JSON.stringify(t)},NEXT=${JSON.stringify(next)};const f=document.getElementById('f'),pw=document.getElementById('pw'),msg=document.getElementById('msg'),go=document.getElementById('go');
-// signed in: on to the page (with the link's target, #term=…); the same address only reloads
-const go2=()=>{if(location.pathname===NEXT)location.reload();else location.replace(NEXT+location.hash)};
+// signed in: on to the page with the link's target (#term=…), at a new address each time: the same
+// address would only change the hash, and a reload of a page another app opened still counts as coming
+// from elsewhere (an old Strict cookie stays off it); a navigation from this page does not
+const go2=()=>location.replace(NEXT+'?in='+Date.now()+location.hash);
+// signed in already (the cookie only stayed off the link that opened this): straight on, no password
+// (not when this page is that way back in already, ?in=…: never a loop)
+if(!/[?&]in=/.test(location.search))fetch('/api/me',{cache:'no-store'}).then(r=>{if(r.ok)go2()}).catch(()=>{});
 const fmt=(s)=>s>=60?Math.ceil(s/60)+' min':s+' s';
 const wait=async(id)=>{msg.className='msg ok';msg.textContent=T.wait;go.disabled=true;pw.disabled=true;
 for(;;){await new Promise(r=>setTimeout(r,1500));let j;try{j=await (await fetch('/api/login/wait?id='+encodeURIComponent(id))).json()}catch{continue}
@@ -279,6 +310,13 @@ async function handle(req, res) {
   // only this server's own pages may call it (no other site's page, with the cookie or without)
   const origin = req.headers.origin;
   if (origin && origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'forbidden' });
+  // a write (POST…) only from this server's own page: the browser always names its Origin there
+  if (req.method !== 'GET' && req.method !== 'HEAD' && origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'forbidden' });
+  // The cookie now goes along when another site links here (Lax). Every GET of the API only reads
+  // (state, screens, diffs, search), and what a top-level visit shows is shown to the user, not to the
+  // other site; still, a browser that says it came from another site gets the pages only (browsers
+  // send Sec-Fetch-Site over HTTPS or to localhost only, so on the LAN it rests on the reads alone)
+  if (req.headers['sec-fetch-site'] === 'cross-site' && url.pathname.startsWith('/api/')) return send(res, 403, { error: 'forbidden' });
   if (req.method === 'POST' && url.pathname === '/api/login') {
     const { password, pin } = await readBody(req);
     const r = auth.check(password ?? pin, req.socket.remoteAddress);
@@ -286,6 +324,7 @@ async function handle(req, res) {
     // a right password: this device now waits for the computer's OK
     const id = crypto.randomBytes(12).toString('base64url');
     pending.set(id, { id, ua: String(req.headers['user-agent'] || '').slice(0, 160), ip: String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''), at: Date.now(), state: 'pending', token: null });
+    authLog('password', req);
     hooks?.changed?.();
     return send(res, 200, { ok: true, pending: id });
   }
@@ -294,18 +333,31 @@ async function handle(req, res) {
     if (!p || Date.now() - p.at > PENDING_MS) return send(res, 200, { state: 'expired' });
     if (p.state === 'allowed' && p.token) {
       pending.delete(p.id);
-      return send(res, 200, { state: 'allowed' }, { 'Set-Cookie': sessionCookie(p.token) });
+      return send(res, 200, { state: 'allowed' }, { 'Set-Cookie': sessionCookie(p.token, p.trusted) });
     }
     if (p.state === 'denied') pending.delete(p.id);
     return send(res, 200, { state: p.state });
   }
   const cookie = cookieOf(req);
-  if (!auth.valid(cookie)) {
-    if (req.method === 'GET' && (url.pathname === '/m' || url.pathname === '/m/')) return loginPage(res, '/m');
-    if (req.method === 'GET' && url.pathname === '/') return loginPage(res, '/');
+  const me = auth.session(cookie);
+  if (!me) {
+    const pageNext = req.method === 'GET' && (url.pathname === '/m' || url.pathname === '/m/') ? '/m' : req.method === 'GET' && url.pathname === '/' ? '/' : null;
+    if (pageNext) {
+      authLog('sign-in-page', req, { cookie: cookie ? 'unknown-or-expired' : 'none', path: url.pathname });
+      return loginPage(res, pageNext);
+    }
     return send(res, 401, { error: 'sign_in' });
   }
-  if (req.method === 'GET' && url.pathname === '/api/me') return send(res, 200, { ok: true });
+  if (req.method === 'GET' && url.pathname === '/api/me') return send(res, 200, { ok: true, trusted: Boolean(me.trusted) });
+  // a page visit renews the cookie (Lax, its full time again): cookies set Strict before 0.9.44 change over
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/m' || url.pathname === '/m/')) res.setHeader('Set-Cookie', sessionCookie(cookie, me.trusted));
+  // a trusted device (allowed with "trust this device") may allow new devices itself, without the computer
+  if (url.pathname === '/api/devices/pending' || url.pathname === '/api/devices/approve') {
+    if (!me.trusted) return send(res, 403, { error: 'not_trusted' });
+    if (req.method === 'GET') return send(res, 200, { pending: pendingDevices() });
+    const { id, allow } = await readBody(req);
+    return send(res, 200, { ok: decide(String(id || ''), Boolean(allow), { by: 'device ' + me.id }) });
+  }
   if (req.method === 'POST' && url.pathname === '/api/logout') {
     auth.logout(cookie);
     return send(res, 200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; Path=/; Max-Age=0` });

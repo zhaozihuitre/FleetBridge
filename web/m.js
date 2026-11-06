@@ -8,6 +8,8 @@ import { switchView, wantedView } from './device.js';
 // one address for every device: a tablet or computer that lands here goes on to the full page
 // (unless it chose this one); the switch stays at hand either way
 // a notification links every device to /#term=<id>: here that terminal is #t=<id> (and back again)
+// the sign-in page's way back in (?in=…): not kept in the address
+if (/[?&]in=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
 if (/^#term=[0-9a-f-]{36}$/.test(location.hash)) history.replaceState(null, '', location.pathname + '#t=' + location.hash.slice(6));
 if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname) && wantedView() === 'full') location.replace('/' + location.hash.replace(/^#t=([0-9a-f-]{36}).*$/, '#term=$1'));
 
@@ -144,7 +146,32 @@ function render() {
   renderChips();
   renderUnits();
   renderSheet();
+  renderPending();
 }
+
+// New devices waiting to be allowed: a device trusted when it was allowed may allow them here, so you
+// don't have to go back to the computer (only the computer can make one trusted).
+let meTrusted = false;
+fetch('/api/me', { cache: 'no-store' })
+  .then((r) => r.json())
+  .then((j) => {
+    meTrusted = Boolean(j.trusted);
+    render();
+  })
+  .catch(() => {});
+function renderPending() {
+  const list = meTrusted ? state.webPending || [] : [];
+  $('pend').hidden = !list.length;
+  const html = list.map((p) => `<div class="pd"><b>${esc(L('新设备请求访问'))}</b> · ${esc(p.device)}（${esc(p.ip)}）<br>${esc(L('输入了正确的访问密码。不认识的设备请拒绝。'))}<div class="pd-acts"><button type="button" data-allow="${esc(p.id)}">${esc(L('允许'))}</button><button type="button" class="no" data-deny="${esc(p.id)}">${esc(L('拒绝'))}</button></div></div>`).join('');
+  if ($('pend').innerHTML !== html) $('pend').innerHTML = html;
+}
+$('pend').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-allow], [data-deny]');
+  if (!b) return;
+  b.disabled = true;
+  const r = await post('/api/devices/approve', { id: b.dataset.allow || b.dataset.deny, allow: Boolean(b.dataset.allow) }).catch(() => null);
+  toast(r?.ok ? (b.dataset.allow ? L('已允许') : L('已拒绝')) : L('操作失败'));
+});
 
 /* ---------- one terminal on the whole screen ---------- */
 

@@ -12,6 +12,8 @@ const $ = (id) => document.getElementById(id);
 const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 if (!LOCAL) {
   document.documentElement.classList.add('web');
+  // the sign-in page's way back in (?in=…): not kept in the address
+  if (/[?&]in=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
   // one address for every device: a phone goes on to the phone page (unless it chose the full one)
   // (a notification's link to a terminal, #term=<id>, goes along as the phone page's #t=<id>)
   if (wantedView() === 'phone') location.replace('/m' + location.hash.replace(/^#term=([0-9a-f-]{36}).*$/, '#t=$1'));
@@ -1676,8 +1678,8 @@ async function renderPhone(info) {
   $('ph-gen').textContent = info.generated ? L('当前密码：{0}', info.generated) : '';
   const devs = info.devices || [];
   $('ph-devs').hidden = !info.enabled;
-  $('ph-devs').innerHTML = `<div class="ph-devs-h">${L('已登录的设备：{0} 台（每台 {1} 天内不用再输密码）', devs.length, info.sessionDays ?? 30)}</div>` +
-    devs.map((d) => `<div class="ph-dev"><span>${esc(d.device)}</span><small>${esc(d.ip || '')} · ${L('最近使用 {0}', ago(Date.now() - d.seen))}</small><button type="button" class="o-x" data-revoke="${esc(d.id)}" title="${L('让这台设备退出登录')}">✕</button></div>`).join('');
+  $('ph-devs').innerHTML = `<div class="ph-devs-h">${L('已登录的设备：{0} 台（每台 {1} 天内不用再输密码，信任的设备 {2} 天）', devs.length, info.sessionDays ?? 30, info.trustDays ?? 90)}</div>` +
+    devs.map((d) => `<div class="ph-dev"><span>${esc(d.device)}</span><small>${d.trusted ? L('已信任（{0} 天，可批准新设备）', info.trustDays ?? 90) + ' · ' : ''}${esc(d.ip || '')} · ${L('最近使用 {0}', ago(Date.now() - d.seen))}</small><button type="button" class="o-x" data-revoke="${esc(d.id)}" title="${L('让这台设备退出登录')}">✕</button></div>`).join('');
   if (info.error) toast(info.error);
 }
 
@@ -1769,18 +1771,31 @@ $('ph-logout').addEventListener('click', async () => {
 });
 
 // A device on the network signed in with the right password: it waits for this computer's OK
+// (here, or on a device that was trusted when it was allowed: it may allow new devices itself)
 const asked = new Set();
+let meTrusted = false;
+if (!LOCAL)
+  fetch('/api/me', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((j) => (meTrusted = Boolean(j.trusted)))
+    .catch(() => {});
 function askNewDevices() {
-  if (!LOCAL) return; // only this computer decides
+  if (!LOCAL && !meTrusted) return; // this computer decides, or a trusted device
   for (const p of state.webPending || []) {
     if (asked.has(p.id)) continue;
     asked.add(p.id);
     ask({
       title: L('新设备请求访问舰桥'),
       message: L('{0}（{1}）输入了正确的访问密码，要允许它操作舰桥吗？允许后 30 天内不用再登录；不认识的设备请拒绝。', p.device, p.ip),
+      // only this computer may make a device trusted
+      check: LOCAL ? L('信任此设备：90 天内不用再登录，并且可以在它上面批准新设备（只勾自己的设备）') : '',
       ok: L('允许'),
       cancel: L('拒绝'),
-    }).then((allow) => post('/api/mobile', { approve: { id: p.id, allow: Boolean(allow) } }).then((info) => $('phone').open && renderPhone(info)));
+    }).then((allow) =>
+      LOCAL
+        ? post('/api/mobile', { approve: { id: p.id, allow: Boolean(allow), trust: Boolean(allow && ask.checked) } }).then((info) => $('phone').open && renderPhone(info))
+        : post('/api/devices/approve', { id: p.id, allow: Boolean(allow) }),
+    );
   }
 }
 

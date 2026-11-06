@@ -9,7 +9,9 @@ import crypto from 'node:crypto';
 //   - wrong passwords lock the sign-in for a while (per address, and for everyone after many);
 //   - sessions and the password are stored hashed; each device can be signed out on its own.
 export const SESSION_DAYS = 30;
-const SESSION_MS = SESSION_DAYS * 86_400_000;
+// a device trusted when it was allowed ("信任此设备"): 90 days, and it may allow new devices itself
+export const TRUST_DAYS = 90;
+const ttl = (s) => (s.trusted ? TRUST_DAYS : SESSION_DAYS) * 86_400_000;
 const MAX_SESSIONS = 30;
 const PER_IP_TRIES = 5; // then locked, 5 min doubling up to an hour
 const GLOBAL_TRIES = 30; // wrong passwords from anywhere within 10 min: everyone locked for 10 min
@@ -75,25 +77,25 @@ export function createAuth(settings, save) {
     return { ok: true };
   }
 
-  /** A new device session (after the computer allowed it, or from the QR link on its screen). */
-  function issue(ua, ip, now = Date.now()) {
+  /** A new device session, after the computer (or a trusted device) allowed it. */
+  function issue(ua, ip, { trusted = false } = {}, now = Date.now()) {
     const token = crypto.randomBytes(32).toString('base64url');
     const id = crypto.randomBytes(4).toString('hex');
-    settings.sessions = [{ id, h: sha(token), at: now, seen: now, ua: String(ua || '').slice(0, 160), ip: String(ip || '').replace(/^::ffff:/, '') }, ...prune(now)].slice(0, MAX_SESSIONS);
+    settings.sessions = [{ id, h: sha(token), at: now, seen: now, ua: String(ua || '').slice(0, 160), ip: String(ip || '').replace(/^::ffff:/, ''), ...(trusted ? { trusted: true } : {}) }, ...prune(now)].slice(0, MAX_SESSIONS);
     save();
     return token;
   }
 
   function prune(now = Date.now()) {
-    return settings.sessions.filter((s) => now - s.seen < SESSION_MS);
+    return settings.sessions.filter((s) => now - s.seen < ttl(s));
   }
 
-  /** The session of a cookie, if valid; slides its 30 days forward (written at most hourly). */
+  /** The session of a cookie, if valid; slides its 30 (trusted: 90) days forward (written at most hourly). */
   function session(token, now = Date.now()) {
     if (!token) return null;
     const h = sha(token);
     const s = settings.sessions.find((x) => same(x.h, h));
-    if (!s || now - s.seen >= SESSION_MS) return null;
+    if (!s || now - s.seen >= ttl(s)) return null;
     if (now - s.seen > 3_600_000) {
       s.seen = now;
       save();
@@ -127,7 +129,7 @@ export function createAuth(settings, save) {
     save();
   }
 
-  const devices = () => prune().map(({ id, ua, ip, at, seen }) => ({ id, ua, ip, at, seen }));
+  const devices = () => prune().map(({ id, ua, ip, at, seen, trusted }) => ({ id, ua, ip, at, seen, trusted: Boolean(trusted) }));
 
   return { check, issue, valid, session, logout, logoutAll, revoke, setPassword, hasPassword, devices, lockedFor };
 }

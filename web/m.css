@@ -169,3 +169,12 @@ body.in-term { overflow: hidden; }
 
 /* the switch to the full command center (kept on this device) */
 .view-full { margin-left: auto; min-height: 32px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 13px; }
+
+/* a new device waits to be allowed: shown on a trusted device, which may allow it */
+.pend { margin: 8px 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.pend[hidden] { display: none; }
+.pend .pd { padding: 10px 12px; border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent); font-size: 14px; line-height: 1.5; }
+.pend .pd b { color: var(--amber); }
+.pend .pd-acts { display: flex; gap: 8px; margin-top: 8px; }
+.pend .pd-acts button { flex: 1; height: 40px; font-size: 15px; font-weight: 700; border: 1px solid var(--cyan); background: transparent; color: var(--cyan); }
+.pend .pd-acts button.no { border-color: var(--line-hi, var(--dim)); color: var(--muted); }

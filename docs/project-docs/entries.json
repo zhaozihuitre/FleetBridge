@@ -3393,6 +3393,34 @@
       "created": "2026-11-06 16:34",
       "updated": "2026-11-06 16:34",
       "notes": []
+    },
+    {
+      "id": "C-068",
+      "type": "change",
+      "title": "已登录的设备从通知/外部链接进来不再要求重新登录和允许；可信设备 90 天，并可在手机上批准新设备（0.9.44）",
+      "summary": "原因是登录 cookie 设了 SameSite=Strict：从 ntfy 等其他 App 打开链接属于跨站跳转，cookie 不随请求发送，已登录的手机每次都被当成新设备。改为 Lax，登录页先检查是否已登录；PC 允许时可勾「信任此设备」（90 天，可在它上面批准新设备）。",
+      "detail": "调查：正式版 mobile.json 里同一台 Android 手机（Chrome 156，UA 无 wv，不是 WebView；同一 IP）在 16:27–16:37 之间有 4 个会话，其中 3 个在 40 秒内先后建立，全部仍有效；会话按 30 天滑动，不绑定 IP，升级不清（16:27 的会话在 16:34 升级后还在，开发实例重启测试也保留）。所以不是 cookie 丢失或设备识别问题，而是 cookie 没随请求带上：SameSite=Strict 的 cookie 在其他 App 或其他站点的链接跳转（跨站顶层导航）中不发送，服务器看到无 cookie 就给登录页，输入密码又要电脑允许。开发实例里用 Strict cookie + 从别的站点点链接复现：登录记录显示 cookie: none。另外，之前没有登录记录，现在写入 <data>/web-auth.jsonl（出现登录页的原因、谁被允许 / 拒绝、由谁批准；不含密码和令牌）。修改：cookie 改 SameSite=Lax（其他 App 打开的链接也带上）；写操作必须带本页 Origin（缺少或不同都 403，已验证），WebSocket 同样；API 的 GET 都只读，跨站顶层打开只给用户自己看，别的网站读不到（Sec-Fetch-Site 在 HTTP 局域网上浏览器不发，跨站 GET 拦截只在发送时生效）。登录页先用同源请求检查是否已登录（同源请求总会带 cookie），已登录就直接进入，用 ?in= 的新地址跳转（重新加载被其他 App 打开的页面仍算跨站）；访问页面时把 cookie 重新下发为 Lax 并续满有效期，旧的 Strict cookie 第一次访问后就换掉。PC 允许对话框新增「信任此设备」：90 天有效，并可在这台设备上批准新设备（完整版弹同样的对话框，手机页顶部出现允许 / 拒绝）；只有 PC 能把设备设为可信，可信设备批准的设备不是可信设备；未信任设备调用批准接口返回 403。Web 访问里的设备列表显示「已信任」。",
+      "status": "done",
+      "files": [
+        "server/phoneauth.js",
+        "server/mobile.js",
+        "web/app.js",
+        "web/m.js",
+        "web/m.html",
+        "web/m.css",
+        "web/ui.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "web",
+        "auth"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 16:46",
+      "updated": "2026-11-06 16:46",
+      "notes": []
     }
   ]
 }

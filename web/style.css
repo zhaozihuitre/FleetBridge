@@ -390,6 +390,9 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .ask-msg:empty { display: none; }
 .ask-detail { max-height: 220px; overflow-y: auto; padding: 8px 10px; background: var(--x-050a12); border: 1px solid var(--line); font-size: 13px; line-height: 1.7; color: var(--text); }
 .ask-detail[hidden] { display: none; }
+.ask-check { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; line-height: 1.5; color: var(--soft); cursor: pointer; }
+.ask-check[hidden] { display: none; }
+.ask-check input { margin-top: 3px; accent-color: var(--cyan); }
 .ask-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 .ask-row .btn { height: 38px; min-width: 96px; }
 .ops-dialog.danger .ask-ok { background: color-mix(in srgb, var(--red) 15%, transparent); border-color: var(--red); color: var(--x-ffd6dd); }
