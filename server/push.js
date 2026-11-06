@@ -4,21 +4,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR } from './config.js';
 import { L } from './i18n.js';
+import { pushText } from './notices.js';
 
 // Phone push through ntfy (https://ntfy.sh, free iOS / Android app): what needs you arrives as a
-// system notification even when nobody watches a screen. Only "which project, what happened" is
-// sent: no commands, code or Claude's replies, since the message passes through the ntfy server.
-// The topic is a long random name, which is what keeps it private. Off by default.
+// system notification even when nobody watches a screen. By default only "which terminal, what
+// happened" is sent, no commands, code or Claude's replies, since the message passes through the ntfy
+// server; with "content" on, the summary of the answer goes too. The topic is a long random name,
+// which is what keeps it private. Off by default.
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode');
 const FILE = path.join(DATA_DIR, 'push.json');
-const READY_AFTER = 20_000; // a turn is "done" once idle this long (not the pauses between steps)
-const OVERLOAD_EVERY = 3_600_000;
 
 let settings = load();
 let primed = false;
-const told = new Set(); // quest keys already pushed (or already pending when we started)
-const overloadAt = new Map(); // sessionId -> last OVERLOAD push
 
 function load() {
   try {
@@ -40,12 +38,14 @@ export async function pushInfo() {
   // the Android app subscribes from an ntfy:// link (https links do not open the app)
   const link = settings.topic ? `ntfy://${host}/${settings.topic}?display=Fleet+Bridge` : null;
   const qr = settings.enabled && link ? await QRCode.toString(link, { type: 'svg', margin: 1, color: { dark: '#04060c', light: '#ddf6ff' } }) : null;
-  return { enabled: Boolean(settings.enabled), server: settings.server, topic: settings.topic, link, qr };
+  return { enabled: Boolean(settings.enabled), content: Boolean(settings.content), server: settings.server, topic: settings.topic, link, qr };
 }
 
-export async function setPush({ enabled, regenerate }) {
+export async function setPush({ enabled, regenerate, content }) {
   if (regenerate || !settings.topic) settings.topic = newTopic();
   if (typeof enabled === 'boolean') settings.enabled = enabled;
+  // the summary of an answer in the push: off by default, since the message passes through the ntfy server
+  if (typeof content === 'boolean') settings.content = content;
   save();
   primed = false; // what is pending right now is not news
   return pushInfo();
@@ -70,44 +70,21 @@ export function testPush(click) {
   return send({ title: L('舰桥 · 测试通知', 'Fleet Bridge · test', '舰橋 · テスト通知'), message: L('收到这条，手机推送就设置好了。', 'If you got this, phone push works.', 'これが届けばスマホ通知の設定は完了です。'), tags: ['white_check_mark'], click });
 }
 
-// short, content-free texts: the project and what it needs
-function textOf(q) {
-  const p = q.unit?.project || '';
-  switch (q.kind) {
-    case 'PERMIT':
-      return { title: L(`${p} 等你授权`, `${p} needs your approval`, `${p} が承認待ち`), message: L('Claude 在等你确认一个操作，打开手机页处理。', 'Claude is waiting for you to confirm an action. Open the phone page.', 'Claude が操作の確認を待っています。スマホページで対応してください。'), priority: 5, tags: ['rotating_light'] };
-    case 'READY':
-      return { title: L(`${p} 做完了`, `${p} is done`, `${p} 完了`), message: L('等你下一步指令。', 'Waiting for your next order.', '次の指示を待っています。'), priority: 3, tags: ['white_check_mark'] };
-    case 'OVERLOAD':
-      return { title: L(`${p} 记忆负载过高`, `${p} context is high`, `${p} のコンテキストが逼迫`), message: L('建议 /compact 或开新会话。', 'Consider /compact or a new session.', '/compact か新しいセッションを推奨。'), priority: 3, tags: ['warning'] };
-    case 'ALERT':
-      return { title: L('额度告急', 'Quota running low', '利用枠が残りわずか'), message: q.title, priority: 4, tags: ['warning'] };
-    default:
-      return null;
-  }
-}
+// what each kind of notice is worth on a phone: things that need you ring loudest
+const PRIORITY = { permit: 5, question: 5, error: 4, interrupted: 4, never_ran: 4, alert: 4, ask: 4, done: 3, overload: 3 };
+const TAGS = { permit: 'rotating_light', question: 'question', error: 'x', interrupted: 'pause_button', never_ran: 'no_entry', alert: 'warning', ask: 'yellow_circle', done: 'white_check_mark', overload: 'warning' };
+const sent = new Set();
 
-/** Called on every publish: push each new reminder once, with the same pacing as the desktop toasts. */
-export function pushQuests(quests, click, now = Date.now()) {
+/** Called on every publish: push each new notice once (with its summary only if you chose so). */
+export function pushNotices(notices, click) {
   if (!settings.enabled || !settings.topic) return;
-  const keys = new Set(quests.map((q) => q.key));
-  for (const k of told) if (!keys.has(k)) told.delete(k);
-  for (const q of quests) {
-    if (told.has(q.key)) continue;
-    const t = textOf(q);
-    if (!t) continue;
-    if (!primed) {
-      told.add(q.key);
-      continue;
-    }
-    if (q.kind === 'READY' && now - (q.since || now) < READY_AFTER) continue; // check again next publish
-    told.add(q.key);
-    if (q.kind === 'OVERLOAD') {
-      const id = q.unit?.sessionId;
-      if (now - (overloadAt.get(id) || 0) < OVERLOAD_EVERY) continue;
-      overloadAt.set(id, now);
-    }
-    send({ ...t, click });
+  for (const n of notices) {
+    if (sent.has(n.key)) continue;
+    sent.add(n.key);
+    if (sent.size > 1000) sent.delete(sent.values().next().value);
+    if (!primed) continue; // what was there when push was turned on (or the server started) is not news
+    const t = pushText(n, Boolean(settings.content));
+    send({ title: t.title, message: t.body, priority: PRIORITY[n.kind] || 3, tags: [TAGS[n.kind] || 'bell'], click });
   }
   primed = true;
 }

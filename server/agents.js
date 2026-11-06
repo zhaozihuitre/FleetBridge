@@ -33,7 +33,7 @@ function findClaude() {
   return fs.existsSync(fallback) ? fallback : null;
 }
 
-const CLAUDE = findClaude();
+export const CLAUDE = findClaude();
 
 // Extra settings for our agents only (--settings outranks user/project settings): no status line —
 // the command center shows each agent's context itself, and the user's HUD would just eat terminal rows.

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { DATA_DIR, ROOT } from './config.js';
 import { getAgent, inputEmpty, killAgent, listAgents, sendText, spawnAgent } from './agents.js';
 import { L } from './i18n.js';
+import { cachedSummary } from './summary.js';
 
 // The master console: a Claude Code session in the command center's left column that commands the
 // other agents through the fleet MCP tools (server/fleet-mcp.cjs). It works in its own folder, so its
@@ -304,10 +305,16 @@ function doneNotice(x) {
       `[Fleet notice] Interrupted: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": stopped after ${mins(x.ms)} (Esc, or a tool use turned down) and waits for what to do instead.\n${x.reply ? reply : '(no answer before it stopped: see fleet_read_screen)'}`,
       `【艦橋通知】中断：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了せず、${mins(x.ms)} 後に中断されました（Esc またはツール実行の拒否）。次の指示を待っています。\n${x.reply ? reply : '（中断前の回答なし。画面は fleet_read_screen で確認）'}`,
     );
+  // a summary first (the conclusion, what it did, what it needs of the user), then the answer itself
+  const s = (x.summaryKey && cachedSummary(x.summaryKey)?.summary) || null;
+  const sum = s
+    ? [s.title && L('结论：', 'Conclusion: ', '結論：') + s.title, s.result && s.result !== s.title && L('做了什么：', 'What it did: ', '内容：') + s.result, s.needs && L('需要用户：', 'For the user: ', 'ユーザー対応：') + s.needs].filter(Boolean).join('\n') + '\n'
+    : '';
+  const icon = s?.needs ? '🟡' : '✅';
   return L(
-    `【舰桥通知】完成：${x.name}（${x.agentId.slice(0, 8)}）做完了你派的指令「${head}」，用时 ${mins(x.ms)}。\n${reply}`,
-    `[Fleet notice] Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${reply}`,
-    `【艦橋通知】完了：${x.name}（${x.agentId.slice(0, 8)}）があなたの指示「${head}」を完了（${mins(x.ms)}）。\n${reply}`,
+    `【舰桥通知】${icon} 完成：${x.name}（${x.agentId.slice(0, 8)}）做完了你派的指令「${head}」，用时 ${mins(x.ms)}。\n${sum}${reply}`,
+    `[Fleet notice] ${icon} Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${sum}${reply}`,
+    `【艦橋通知】${icon} 完了：${x.name}（${x.agentId.slice(0, 8)}）があなたの指示「${head}」を完了（${mins(x.ms)}）。\n${sum}${reply}`,
   );
 }
 
@@ -359,7 +366,13 @@ export function notifyMaster(asks) {
   if (!fresh.length && !finished.length) return;
   // never type into the middle of what the user is writing to the master: wait for an empty input
   if (Date.now() - (m.typedAt || 0) < TYPING_PAUSE || !inputEmpty(m)) return;
-  const done = finished.splice(0);
+  // a finished turn waits at most 15 s for its model summary (the rules' one is there at once)
+  const now = Date.now();
+  const ready = (x) => !x.summaryKey || cachedSummary(x.summaryKey)?.done !== false || now - x.at > 15_000;
+  if (!fresh.length && !finished.some(ready)) return;
+  const done = finished.filter(ready);
+  const later = finished.filter((x) => !ready(x));
+  finished.splice(0, finished.length, ...later);
   const parts = [...done.map(doneNotice), ...fresh.map(notice)];
   const tail = [];
   if (done.length) tail.push(L('把结果汇总告诉用户', 'sum the results up for the user', '結果をまとめてユーザーに伝える'));

@@ -17,7 +17,9 @@ import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
 import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
-import { pushInfo, pushQuests, setPush, testPush } from './push.js';
+import { pushInfo, pushNotices, setPush, testPush } from './push.js';
+import { lineText, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
+import { lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
 import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
@@ -26,7 +28,9 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+
+useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -147,16 +151,47 @@ function publish() {
     const u = owned.find((x) => x.agentId === t.agentId);
     // the screen's last answer only when there's no transcript at all: it can be an older turn's
     const { text: reply, cut } = clip(r ? r.reply : u?.lastText || '');
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan });
+    // its summary (rules at once, the model's within 15 s): the master's notice opens with it
+    const lt = lastTurn(t.sessionId);
+    const turn = lt && lt.promptAt >= t.since - 5000 ? lt : { prompt: t.text, reply: r?.reply || '', said: r?.reply || '' };
+    const summaryKey = `master:${t.agentId}:${t.since}`;
+    if (!t.neverRan && !r?.interrupted && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan, summaryKey });
+    if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);
+  // notices (desktop toasts via the widget, phone push, the lists): decided once, each with its summary
+  updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
+  state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
+  state.notify = notifySettings();
+  // the lists say the same: a question is "needs an answer", a finished turn shows its summary
+  const latest = new Map();
+  for (const n of state.notices) if (n.sessionId) latest.set(n.sessionId, n);
+  state.quests = state.quests.map((q) => {
+    const sid = q.unit?.sessionId;
+    if (q.kind === 'PERMIT' && prompts.get(sid)?.kind === 'question')
+      return { ...q, title: L(`${q.unit.project} 等你回答`, `${q.unit.project} needs an answer`, `${q.unit.project} が回答待ちです`) };
+    const n = q.kind === 'READY' && latest.get(sid);
+    return n && n.key === q.key ? { ...q, goal: n.line, notice: n.kind } : q;
+  });
+  state.units = state.units.map((u) => {
+    const n = latest.get(u.sessionId);
+    return n && u.status === 'idle' && n.key === `ready:${u.sessionId}:${u.statusSince}` ? { ...u, summary: n.line } : u;
+  });
   // phone push: whatever needs you, whether or not anyone is looking at a screen
-  if (!process.env.MONITOR_DEMO) pushQuests(state.quests, phoneUrl()); // never push made-up sessions to a phone
+  if (!process.env.MONITOR_DEMO) pushNotices(state.notices, phoneUrl()); // never push made-up sessions to a phone
   const json = JSON.stringify(state, (k, v) => (k === 'now' ? undefined : v));
   if (json === stateJson) return;
   stateJson = json;
   const payload = `data: ${JSON.stringify(state)}\n\n`;
   for (const res of clients) res.write(payload);
+}
+
+// the five-hour quota nearly used up: summaries by rules only (the model would spend what is left)
+function quotaLow() {
+  const five = usage?.limits?.find((l) => /five|5h/i.test(l.key || '')) || usage?.fiveHour;
+  const used = five?.usedPct ?? five?.used ?? null;
+  return used != null && used >= 90;
 }
 
 async function refreshUsage(force = false) {
@@ -453,6 +488,8 @@ const server = http.createServer(async (req, res) => {
   // phone push (ntfy): on / off, new channel, a test message
   if (req.url === '/api/push') return send(res, 200, req.method === 'POST' ? await setPush(await readBody(req)) : await pushInfo());
   if (req.method === 'POST' && req.url === '/api/push/test') return send(res, 200, await testPush(phoneUrl()));
+  // notice summaries: by the model (our agents; outside sessions optional) or by rules only
+  if (req.url === '/api/notify') return send(res, 200, req.method === 'POST' ? setNotifySettings(await readBody(req)) : notifySettings());
   // Review / commit / push: only repos the git collector found (live and offline projects).
   if (req.url.startsWith('/api/git/')) {
     const url = new URL(req.url, 'http://localhost');

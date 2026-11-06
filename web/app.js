@@ -521,7 +521,7 @@ function unitCard(u) {
     <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
-    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
+    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.summary || u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
       <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
       <div class="stat"><div class="k"><span>${L('僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
@@ -1608,12 +1608,23 @@ function renderPush(info) {
   if (!info.qr) $('pu-qr').textContent = L('推送通知');
   $('pu-topic').textContent = info.enabled ? info.topic || '' : '';
   $('pu-tip').textContent = info.enabled ? L('用手机扫码订阅') : L('开启后，等你授权、做完了、额度告急时推送到手机。');
+  $('pu-content').checked = Boolean(info.content);
 }
+
+function renderNotify(n) {
+  $('nt-model').checked = Boolean(n.model);
+  $('nt-ext').checked = Boolean(n.modelExternal);
+  $('nt-ext').disabled = !n.model;
+}
+$('nt-model').addEventListener('change', async (e) => renderNotify(await post('/api/notify', { model: e.target.checked })));
+$('nt-ext').addEventListener('change', async (e) => renderNotify(await post('/api/notify', { modelExternal: e.target.checked })));
+$('pu-content').addEventListener('change', async (e) => renderPush(await post('/api/push', { content: e.target.checked })));
 
 $('phone-btn').addEventListener('click', async () => {
   $('phone').showModal();
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
+  renderNotify(await fetch('/api/notify').then((r) => r.json()));
 });
 $('pu-toggle').addEventListener('click', async () => {
   renderPush(await post('/api/push', { enabled: $('pu-toggle').textContent === L('开启推送') }));

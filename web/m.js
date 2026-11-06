@@ -76,7 +76,7 @@ function rows() {
     const kind = u.permission ? (u.permission.prompt?.kind === 'question' ? 'question' : 'permit') : u.status === 'busy' ? 'busy' : 'idle';
     const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
     if (a) seen.add(a.id);
-    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
+    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.summary || u.lastText || '';
     out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a) });
   }
   for (const a of state.agents || []) {

@@ -144,38 +144,21 @@ function fitHeight() {
   requestAnimationFrame(() => bridge?.setHeight(Math.ceil($('w').getBoundingClientRect().height)));
 }
 
-/* ---------- notifications: each new "needs you" quest raises one Windows toast ---------- */
+/* ---------- notifications: each new notice raises one Windows toast ---------- */
 
-const NOTIFY = {
-  PERMIT: (q) => [L('{0} 等你授权', q.unit.project), q.goal],
-  READY: (q) => [L('{0} 做完了，等你指令', q.unit.project), q.goal],
-  OVERLOAD: (q) => [L('{0} 记忆负载过高', q.unit.project), q.title],
-};
-// PERMIT blocks work and is told at once. READY waits until the session has stayed idle a while
-// (the short pauses between turns are not "done"); OVERLOAD is told once an hour per session.
-const READY_AFTER = 20_000;
-const OVERLOAD_EVERY = 3600_000;
-const told = new Set(); // quest keys already notified (or pending when the widget started)
-const overloadAt = new Map(); // sessionId -> last OVERLOAD toast
+// The server decides what is worth telling and when (server/notices.js: dialogs at once, a finished
+// turn after 20 s idle with the summary of its answer, interrupted / not run / errors, context and
+// quota), the same for the phone push; here each new one becomes a toast once.
+const told = new Set(); // notice keys already shown (or there when the widget started)
 let primed = false;
 
 function notifyNew() {
-  const now = Date.now();
-  const keys = new Set(state.quests.map((q) => q.key));
-  for (const k of told) if (!keys.has(k)) told.delete(k);
-  for (const q of state.quests) {
-    if (told.has(q.key) || !NOTIFY[q.kind] || !q.unit) continue;
-    if (!primed) { told.add(q.key); continue; } // the first render only records what was already pending
-    if (q.kind === 'READY' && now - (q.since || now) < READY_AFTER) continue; // check again on a later render
-    told.add(q.key);
-    if (q.kind === 'OVERLOAD') {
-      const id = q.unit.sessionId;
-      if (now - (overloadAt.get(id) || 0) < OVERLOAD_EVERY) continue;
-      overloadAt.set(id, now);
-    }
-    if (!muted) bridge?.notify(...NOTIFY[q.kind](q));
+  for (const n of state.notices || []) {
+    if (told.has(n.key)) continue;
+    told.add(n.key);
+    if (primed && !muted && n.toast) bridge?.notify(n.toast.title, n.toast.body);
   }
-  primed = true;
+  primed = true; // the first state only records what was already there
 }
 
 /* ---------- actions ---------- */
@@ -225,4 +208,3 @@ new EventSource('/api/stream').onmessage = (e) => {
   notifyNew();
 };
 setInterval(() => state && renderUnits(), 30_000); // keep the "waiting for" times fresh
-setInterval(() => state && notifyNew(), 5_000); // READY toasts come due without a new state push
