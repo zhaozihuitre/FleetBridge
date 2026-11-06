@@ -128,6 +128,7 @@
 <dialog class="deploy phone" id="phone">
 <form method="dialog" class="ph-body">
 <h2><span class="mono">WEB</span> Web 访问 · 平板、手机、其他电脑用浏览器操作</h2>
+<div class="ph-setup" id="ph-setup" hidden><b>先设置访问口令</b><p>设好以后，同一局域网（或 Tailscale）里的平板、手机、其他电脑才能用浏览器打开舰桥；在这之前不对局域网开放。新设备第一次登录还要在这台电脑上点「允许」。在不信任的网络（公司、公共 Wi-Fi）上，建议用 Tailscale 访问。</p><button type="button" class="btn ghost" id="ph-later">以后再说</button></div>
 <p class="ph-note">同一局域网（或 Tailscale）里的设备用浏览器打开下面的地址，就是和电脑上一样的指挥中心；手机打开「/m」是精简的手机页。登录要输入访问密码，<b>新设备第一次登录还要在这台电脑上点「允许」</b>；扫下面的二维码可以直接登录。只接受局域网和 Tailscale 内的访问。</p>
 <div class="ph-main"><div class="ph-qr" id="ph-qr"></div><div class="ph-side"><p class="ph-tip" id="ph-tip"></p><ul class="ph-urls" id="ph-urls"></ul></div></div>
 <div class="ph-pin" id="ph-pin-box" hidden><label for="ph-pin">访问密码</label><code class="ph-gen" id="ph-gen" hidden></code><input id="ph-pin" type="password" minlength="8" autocomplete="new-password" placeholder="设置新密码（至少 8 个字符）"><button type="button" class="btn ghost" id="ph-pin-save">设置密码</button><button type="button" class="btn ghost" id="ph-pin-gen" title="生成一个新的 8 位数字密码，所有设备都要重新登录">随机生成</button></div>

@@ -713,3 +713,10 @@ html.web [data-win] { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+/* web access, first use: set a password before anything is open on the network */
+.ph-setup { margin: 8px 0; padding: 10px 14px; border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, transparent); display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--soft); }
+.ph-setup b { color: var(--amber); font-size: 15px; }
+.ph-setup p { margin: 0; line-height: 1.6; }
+.ph-setup .btn { align-self: flex-start; }
+.ph-setup[hidden] { display: none; }

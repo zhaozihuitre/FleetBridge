@@ -16,7 +16,7 @@ import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
-import { mobileInfo, pendingDevices, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
+import { mobileInfo, pendingDevices, phoneUrl, setMobile, startMobile, stopMobile, webSetupNeeded } from './mobile.js';
 import { pushInfo, pushNotices, setPush, testPush } from './push.js';
 import { lineText, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
 import { lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
@@ -165,6 +165,7 @@ function publish() {
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
   state.notify = notifySettings();
   state.webPending = pendingDevices(); // devices waiting for this computer's OK
+  state.webSetup = webSetupNeeded(); // no password yet: the command center asks for one
   // the lists say the same: a question is "needs an answer", a finished turn shows its summary
   const latest = new Map();
   for (const n of state.notices) if (n.sessionId) latest.set(n.sessionId, n);

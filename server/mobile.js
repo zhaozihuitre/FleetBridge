@@ -33,6 +33,10 @@ const PENDING_MS = 5 * 60_000;
 let settings = load();
 const auth = createAuth(settings, save);
 let server = null;
+// listening on the network: on, and a password set
+const shouldListen = () => Boolean(settings.enabled) && auth.hasPassword();
+/** The command center should ask for a password (first start, or not set yet and not put off). */
+export const webSetupNeeded = () => Boolean(settings.enabled) && !auth.hasPassword() && !settings.setupSeen;
 const PHONE_KEYS = new Set(['esc', 'enter', 'up', 'down', 'left', 'right', 'tab', 'shift-tab', 'backspace', '1', '2', '3']);
 let hooks = null; // { action, screen, web(req, res), socket(req, socket, head), changed() }
 const pending = new Map(); // request id -> { id, ua, ip, at, state: 'pending' | 'allowed' | 'denied', token }
@@ -55,20 +59,25 @@ const newToken = () => crypto.randomBytes(24).toString('base64url');
 const newPassword = () => String(crypto.randomInt(0, 1e8)).padStart(8, '0').replace(/^(\d{4})(\d{4})$/, '$1 $2');
 
 // From the phone page's PIN (default 123456) to the web access's password: the old PIN and every
-// device signed in with it are dropped (anyone on the network knew the default); a password is made
-// and shown on the computer; web access is on, as it is by default now.
+// device signed in with it are dropped (anyone on the network knew the default). Web access is on by
+// default, but listens on the network only once you have set a password: the command center asks for
+// one on first start (or later from its Web access button). A password 0.9.35 made by itself, which
+// nobody chose, is dropped the same way.
 function migrate() {
   let changed = false;
-  if (settings.v !== 2) {
+  if ((settings.v || 0) < 2) {
     delete settings.pin;
     settings.sessions = [];
     settings.enabled = true;
-    settings.v = 2;
     changed = true;
   }
-  if (!auth.hasPassword()) {
-    settings.generated = newPassword();
-    auth.setPassword(settings.generated);
+  if ((settings.v || 0) < 3) {
+    if (settings.generated && !settings.chosen) {
+      delete settings.password;
+      delete settings.generated;
+      settings.sessions = [];
+    }
+    settings.v = 3;
     changed = true;
   }
   if (!settings.token) {
@@ -119,12 +128,12 @@ export function deviceName(ua = '') {
 }
 
 export async function mobileInfo() {
-  const list = settings.enabled ? addresses() : [];
+  const list = shouldListen() ? addresses() : [];
   const urls = list.map((a) => ({ ...a, web: `http://${a.ip}:${PORT}/`, phone: `http://${a.ip}:${PORT}/m` }));
   const best = list.find((u) => !u.tailscale) || list[0];
   // the QR code signs a device in at once (seeing this screen is the OK): dark on light, which every camera reads
   const qr = best && settings.token ? await QRCode.toString(`http://${best.ip}:${PORT}/?k=${settings.token}`, { type: 'svg', margin: 1, color: { dark: '#04060c', light: '#ddf6ff' } }) : null;
-  const host = settings.enabled ? `http://${os.hostname().toLowerCase()}:${PORT}/` : null;
+  const host = shouldListen() ? `http://${os.hostname().toLowerCase()}:${PORT}/` : null;
   return {
     enabled: Boolean(settings.enabled),
     running: Boolean(server?.listening),
@@ -132,7 +141,9 @@ export async function mobileInfo() {
     urls,
     qr,
     host,
-    generated: settings.generated || null, // the password made for you, until you set your own
+    hasPassword: auth.hasPassword(),
+    setup: webSetupNeeded(),
+    generated: settings.generated || null, // a password you had made ("随机生成"), shown here until you set your own
     devices: auth.devices().map((d) => ({ ...d, device: deviceName(d.ua) })),
     pending: pendingDevices(),
     sessionDays: SESSION_DAYS,
@@ -140,15 +151,21 @@ export async function mobileInfo() {
   };
 }
 
-export async function setMobile({ enabled, regenerate, password, logoutAll, revoke, approve, newGenerated }) {
+export async function setMobile({ enabled, regenerate, password, logoutAll, revoke, approve, newGenerated, setupSeen }) {
+  if (setupSeen) settings.setupSeen = true; // "later": not asked again at start
   if (password !== undefined) {
     const r = auth.setPassword(password);
     if (!r.ok) return { ...(await mobileInfo()), error: L('密码至少 {0} 个字符', 'The password needs at least {0} characters', 'パスワードは {0} 文字以上にしてください').replace('{0}', PASSWORD_MIN) };
     delete settings.generated;
+    settings.chosen = true;
+    settings.setupSeen = true;
     save();
   }
   if (newGenerated) {
+    // made at your request: it is your choice, shown on this computer until you set your own
     settings.generated = newPassword();
+    settings.chosen = true;
+    settings.setupSeen = true;
     auth.setPassword(settings.generated);
     save();
   }
@@ -168,8 +185,9 @@ export async function setMobile({ enabled, regenerate, password, logoutAll, revo
   }
   if (typeof enabled === 'boolean') settings.enabled = enabled;
   save();
-  if (settings.enabled) await listen();
+  if (shouldListen()) await listen();
   else stop();
+  hooks?.changed?.(); // the pages see the new state (the first-start question) right away
   return mobileInfo();
 }
 
@@ -354,7 +372,7 @@ function stop() {
 /** Called once by the main server with what the other devices may use. */
 export async function startMobile(h) {
   hooks = h;
-  if (settings.enabled) await listen();
+  if (shouldListen()) await listen();
 }
 
 export function stopMobile() {

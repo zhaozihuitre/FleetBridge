@@ -845,6 +845,7 @@ function render() {
   renderPage();
   renderTermHeads();
   askNewDevices();
+  askWebSetup();
   $('deploy-open').disabled = !state.agentSupport?.ok;
   $('deploy-open').title = state.agentSupport?.ok ? L('在指挥中心里启动一个新的 Claude Code（N）') : state.agentSupport?.error || '';
   tick();
@@ -1619,7 +1620,10 @@ async function renderPhone(info) {
   $('ph-regen').hidden = !info.enabled;
   $('ph-qr').innerHTML = info.qr || '';
   if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('Web 访问已关闭');
-  $('ph-tip').textContent = !info.enabled ? '' : info.running ? L('扫码直接登录（看得到这块屏幕就算同意）') : L('端口 {0} 没能打开，可能被占用', info.port);
+  $('ph-tip').textContent = !info.enabled ? '' : !info.hasPassword ? L('还没有设置访问口令：设好后才对局域网开放') : info.running ? L('扫码直接登录（看得到这块屏幕就算同意）') : L('端口 {0} 没能打开，可能被占用', info.port);
+  $('ph-setup').hidden = !(info.enabled && !info.hasPassword);
+  $('ph-later').hidden = !info.setup;
+  if (!info.qr && info.enabled && !info.hasPassword) $('ph-qr').textContent = L('设置口令后显示');
   // the key stays out of the visible list: only the QR code carries it
   $('ph-urls').innerHTML =
     info.urls.map((u) => `<li><b>${esc(u.web)}</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}<br><small>${L('手机页：')}${esc(u.phone)}</small></li>`).join('') +
@@ -1690,9 +1694,25 @@ $('ph-pin-save').addEventListener('click', async () => {
   renderPhone(info);
   if (!info.error) {
     $('ph-pin').value = '';
-    toast(L('密码已修改，所有设备需要用新密码重新登录'));
+    toast(info.running ? L('口令已设置，局域网里的设备现在可以登录了') : L('密码已修改，所有设备需要用新密码重新登录'));
   }
 });
+$('ph-later').addEventListener('click', async () => {
+  renderPhone(await post('/api/mobile', { setupSeen: true }));
+  $('phone').close();
+  toast(L('Web 访问先不开放；以后可以在右上角的手机图标里设置口令'));
+});
+// first start (no password yet): the Web access dialog opens by itself to ask for one
+let setupAsked = false;
+async function askWebSetup() {
+  if (!LOCAL || setupAsked || !state.webSetup || document.querySelector('dialog[open]')) return;
+  setupAsked = true;
+  $('phone').showModal();
+  renderPhone(await fetch('/api/mobile').then((r) => r.json()));
+  renderPush(await fetch('/api/push').then((r) => r.json()));
+  renderNotify(await fetch('/api/notify').then((r) => r.json()));
+  $('ph-pin').focus();
+}
 $('ph-pin-gen').addEventListener('click', async () => {
   renderPhone(await post('/api/mobile', { newGenerated: true }));
   toast(L('已生成新密码，所有设备需要重新登录'));
