@@ -5,6 +5,18 @@ import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
+// Opened on this computer, or from another device over web access (a tablet, a phone, another PC):
+// the same page; what only this computer does (window buttons, web access and push settings, the
+// OK for new devices) stays here, and a phone gets the phone page.
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+if (!LOCAL) {
+  document.documentElement.classList.add('web');
+  try {
+    if (innerWidth < 700 && !localStorage.getItem('fb-full')) location.replace('/m');
+  } catch {
+    // storage unavailable: stay on the full page
+  }
+}
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
 const ITEM = { unitW: 400, unitH: 330, unitGap: 16, questH: 92, questGap: 10, saveH: 64, saveGap: 6 };
 const unitCols = (W) => Math.max(1, Math.floor((W + ITEM.unitGap) / (ITEM.unitW + ITEM.unitGap)));
@@ -818,6 +830,7 @@ function render() {
   renderConsole();
   renderPage();
   renderTermHeads();
+  askNewDevices();
   $('deploy-open').disabled = !state.agentSupport?.ok;
   $('deploy-open').title = state.agentSupport?.ok ? L('在指挥中心里启动一个新的 Claude Code（N）') : state.agentSupport?.error || '';
   tick();
@@ -1583,21 +1596,28 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
-/* ---------- phone access: a QR code to pair a phone with the phone page ---------- */
+/* ---------- web access: other devices (tablets, phones, computers) on the network, signed in ---------- */
 
+let phoneInfo = null;
 async function renderPhone(info) {
-  $('ph-toggle').textContent = info.enabled ? L('关闭手机访问') : L('开启手机访问');
+  phoneInfo = info;
+  $('ph-toggle').textContent = info.enabled ? L('关闭 Web 访问') : L('开启 Web 访问');
   $('ph-regen').hidden = !info.enabled;
   $('ph-qr').innerHTML = info.qr || '';
-  if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('手机访问');
-  $('ph-tip').textContent = !info.enabled ? '' : info.running ? L('用手机相机扫码') : L('端口 {0} 没能打开，可能被占用', info.port);
+  if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('Web 访问已关闭');
+  $('ph-tip').textContent = !info.enabled ? '' : info.running ? L('扫码直接登录（看得到这块屏幕就算同意）') : L('端口 {0} 没能打开，可能被占用', info.port);
   // the key stays out of the visible list: only the QR code carries it
   $('ph-urls').innerHTML =
-    info.urls.map((u) => `<li><b>http://${esc(u.ip)}:${info.port}/m</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}</li>`).join('') +
+    info.urls.map((u) => `<li><b>${esc(u.web)}</b> · ${esc(u.name)}${u.tailscale ? ' · Tailscale' : ''}<br><small>${L('手机页：')}${esc(u.phone)}</small></li>`).join('') +
     (info.host ? `<li><b>${esc(info.host)}</b> · ${L('电脑名（IP 变了也能用，需要网络能解析）')}</li>` : '');
   $('ph-pin-box').hidden = $('ph-logout').hidden = !info.enabled;
-  $('ph-pin-warn').hidden = !info.pinDefault;
-  $('ph-devices').textContent = info.enabled ? L('已登录的设备：{0} 台（每台 {1} 天内不用再输 PIN）', info.devices ?? 0, info.sessionDays ?? 30) : '';
+  // the generated password is shown until you set your own (it is only on this computer)
+  $('ph-gen').hidden = !info.generated;
+  $('ph-gen').textContent = info.generated ? L('当前密码：{0}', info.generated) : '';
+  const devs = info.devices || [];
+  $('ph-devs').hidden = !info.enabled;
+  $('ph-devs').innerHTML = `<div class="ph-devs-h">${L('已登录的设备：{0} 台（每台 {1} 天内不用再输密码）', devs.length, info.sessionDays ?? 30)}</div>` +
+    devs.map((d) => `<div class="ph-dev"><span>${esc(d.device)}</span><small>${esc(d.ip || '')} · ${L('最近使用 {0}', ago(Date.now() - d.seen))}</small><button type="button" class="o-x" data-revoke="${esc(d.id)}" title="${L('让这台设备退出登录')}">✕</button></div>`).join('');
   if (info.error) toast(info.error);
 }
 
@@ -1621,6 +1641,14 @@ $('nt-ext').addEventListener('change', async (e) => renderNotify(await post('/ap
 $('pu-content').addEventListener('change', async (e) => renderPush(await post('/api/push', { content: e.target.checked })));
 
 $('phone-btn').addEventListener('click', async () => {
+  // on another device this button signs it out (the settings are this computer's)
+  if (!LOCAL) {
+    if (await ask({ title: L('退出登录？'), message: L('这台设备会退出舰桥，下次要重新输入密码，并在电脑上允许。'), ok: L('退出登录') })) {
+      await post('/api/logout', {});
+      location.reload();
+    }
+    return;
+  }
   $('phone').showModal();
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
@@ -1638,27 +1666,51 @@ $('pu-test').addEventListener('click', async () => {
   toast(r.ok ? L('测试通知已发出，看看手机') : L('发送失败：') + (r.error || ''));
 });
 $('ph-toggle').addEventListener('click', async () => {
-  const on = $('ph-toggle').textContent === L('开启手机访问');
+  const on = $('ph-toggle').textContent === L('开启 Web 访问');
   renderPhone(await post('/api/mobile', { enabled: on }));
 });
 $('ph-pin-save').addEventListener('click', async () => {
-  const pin = $('ph-pin').value.trim();
-  if (!/^\d{4,12}$/.test(pin)) return toast(L('PIN 需要是 4 到 12 位数字'));
-  const info = await post('/api/mobile', { pin });
+  const password = $('ph-pin').value;
+  if (password.replace(/s+/g, '').length < (phoneInfo?.passwordMin || 8)) return toast(L('密码至少 {0} 个字符', phoneInfo?.passwordMin || 8));
+  const info = await post('/api/mobile', { password });
   renderPhone(info);
   if (!info.error) {
     $('ph-pin').value = '';
-    toast(L('PIN 已修改，手机需要用新 PIN 重新登录'));
+    toast(L('密码已修改，所有设备需要用新密码重新登录'));
   }
+});
+$('ph-pin-gen').addEventListener('click', async () => {
+  renderPhone(await post('/api/mobile', { newGenerated: true }));
+  toast(L('已生成新密码，所有设备需要重新登录'));
+});
+$('ph-devs').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-revoke]');
+  if (b) renderPhone(await post('/api/mobile', { revoke: b.dataset.revoke }));
 });
 $('ph-logout').addEventListener('click', async () => {
   renderPhone(await post('/api/mobile', { logoutAll: true }));
-  toast(L('所有手机都已退出登录'));
+  toast(L('所有设备都已退出登录'));
 });
 $('ph-regen').addEventListener('click', async () => {
   renderPhone(await post('/api/mobile', { regenerate: true }));
   toast(L('已生成新密钥'));
 });
+
+// A device on the network signed in with the right password: it waits for this computer's OK
+const asked = new Set();
+function askNewDevices() {
+  if (!LOCAL) return; // only this computer decides
+  for (const p of state.webPending || []) {
+    if (asked.has(p.id)) continue;
+    asked.add(p.id);
+    ask({
+      title: L('新设备请求访问舰桥'),
+      message: L('{0}（{1}）输入了正确的访问密码，要允许它操作舰桥吗？允许后 30 天内不用再登录；不认识的设备请拒绝。', p.device, p.ip),
+      ok: L('允许'),
+      cancel: L('拒绝'),
+    }).then((allow) => post('/api/mobile', { approve: { id: p.id, allow: Boolean(allow) } }).then((info) => $('phone').open && renderPhone(info)));
+  }
+}
 
 /* ---------- change review: diff, commit and push without leaving the bridge ---------- */
 
@@ -2193,7 +2245,13 @@ function connect() {
   es.onerror = () => {
     $('conn').textContent = L('● 连接断开，重连中…');
     $('conn').classList.add('bad');
+    // another device whose sign-in ended (signed out on the computer, a new password): to the sign-in page
+    if (!LOCAL) fetch('/api/me').then((r) => r.status === 401 && location.reload()).catch(() => {});
   };
 }
 connect();
+if (!LOCAL) {
+  $('phone-btn').title = L('退出登录（这台设备）');
+  $('phone-btn').setAttribute('aria-label', L('退出登录（这台设备）'));
+}
 

@@ -84,11 +84,38 @@ export function createTerminal(host, id, opts = {}) {
   useWebgl();
   if (opts.onFocus) term.textarea?.addEventListener('focus', opts.onFocus);
 
-  const ws = new WebSocket(`ws://${location.host}/ws/agents/${id}`);
-  const sendResize = () => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/agents/${id}`);
+  // One terminal can be on several screens (a split pane, a pop-out, a tablet): it has one size, the
+  // size of the screen in use (the last one focused or typed in). This screen asks for the size that
+  // fits it (want) and draws the terminal at its actual size (told by the server); while another
+  // screen holds the size, the view is scaled down to fit instead of wrapping lines wrongly.
+  let want = null;
+  let actual = null;
+  const sendResize = () => want && ws.readyState === 1 && ws.send(JSON.stringify({ type: 'resize', cols: want[0], rows: want[1] }));
+  const scaleToFit = () => {
+    const el = term.element;
+    if (!el) return;
+    const w = el.querySelector('.xterm-screen')?.offsetWidth || 0;
+    const h = el.querySelector('.xterm-screen')?.offsetHeight || 0;
+    const k = w && h ? Math.min(1, box.clientWidth / w, box.clientHeight / h) : 1;
+    el.style.transformOrigin = '0 0';
+    el.style.transform = k < 0.999 ? `scale(${k})` : '';
+  };
+  const showActual = () => {
+    if (!actual) return;
+    if (term.cols !== actual[0] || term.rows !== actual[1]) term.resize(actual[0], actual[1]);
+    requestAnimationFrame(scaleToFit);
+  };
   const refit = () => {
     try {
-      fit.fit();
+      const d = fit.proposeDimensions();
+      if (!d || !d.cols || !d.rows) return;
+      const next = [Math.max(20, d.cols), Math.max(5, d.rows)];
+      if (!want || next[0] !== want[0] || next[1] !== want[1]) {
+        want = next;
+        sendResize();
+      }
+      showActual();
     } catch {
       // host hidden mid-resize
     }
@@ -97,12 +124,29 @@ export function createTerminal(host, id, opts = {}) {
     refit();
     sendResize();
   };
-  ws.onmessage = (e) => term.write(e.data);
+  ws.onmessage = (e) => {
+    const d = e.data;
+    if (typeof d === 'string' && d.charCodeAt(0) === 0) {
+      try {
+        const m = JSON.parse(d.slice(1));
+        if (m.size) {
+          actual = m.size;
+          showActual();
+        }
+      } catch {
+        // not a control message after all
+        term.write(d);
+      }
+      return;
+    }
+    term.write(d);
+  };
   ws.onclose = () => term.write(`\r\n\x1b[90m${L('[与终端的连接已断开]')}\x1b[0m\r\n`);
   const send = (data) => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'input', data }));
   // onInput may take a keystroke for itself (the master's @ picker) by returning false
   term.onData((data) => opts.onInput?.(data) !== false && send(data));
-  term.onResize(sendResize);
+  // focusing this screen makes it the one in use: the terminal takes its size
+  term.textarea?.addEventListener('focus', () => ws.readyState === 1 && ws.send(JSON.stringify({ type: 'claim' })));
 
   // Panes animate when the split view resizes them: refit once they settle, not on every frame,
   // or claude would redraw its whole screen dozens of times per transition. While the user drags

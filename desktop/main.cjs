@@ -48,7 +48,7 @@ function installHookScript() {
   }
 }
 
-let baseUrl = 'http://127.0.0.1:8787';
+let baseUrl = null; // this instance's own server (set below from PORT, then from the server itself)
 let serverChild = null;
 let summary = { live: [], busy: false }; // the server's last /api/admin/summary (keep-awake, quit)
 let quitting = false;
@@ -73,6 +73,9 @@ function savePrefs(patch) {
 
 const apps = USE_APPDIR ? appdir.create(DATA_DIR, SHELL_DIR, platform.appBase(VARIANT)) : null;
 const PORT = Number(process.env.MONITOR_PORT) || (DEV ? 8790 : 8787); // as server/config.js
+// never the installed app's server by default: a dev run whose server failed to start used to load
+// the installed app's widget (8787) and act on it
+baseUrl = `http://127.0.0.1:${PORT}`;
 let restarts = []; // times of unexpected server exits (a crash loop falls back to the previous version)
 
 /** Starts the server child from a folder; resolves with its URL once it is ready. */

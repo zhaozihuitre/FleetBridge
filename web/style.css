@@ -677,3 +677,13 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
 .nt-opts legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
 .nt-opts label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .nt-opts input:disabled + * , .nt-opts label:has(input:disabled) { opacity: .5; }
+
+/* Opened from another device (web access): no window buttons; the phone button signs this device out */
+html.web [data-win] { display: none; }
+/* web access dialog: the generated password, the signed-in devices */
+.ph-gen { font-family: var(--display); font-size: 15px; letter-spacing: 2px; color: var(--amber); padding: 2px 8px; border: 1px dashed var(--line-hi); }
+.ph-devs { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; font-size: 13px; color: var(--soft); }
+.ph-devs-h { color: var(--muted); }
+.ph-dev { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border: 1px solid var(--line); }
+.ph-dev small { color: var(--muted); margin-right: auto; }
+.ph-urls small { color: var(--muted); }

@@ -16,7 +16,7 @@ import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
-import { mobileInfo, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
+import { mobileInfo, pendingDevices, phoneUrl, setMobile, startMobile, stopMobile } from './mobile.js';
 import { pushInfo, pushNotices, setPush, testPush } from './push.js';
 import { lineText, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
 import { lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
@@ -164,6 +164,7 @@ function publish() {
   updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
   state.notify = notifySettings();
+  state.webPending = pendingDevices(); // devices waiting for this computer's OK
   // the lists say the same: a question is "needs an answer", a finished turn shows its summary
   const latest = new Map();
   for (const n of state.notices) if (n.sessionId) latest.set(n.sessionId, n);
@@ -335,10 +336,23 @@ function uiCommand(cmd) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => handleRequest(req, res));
+
+/**
+ * A request from a signed-in device on the network (server/mobile.js checked the address, the origin and
+ * the session, and kept this computer's own business out): handled as the local page's would be.
+ */
+function webRequest(req, res) {
+  req.fleetWeb = true;
+  // the master's UI commands (fleet_ui) go to this computer's command center, not to a tablet's
+  if (req.url === '/api/stream?main=1') req.url = '/api/stream';
+  return handleRequest(req, res);
+}
+
+async function handleRequest(req, res) {
   // Only same-origin pages may call the API: the data includes account email and project paths.
   const origin = req.headers.origin;
-  if (origin && origin !== `http://127.0.0.1:${config.port}` && origin !== `http://localhost:${config.port}`) return send(res, 403, { error: 'forbidden' });
+  if (!req.fleetWeb && origin && origin !== `http://127.0.0.1:${config.port}` && origin !== `http://localhost:${config.port}`) return send(res, 403, { error: 'forbidden' });
 
   if (req.method === 'GET' && req.url === '/api/state') {
     if (!state) publish(); // first request can arrive before the initial refresh finishes
@@ -482,7 +496,10 @@ const server = http.createServer(async (req, res) => {
     if (!a) return send(res, 404, { error: 'unknown_agent' });
     return send(res, 200, { lines: screenLines(a), alive: a.alive });
   }
-  if (req.method === 'POST' && req.url === '/api/agents/action') return send(res, 200, agentAction(await readBody(req)));
+  if (req.method === 'POST' && req.url === '/api/agents/action') {
+    const body = await readBody(req);
+    return send(res, 200, agentAction(req.fleetWeb ? { ...body, via: 'web' } : body)); // orders from another device are marked as such
+  }
   // phone access (on / off, new key, QR): only from this computer
   if (req.url === '/api/mobile') return send(res, 200, req.method === 'POST' ? await setMobile(await readBody(req)) : await mobileInfo());
   // phone push (ntfy): on / off, new channel, a test message
@@ -572,20 +589,35 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'GET' && serveStatic(req, res)) return;
   send(res, 404, { error: 'not_found' });
-});
+}
 
 // Terminal channel: /ws/agents/<id>. Output is raw terminal data; input arrives as JSON
 // {type:'input', data} keystrokes or {type:'resize', cols, rows}.
 const wss = new WebSocketServer({ noServer: true });
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin;
+  if (origin !== `http://127.0.0.1:${config.port}` && origin !== `http://localhost:${config.port}`) return socket.destroy();
+  agentSocket(req, socket, head);
+});
+
+// One terminal, several screens (split pane, pop-out window, a tablet over the web): the terminal has
+// one size, and it follows the screen in use, the one that last took the focus or typed. The others
+// are told the size and scale their view to fit ("\0" + JSON: a control message, not output).
+const sizeMsg = (agent) => '\u0000' + JSON.stringify({ size: [agent.screen?.cols || 120, agent.screen?.rows || 32] });
+function applySize(agent, ws) {
+  agent.sizeOwner = ws;
+  if (ws.want) resizeAgent(agent, ws.want[0], ws.want[1]);
+  const msg = sizeMsg(agent);
+  for (const c of agent.clients) if (c.readyState === 1) c.send(msg);
+}
+
+/** A terminal's WebSocket, once the caller has checked who may open it (local page, or a signed-in device). */
+export function agentSocket(req, socket, head) {
   const m = req.url.match(/^\/ws\/agents\/([0-9a-f-]{36})$/);
   const agent = m && getAgent(m[1]);
-  if (!agent || (origin !== `http://127.0.0.1:${config.port}` && origin !== `http://localhost:${config.port}`)) {
-    socket.destroy();
-    return;
-  }
+  if (!agent) return socket.destroy();
   wss.handleUpgrade(req, socket, head, (ws) => {
+    ws.send(sizeMsg(agent)); // its size first, so the replay is drawn at the right width
     ws.send(agent.buffer); // replay the screen so far
     agent.clients.add(ws);
     ws.on('message', (raw) => {
@@ -603,16 +635,30 @@ server.on('upgrade', (req, socket, head) => {
         // input is empty again, so notices may follow right away.
         const keys = msg.data.replace(/\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO]/g, '');
         if (keys) agent.typedAt = /\r/.test(keys) ? 0 : Date.now();
+        if (keys && agent.sizeOwner !== ws) applySize(agent, ws); // typing here: the size follows this screen
         // Enter on an idle agent with nothing to answer: an order typed straight into its terminal
         // (an Enter that answers a dialog or a question doesn't change who gave the turn)
         const u = msg.data.includes('\r') && state?.units.find((x) => x.agentId === agent.id);
         if (u && u.status === 'idle' && !u.permission) noteOrder(agent, 'terminal', '');
       }
-      else if (msg.type === 'resize') resizeAgent(agent, msg.cols, msg.rows);
+      else if (msg.type === 'resize' && msg.cols > 0 && msg.rows > 0) {
+        // the size this screen would like: applied when it holds the size (or nobody does)
+        ws.want = [msg.cols | 0, msg.rows | 0];
+        const owner = agent.sizeOwner;
+        if (!owner || owner === ws || owner.readyState !== 1) applySize(agent, ws);
+      } else if (msg.type === 'claim') applySize(agent, ws); // this screen took the focus
     });
-    ws.on('close', () => agent.clients.delete(ws));
+    ws.on('close', () => {
+      agent.clients.delete(ws);
+      // the screen in use went away: the most recent other one takes the size
+      if (agent.sizeOwner === ws) {
+        agent.sizeOwner = null;
+        const next = [...agent.clients].reverse().find((c) => c.readyState === 1 && c.want);
+        if (next) applySize(agent, next);
+      }
+    });
   });
-});
+}
 
 onAgentsChange(() => publish());
 onPromptSent((agent, prompt) => {
@@ -700,7 +746,7 @@ export async function start({ onListening } = {}) {
   // the first usage and git scans fill the cards when they're done; the page works meanwhile
   Promise.all([refreshUsage(), refreshGit()]).catch((e) => console.error('first refresh failed', e.message));
   timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
-  await startMobile({ clients, getState: () => state, action: (b) => agentAction({ ...b, via: 'phone' }), screen: (id) => {
+  await startMobile({ action: (b) => agentAction(b), web: webRequest, socket: (req, socket, head) => agentSocket(req, socket, head), changed: () => publish(), screen: (id) => {
     const a = getAgent(id);
     return { html: screenHtml(a?.screen), menu: a ? menuOptions(a) : [] };
   } });

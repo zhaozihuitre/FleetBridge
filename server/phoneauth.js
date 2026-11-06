@@ -1,21 +1,26 @@
 import crypto from 'node:crypto';
 
-// Phone sign-in: a fixed PIN (default 123456, changeable in the command center), then a device
-// session that lasts 30 days from its last use, so the PIN is typed once per phone, not per visit.
-// Sessions are stored hashed. Wrong PINs lock the sign-in for a while (per address, and for
-// everyone after many failures), so a 6-digit PIN can't be tried out. Only private addresses
-// (LAN, link-local, Tailscale) may connect at all.
-export const DEFAULT_PIN = '123456';
+// Sign-in for other devices (the web command center, the phone page): a password, then a device
+// session that lasts 30 days from its last use, so the password is typed once per device.
+//   - there is no default password: until one is set (or generated, see mobile.js) nobody gets in;
+//   - a right password is not enough: the device waits until it is allowed on the computer
+//     (mobile.js keeps those requests), so a password seen over a shoulder or on the network alone
+//     doesn't open the fleet;
+//   - wrong passwords lock the sign-in for a while (per address, and for everyone after many);
+//   - sessions and the password are stored hashed; each device can be signed out on its own.
 export const SESSION_DAYS = 30;
 const SESSION_MS = SESSION_DAYS * 86_400_000;
 const MAX_SESSIONS = 30;
 const PER_IP_TRIES = 5; // then locked, 5 min doubling up to an hour
-const GLOBAL_TRIES = 30; // wrong PINs from anywhere within 10 min: everyone locked for 10 min
+const GLOBAL_TRIES = 30; // wrong passwords from anywhere within 10 min: everyone locked for 10 min
+export const PASSWORD_MIN = 8;
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+/** Spaces don't count (a generated password is shown as "1234 5678"). */
+export const normPassword = (p) => String(p ?? '').replace(/\s+/g, '');
 
-function hashPin(pin, salt = crypto.randomBytes(16).toString('hex')) {
-  return { salt, hash: crypto.scryptSync(String(pin), salt, 32).toString('hex') };
+function hashPassword(pw, salt = crypto.randomBytes(16).toString('hex')) {
+  return { salt, hash: crypto.scryptSync(normPassword(pw), salt, 32).toString('hex') };
 }
 
 function same(a, b) {
@@ -24,19 +29,14 @@ function same(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-/** settings: the persisted phone settings object ({ pin, sessions, ... }); save(): persist it. */
+/** settings: the persisted settings object ({ password, sessions, ... }); save(): persist it. */
 export function createAuth(settings, save) {
   settings.sessions ||= [];
   const fails = new Map(); // ip -> { n, lockedUntil, locks }
-  let recent = []; // times of wrong PINs from anywhere
+  let recent = []; // times of wrong passwords from anywhere
   let globalUntil = 0;
 
-  const isDefault = () => !settings.pin;
-
-  function checkPin(pin) {
-    if (!settings.pin) return same(String(pin), DEFAULT_PIN);
-    return same(hashPin(pin, settings.pin.salt).hash, settings.pin.hash);
-  }
+  const hasPassword = () => Boolean(settings.password?.hash);
 
   /** Seconds until this address may try again (0: may try now). */
   function lockedFor(ip, now = Date.now()) {
@@ -45,11 +45,16 @@ export function createAuth(settings, save) {
     return until > now ? Math.ceil((until - now) / 1000) : 0;
   }
 
-  /** @returns {{ ok: true, token: string } | { ok: false, wait?: number, left?: number }} */
-  function login(pin, ip, ua, now = Date.now()) {
+  /**
+   * Checks a password (with the lockouts). A right one still needs the computer's OK before a
+   * session is issued.
+   * @returns {{ ok: true } | { ok: false, wait?: number, left?: number }}
+   */
+  function check(pw, ip, now = Date.now()) {
     const wait = lockedFor(ip, now);
     if (wait) return { ok: false, wait };
-    if (!/^\d{4,12}$/.test(String(pin || '')) || !checkPin(pin)) {
+    const good = hasPassword() && normPassword(pw).length >= PASSWORD_MIN && same(hashPassword(pw, settings.password.salt).hash, settings.password.hash);
+    if (!good) {
       const f = fails.get(ip) || { n: 0, lockedUntil: 0, locks: 0 };
       f.n++;
       if (f.n >= PER_IP_TRIES) {
@@ -67,13 +72,14 @@ export function createAuth(settings, save) {
       return w ? { ok: false, wait: w } : { ok: false, left: PER_IP_TRIES - f.n };
     }
     fails.delete(ip);
-    return { ok: true, token: issue(ua, now) };
+    return { ok: true };
   }
 
-  /** A new device session (after the PIN, or from the QR link shown on the computer's screen). */
-  function issue(ua, now = Date.now()) {
+  /** A new device session (after the computer allowed it, or from the QR link on its screen). */
+  function issue(ua, ip, now = Date.now()) {
     const token = crypto.randomBytes(32).toString('base64url');
-    settings.sessions = [{ h: sha(token), at: now, seen: now, ua: String(ua || '').slice(0, 120) }, ...prune(now)].slice(0, MAX_SESSIONS);
+    const id = crypto.randomBytes(4).toString('hex');
+    settings.sessions = [{ id, h: sha(token), at: now, seen: now, ua: String(ua || '').slice(0, 160), ip: String(ip || '').replace(/^::ffff:/, '') }, ...prune(now)].slice(0, MAX_SESSIONS);
     save();
     return token;
   }
@@ -82,18 +88,19 @@ export function createAuth(settings, save) {
     return settings.sessions.filter((s) => now - s.seen < SESSION_MS);
   }
 
-  /** Whether a session cookie is valid; slides its 30 days forward (written at most hourly). */
-  function valid(token, now = Date.now()) {
-    if (!token) return false;
+  /** The session of a cookie, if valid; slides its 30 days forward (written at most hourly). */
+  function session(token, now = Date.now()) {
+    if (!token) return null;
     const h = sha(token);
     const s = settings.sessions.find((x) => same(x.h, h));
-    if (!s || now - s.seen >= SESSION_MS) return false;
+    if (!s || now - s.seen >= SESSION_MS) return null;
     if (now - s.seen > 3_600_000) {
       s.seen = now;
       save();
     }
-    return true;
+    return s;
   }
+  const valid = (token, now) => Boolean(session(token, now));
 
   function logout(token) {
     const h = sha(token || '');
@@ -101,10 +108,15 @@ export function createAuth(settings, save) {
     save();
   }
 
-  /** New PIN: 4 to 12 digits. Every signed-in phone has to enter the new one. */
-  function setPin(pin) {
-    if (!/^\d{4,12}$/.test(String(pin || ''))) return { ok: false, error: 'pin_format' };
-    settings.pin = String(pin) === DEFAULT_PIN ? null : hashPin(pin);
+  function revoke(id) {
+    settings.sessions = settings.sessions.filter((x) => x.id !== id);
+    save();
+  }
+
+  /** A new password (at least 8 characters, spaces ignored): every signed-in device has to sign in again. */
+  function setPassword(pw) {
+    if (normPassword(pw).length < PASSWORD_MIN) return { ok: false, error: 'password_short' };
+    settings.password = hashPassword(pw);
     settings.sessions = [];
     save();
     return { ok: true };
@@ -115,9 +127,9 @@ export function createAuth(settings, save) {
     save();
   }
 
-  const devices = () => prune().length;
+  const devices = () => prune().map(({ id, ua, ip, at, seen }) => ({ id, ua, ip, at, seen }));
 
-  return { login, issue, valid, logout, logoutAll, setPin, isDefault, devices, lockedFor };
+  return { check, issue, valid, session, logout, logoutAll, revoke, setPassword, hasPassword, devices, lockedFor };
 }
 
 /** LAN, link-local, Tailscale (100.64/10), loopback; IPv4-mapped IPv6 included. */
