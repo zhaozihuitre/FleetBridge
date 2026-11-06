@@ -9,8 +9,11 @@
 <link href="/web/fonts/fonts.css" rel="stylesheet">
 <link rel="stylesheet" href="/lib/xterm/css/xterm.css">
 <link rel="stylesheet" href="/web/style.css">
-<style>
-html, body { background: #050a12; }
+<style>:root {
+  --x-050a12: #050a12;
+}
+
+html, body { background: var(--x-050a12); }
 .solo { position: fixed; inset: 0; display: flex; flex-direction: column; border: 0; color: var(--text); font-family: var(--body); }
 </style>
 </head>

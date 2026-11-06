@@ -7,7 +7,10 @@
 <link rel="icon" href="/web/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/web/icon.png">
 <link rel="stylesheet" href="/web/style.css">
-<style>
+<style>:root {
+  --x-ffffff: #ffffff;
+}
+
 html, body { height: 100%; margin: 0; overflow: hidden; }
 body { display: flex; flex-direction: column; background: var(--bg); }
 .pv-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); font-family: var(--body); font-size: 13px; }
@@ -15,7 +18,7 @@ body { display: flex; flex-direction: column; background: var(--bg); }
 .pv-bar small { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pv-bar button { height: 28px; padding: 0 10px; background: transparent; border: 1px solid var(--line-hi); color: var(--soft); font-family: var(--body); font-size: 12px; }
 .pv-bar button:hover { border-color: var(--cyan); color: var(--text); }
-iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+iframe { flex: 1; width: 100%; border: 0; background: var(--x-ffffff); }
 .gone { margin: 40px auto; color: var(--muted); font-family: var(--body); }
 </style>
 </head>

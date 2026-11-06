@@ -7,9 +7,13 @@
 <link rel="apple-touch-icon" href="/web/icon.png">
 <link href="/web/fonts/fonts.css" rel="stylesheet">
 <link rel="stylesheet" href="/web/style.css">
-<style>
+<style>:root {
+  --x-050a12: #050a12;
+  --x-ff8fa3: #ff8fa3;
+}
+
 html, body { background: transparent; overflow: hidden; }
-.w { width: 300px; color: var(--text); font-family: var(--body); background: rgba(5,10,18,.96); border: 1px solid var(--line-hi); box-shadow: 0 0 18px rgba(61,245,255,.15); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); user-select: none; }
+.w { width: 300px; color: var(--text); font-family: var(--body); background: color-mix(in srgb, var(--x-050a12) 96%, transparent); border: 1px solid var(--line-hi); box-shadow: 0 0 18px color-mix(in srgb, var(--cyan) 15%, transparent); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); user-select: none; }
 .w-head { -webkit-app-region: drag; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .w-head .logo { font-family: var(--display); font-weight: 900; font-size: 11px; letter-spacing: 1.5px; color: var(--cyan); }
 .w-head .chips { flex: 1; display: flex; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; }
@@ -25,7 +29,7 @@ html, body { background: transparent; overflow: hidden; }
 .lim .pct { font-family: var(--display); font-size: 11px; color: var(--text); text-align: right; }
 .lim.active .pct { color: var(--amber); }
 .lim.low .pct { color: var(--red); }
-.w-alert { width: 100%; text-align: left; padding: 7px 9px; border: 1px solid var(--qc, var(--line)); background: rgba(255,77,109,.08); color: var(--text); font-family: var(--body); font-size: 12px; line-height: 1.45; }
+.w-alert { width: 100%; text-align: left; padding: 7px 9px; border: 1px solid var(--qc, var(--line)); background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--text); font-family: var(--body); font-size: 12px; line-height: 1.45; }
 .w-alert:empty { display: none; }
 .w-alert b { color: var(--qc); }
 .w-alert small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -41,16 +45,16 @@ html, body { background: transparent; overflow: hidden; }
 .row .s { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .r { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--display); font-size: 10px; color: var(--muted); }
 .row .r .ctx { color: var(--kc); font-size: 11px; }
-.w-menu { display: flex; flex-direction: column; padding: 4px; background: #050a12; border-bottom: 1px solid var(--line-hi); }
+.w-menu { display: flex; flex-direction: column; padding: 4px; background: var(--x-050a12); border-bottom: 1px solid var(--line-hi); }
 .w-menu[hidden] { display: none; }
 .w-menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; background: transparent; color: var(--soft); font-family: var(--body); font-size: 13px; text-align: left; }
 .w-menu button::before { content: ''; width: 14px; flex: none; color: var(--cyan); }
 .w-menu button[aria-checked="true"]::before { content: '✓'; }
 .w-head .chips .awake { color: var(--amber); }
 .w-menu button:disabled { opacity: .45; }
-.w-menu button:hover, .w-menu button:focus-visible { background: rgba(61,245,255,.1); color: var(--text); outline: none; }
-.w-menu .quit { color: #ff8fa3; border-top: 1px solid var(--line); }
-.w-menu .quit:hover { background: rgba(255,77,109,.12); }
+.w-menu button:hover, .w-menu button:focus-visible { background: color-mix(in srgb, var(--cyan) 10%, transparent); color: var(--text); outline: none; }
+.w-menu .quit { color: var(--x-ff8fa3); border-top: 1px solid var(--line); }
+.w-menu .quit:hover { background: color-mix(in srgb, var(--red) 12%, transparent); }
 .more, .empty-w { font-size: 11px; color: var(--muted); text-align: center; padding: 4px; }
 </style>
 </head>

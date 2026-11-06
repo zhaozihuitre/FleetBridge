@@ -1,8 +1,10 @@
 // Color themes for every page (command center, widget, popped-out terminals, phone) and their terminals.
-// The stylesheets are written in the original neon palette; a theme recolors them by role: each color
-// in a rule is matched to the nearest color of the neon palette (background, panel, body text, accent,
-// a state...) and replaced by the theme's color for that role, alpha kept. So one stylesheet serves
-// every theme, and a rule added later in neon colors follows the themes by itself.
+// The stylesheets use CSS variables for every color: the palette (--bg, --panel, --text, --cyan, ...)
+// and --x-<hex> for the other colors of the neon original, all defined in :root with their neon values
+// (translucent ones are color-mix(in srgb, var(--...) a%, transparent)). A theme sets those variables:
+// each takes the theme's color for its role (the nearest neon palette color: background, panel, body
+// text, accent, a state...), unless the theme sets that variable itself (vars: per-theme tuning).
+// A rule written later with a plain color still follows the themes: it is recolored by role as before.
 // Body text sits around 7:1 on the panels in the new themes (between WCAG AA and AAA): readable
 // without the glare of the neon one's 17:1; glowing text (blurred edges) is off in all of them.
 
@@ -121,6 +123,7 @@ export function applyTheme(key) {
         // glowing text blurs its edges: only the neon theme keeps it; 'none' drops the panel glow too
         if (prop === 'text-shadow' && T.glow !== 'full') rule.style.setProperty(prop, 'none', prio);
         else if (prop === 'box-shadow' && T.glow === 'none' && !/inset/.test(v)) rule.style.setProperty(prop, 'none', prio);
+        else if (name !== 'neon' && prop.startsWith('--') && T.vars?.[prop]) rule.style.setProperty(prop, T.vars[prop], prio); // tuned for this theme
         else rule.style.setProperty(prop, name === 'neon' ? v : swap(v), prio);
       }
     }

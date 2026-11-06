@@ -529,7 +529,7 @@ function unitCard(u) {
     ? `<button class="mini" data-term="${esc(u.agentId)}" title="${L('打开它的终端，直接下指令')}">${L('▶ 终端')}</button>`
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
-  <article class="unit ${cls}" data-unit="${esc(u.key)}">
+  <article class="unit ${cls}" data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
     <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
@@ -667,7 +667,7 @@ function agentRow(a) {
   const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u?.lastText || L('（还没有汇报）');
   const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
   const open = panes.has(a.id);
-  return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}">
+  return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}" data-flash="${esc(a.id)}" data-st="${s.key}">
     <span class="lv" aria-hidden="true">${s.icon}</span>
     <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
@@ -759,6 +759,19 @@ function markRepoScroll(r) {
 }
 document.addEventListener('scroll', (e) => e.target.classList?.contains('repos') && markRepoScroll(e.target), true);
 
+// A unit card or a terminal row whose state changed (busy -> done, a dialog came up...) flashes once,
+// so a change catches the eye without anything blinking all the time (off with "reduce motion").
+const lastSt = new Map();
+function flashChanged() {
+  for (const el of document.querySelectorAll('[data-st]')) {
+    const id = el.dataset.unit || el.dataset.flash;
+    if (!id) continue;
+    const was = lastSt.get(id);
+    if (was && was !== el.dataset.st) el.classList.add('flash');
+    lastSt.set(id, el.dataset.st);
+  }
+}
+
 function renderPage() {
   const { kind, list } = currentList();
   const size = pageSize(kind);
@@ -799,6 +812,7 @@ function renderPage() {
     }
   }
 
+  flashChanged();
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
   // running units, and how many cards the tab pages through (the projects not running come after them)
   const offline = (state.offline || []).length;
