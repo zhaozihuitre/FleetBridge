@@ -5,7 +5,8 @@ import os from 'node:os';
 import { config, DATA_DIR, DEV, DEV_PREFIX, ROOT } from './config.js';
 import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
-import { collectUsage, limitLabel, withStatusline } from './collectors/usage.js';
+import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
+import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
 import { getLang, getTheme, L, setLang, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
@@ -111,7 +112,16 @@ function publish() {
     }
   }
   const merged = withStatusline(usage, STATUSLINE_USAGE);
-  const view = merged && { ...merged, limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })) };
+  const orgNow = currentOrg();
+  const view = merged && {
+    ...merged,
+    limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })),
+    // whose quota this is: the organization the reading was made under (the API's profile)
+    org: orgInfo(merged.account?.orgId) || (merged.account?.org ? { name: merged.account.org, email: merged.account.email } : null),
+    // signed in now, if not the one read yet (a /login since the last reading)
+    signedIn: orgNow && orgNow !== merged.account?.orgId ? orgInfo(orgNow) : null,
+    others: otherOrgs(merged.account?.orgId),
+  };
   const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
     ...base,
@@ -119,7 +129,8 @@ function publish() {
     units: base.units.map((u) => {
       const agentId = byPid.get(u.pid) || bySession.get(u.sessionId) || null;
       const prompt = prompts.get(u.sessionId) || null;
-      return { ...u, owned: Boolean(agentId), agentId, permission: u.permission && { ...u.permission, prompt } };
+      const org = orgInfo(orgOfUnit(u));
+      return { ...u, owned: Boolean(agentId), agentId, permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units

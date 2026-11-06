@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { L } from './i18n.js';
+import { currentOrg, LIMIT_RE, orgAt, orgInfo } from './accounts.js';
 import { clipSentence, kindIcon, kindWord, lastTurn, notifySettings, summarize } from './summary.js';
 
 // Notices: what is worth telling you without looking at a screen, decided once here and shown by every
@@ -52,7 +53,9 @@ export function updateNotices(units, quests, prompts, o = {}) {
       const kind = p?.kind === 'question' ? 'question' : 'permit';
       const opts = p?.options?.length ? p.options.map((x) => `${x.key}. ${x.label}`).join(' / ') : '';
       const q = (p?.text || u.permission.message || '').split('\n').map((l) => l.trim()).filter(Boolean);
-      prime(`ask:${u.sessionId}:${u.permission.at}`, () => ({ kind, ...who, title: clipSentence(q[0] || '', 50), result: clipSentence(q.slice(1).join(' '), 120), needs: opts ? clipSentence(opts, 120) : '' }));
+      // a dialog about the quota ("… now uses usage credits"): whose quota
+      const quota = LIMIT_RE.test(q.join(' ')) ? orgInfo(currentOrg())?.name : '';
+      prime(`ask:${u.sessionId}:${u.permission.at}`, () => ({ kind, ...who, org: quota || undefined, title: (quota ? `[${quota}] ` : '') + clipSentence(q[0] || '', 50), result: clipSentence(q.slice(1).join(' '), 120), needs: opts ? clipSentence(opts, 120) : '' }));
       continue;
     }
     if (u.contextPct != null && u.contextPct >= config.thresholds.contextWarnPct && now - (overloadAt.get(u.sessionId) || 0) > OVERLOAD_EVERY) {
@@ -86,10 +89,19 @@ export function updateNotices(units, quests, prompts, o = {}) {
     if (!s.done && !late) continue; // the model's summary is on its way
     let kind = turn.error ? 'error' : turn.interrupted ? 'interrupted' : s.summary.needs ? 'ask' : 'done';
     let { title, result, needs, by } = s.summary;
-    if (kind === 'error') [title, result, needs] = [clipSentence(turn.error, 50), title ? L('出错前：', 'Before it: ', 'エラー前：') + title : '', ''];
+    let org;
+    if (kind === 'error') {
+      [title, result, needs] = [clipSentence(turn.error, 50), title ? L('出错前：', 'Before it: ', 'エラー前：') + title : '', ''];
+      // the quota ran out: say whose (the organization signed in when it happened)
+      if (LIMIT_RE.test(turn.error)) {
+        org = orgInfo(orgAt(turn.lastAt) || currentOrg())?.name;
+        title = L('「{0}」额度到限：', '{0} quota used up: ', '「{0}」の利用枠が上限：').replace('{0}', org || L('组织未知', 'unknown organization', '組織不明')) + title;
+        needs = L('等额度重置，或 /login 换到另一个组织。', 'Wait for the reset, or /login to the other organization.', 'リセットを待つか、/login で別の組織へ。');
+      }
+    }
     if (kind === 'interrupted') [result, needs] = [turn.lastTool ? L('停在：', 'Stopped at: ', '停止位置：') + turn.lastTool : result, L('等你的新指示。', 'Waiting for what to do instead.', '次の指示を待っています。')];
     if (!title) title = clipSentence(turn.prompt, 40);
-    add({ key, kind, ...who, title, result, needs, by, order: clipSentence(turn.prompt, 60) });
+    add({ key, kind, ...who, org, title, result, needs, by, order: clipSentence(turn.prompt, 60) });
   }
   // quota low
   for (const q of quests) if (q.kind === 'ALERT') prime(q.key, () => ({ kind: 'alert', name: L('额度', 'Quota', '利用枠'), title: q.title, result: q.goal || '', needs: '' }));
@@ -119,7 +131,8 @@ export function toastText(n) {
 
 /** Phone push: with content (it passes through the ntfy server) or only what happened where. */
 export function pushText(n, withContent) {
-  if (!withContent) return { title: head(n), body: L('打开手机页查看。', 'Open the phone page to see it.', 'スマホページで確認してください。') };
+  // whose quota ran out is no content: it is told even then
+  if (!withContent) return { title: head(n) + (n.org ? ` · ${n.org}` : ''), body: L('打开手机页查看。', 'Open the phone page to see it.', 'スマホページで確認してください。') };
   const t = toastText(n);
   return { title: t.title, body: clipSentence([n.result, n.needs ? L('需要你：', 'For you: ', '対応：') + n.needs : ''].filter(Boolean).join(' '), 250) };
 }

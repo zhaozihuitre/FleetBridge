@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
+import { LIMIT_RE } from '../accounts.js';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const CHUNK = 1 << 20;
@@ -15,6 +16,7 @@ function blank() {
     model: null,
     contextTokens: null,
     lastActivity: null,
+    limit: null, // { text, at }: the last turn stopped on the quota
     lastEntryAt: null, // any main-thread line, including tool results
     lastText: null,
     lastPrompt: null,
@@ -35,7 +37,13 @@ function apply(st, d) {
   const msg = d.message;
   if (d.type === 'assistant' && msg) {
     // Synthetic messages (interrupts, errors) carry all-zero usage and must not reset the context reading.
-    if (msg.model === '<synthetic>') return;
+    if (msg.model === '<synthetic>') {
+      // the quota ran out ("You've hit your 5-hour limit"…): kept until it works again
+      const text = (msg.content || []).find((b) => b?.type === 'text')?.text?.trim() || '';
+      if (d.isApiErrorMessage && (d.error === 'rate_limit' || LIMIT_RE.test(text))) st.limit = { text: firstLine(text), at: Date.parse(d.timestamp) || 0 };
+      return;
+    }
+    st.limit = null;
     const u = msg.usage;
     if (u) {
       st.contextTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
@@ -51,6 +59,7 @@ function apply(st, d) {
     }
   } else if (d.type === 'user' && msg && typeof msg.content === 'string' && !d.isMeta) {
     if (!msg.content.startsWith('<')) st.lastPrompt = firstLine(msg.content);
+    st.limit = null;
     st.lastActivity = d.timestamp;
   }
 }

@@ -3307,6 +3307,34 @@
       "created": "2026-11-06 15:46",
       "updated": "2026-11-06 15:46",
       "notes": []
+    },
+    {
+      "id": "C-065",
+      "type": "change",
+      "title": "额度和终端标明所属的 claude.ai 组织；另一个组织的用量也显示；额度到限的通知写明是哪个组织（0.9.41）",
+      "summary": "同一账号属于两个组织、各有额度时，看得出是哪个组织的额度、哪个终端在用哪个组织、哪个组织到限。",
+      "detail": "调查结论：组织信息在 ~/.claude.json 的 oauthAccount（组织名、uuid、邮箱），用量 API（/api/oauth/usage、/profile）按当前令牌返回所属组织；状态栏输入里没有组织信息。Claude Code 每个配置目录只存一份登录，/login 换组织后，所有运行中的 Claude Code 会在下一次请求前重新读取凭据文件（按文件修改时间），所以同一时刻所有终端用的都是当时登录的组织。实现：server/accounts.js 记录组织登录时间线（每次发布时检查 ~/.claude.json，首次以凭据文件修改时间为起点）；终端的组织 = 工作中时为当前组织，空闲时为它最后一次工作时登录的组织，时间线开始之前的不标。usage.js 按组织保存读数（usage-orgs.json），切换前那个组织继续用它原来的令牌读取（只存在内存，不保存、不刷新，过期或被拒就停，之后显示最后读数和时间）；状态栏读数只合并到同一组织。界面：额度框上边框写组织名和邮箱，另一个组织显示 5h/周 用量和读取时间；部队卡片、活动终端列表、分屏标题栏显示组织标签（每个组织一个颜色）。会话记录里出现额度到限的 API 错误时，终端状态写「额度到限（组织）」，通知标题写「「组织」额度到限」，手机推送不带内容时也带组织名；额度/credits 对话框的通知也带组织名。另修：5 小时窗口未开始时没有重置时间，原来显示 NaN。",
+      "status": "done",
+      "files": [
+        "server/accounts.js",
+        "server/collectors/usage.js",
+        "server/collectors/transcript.js",
+        "server/collectors/sessions.js",
+        "server/index.js",
+        "server/notices.js",
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "usage",
+        "account"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 16:15",
+      "updated": "2026-11-06 16:15",
+      "notes": []
     }
   ]
 }

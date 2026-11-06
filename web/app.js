@@ -115,20 +115,63 @@ function renderEnergy() {
         const weekly = l.key !== 'session';
         const stale = u.error ? `<span class="stale" title="${esc(errText)}${u.retryAt ? ' · ' + clock(u.retryAt) + L(' 重试') : ''}">${L('缓存 {0}', clock(u.fetchedAt))}</span>` : '';
         // what's used, how long until it resets (ticking) and when that is (with the date): no forecast
-        const resets = L('{0} 重置', when(l.resetsAt));
-        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${L('还剩 {0}', dur(l.resetsAt - Date.now()))} · ${resets}`)}">
+        // a window not started yet (nothing used) has no reset time
+        const started = Number.isFinite(l.resetsAt) && l.resetsAt > 0;
+        const resets = started ? L('{0} 重置', when(l.resetsAt)) : L('未开始');
+        return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${started ? L('还剩 {0}', dur(l.resetsAt - Date.now())) + ' · ' : ''}${resets}`)}">
           <div class="row"><span class="label"><span class="lk">${weekly ? 'RESERVE' : 'ENERGY'} · </span>${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span class="cd" data-reset="${l.resetsAt}">${dur(l.resetsAt - Date.now())}</span><span class="resets">${esc(resets)}</span></div>
+          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dur(l.resetsAt - Date.now()) : '--:--'}</span><span class="resets">${esc(resets)}</span></div>
         </div>`;
       })
       .join('');
   }
+  // whose quota: the organization's name on the boxes' top edge; the other organizations after them
+  if (u?.org) $('energy').innerHTML = `<div class="energy-group" style="--oc:${orgColor(u.org.id)}">${orgLegend(u)}${$('energy').innerHTML}</div>`;
+  if (u?.others?.length) $('energy').insertAdjacentHTML('beforeend', u.others.map(otherOrgBox).join(''));
   const a = u?.account;
   $('pilot').textContent = a ? `PILOT · ${(a.tier || a.plan || '').replace('default_claude_', '').toUpperCase()} · ${a.email || ''}` : 'PILOT';
   $('pilot').title = a ? `${a.email || ''} · ${a.org || ''}` : '';
 }
+
+// Whose quota the boxes show: the organization (one account can be in several, each with its own quota).
+function orgLegend(u) {
+  const o = u.org;
+  const moved = u.signedIn ? L('已切换登录到 {0}，额度稍后更新', u.signedIn.name) : '';
+  return `<span class="org-legend" title="${esc([L('这里的额度属于组织：') + o.name, o.email, moved].filter(Boolean).join('\n'))}"><b>${esc(o.name)}</b>${o.email ? ` · ${esc(o.email)}` : ''}${moved ? ` · <i>${L('切换中')}</i>` : ''}</span>`;
+}
+
+// Another organization's quota: its last reading (live while its old sign-in still works).
+function otherOrgBox(x) {
+  const pick = (k) => x.limits.find((l) => l.key === k);
+  const part = (l, name) => (l ? `${name} ${Math.round(l.usedPct)}%` : '');
+  const text = [part(pick('session'), L('5h')), part(pick('weekly_all'), L('周'))].filter(Boolean).join(' · ') || '--';
+  const full = x.limits.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt > 0 ? ' · ' + L('{0} 重置', when(l.resetsAt)) : ''}`).join('\n');
+  const asOf = x.live ? L('读取于 {0}', clock(x.fetchedAt)) : L('截至 {0}', when(x.fetchedAt));
+  const tip = [L('另一个组织：') + x.org.name, full, asOf, x.live ? '' : L('现在没登录这个组织，显示的是最后一次读到的值')].filter(Boolean).join('\n');
+  return `<div class="energy-group other" style="--oc:${orgColor(x.org.id)}"><span class="org-legend"><b>${esc(x.org.name)}</b></span>
+    <div class="energy energy-other box cut" title="${esc(tip)}">
+      <div class="row"><span class="other-pct">${esc(text)}</span></div>
+      <div class="row"><span class="${x.live ? '' : 'stale'}">${esc(asOf)}</span></div>
+    </div></div>`;
+}
+
+// A color per organization, the same everywhere (quota boxes, cards, terminals).
+function orgColor(key) {
+  const ids = [state?.usage?.org?.id, ...(state?.usage?.others || []).map((x) => x.org.id)].filter(Boolean);
+  const i = ids.indexOf(key);
+  return ['var(--cyan)', 'var(--amber)', 'var(--green)', 'var(--red)'][(i < 0 ? 0 : i) % 4];
+}
+
+// A terminal's organization, as a small tag (title: why it is that one).
+function orgTag(u) {
+  if (!u?.org) return '';
+  return `<span class="org-tag" style="--oc:${orgColor(u.org.id)}" title="${esc(L('登录的组织：{0}（按它最后一次工作时登录的组织）', u.org.name))}">${esc(u.org.name)}</span>`;
+}
+
+// The quota ran out in this terminal's last turn: whose.
+const limitText = (u) => (u?.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '');
 
 // A time with its day: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
 function when(ms) {
@@ -529,9 +572,9 @@ function unitCard(u) {
   return `
   <article class="unit ${cls}" data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
     <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
-    <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
+    <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}${orgTag(u)}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
-    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.summary || u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
+    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u.summary || u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
       <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
       <div class="stat"><div class="k"><span>${L('僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
@@ -662,12 +705,12 @@ function agentRow(a) {
   const u = state.units.find((x) => x.agentId === a.id);
   const s = stateOf(u, { agent: a });
   const c = s.color;
-  const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u?.lastText || L('（还没有汇报）');
+  const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u?.lastText || L('（还没有汇报）');
   const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}" data-flash="${esc(a.id)}" data-st="${s.key}">
     <span class="lv" aria-hidden="true">${s.icon}</span>
-    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
+    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}${orgTag(u)}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
     <div class="side"><span class="mono">${L('负载 {0}', pct)}</span>${a.startedAt ? `<span class="ran">${L('已运行 {0}', waitText(Date.now() - a.startedAt))}</span>` : ''}<div>
       ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
@@ -1134,6 +1177,7 @@ function renderTermHeads() {
     const s = stateOf(u, { agent: { ...a, alive } });
     st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
     st.className = 't-state';
+    el.querySelector('.t-org').innerHTML = orgTag(u);
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
     el.querySelector('[data-tact=remove]').hidden = alive !== false;
@@ -1266,7 +1310,7 @@ function openTerm(id) {
   const el = document.createElement('div');
   el.className = 'pane';
   el.dataset.pane = id;
-  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
+  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-org"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
   $('term-grid').appendChild(el);
   const t = createTerminal(el.querySelector('.term-host'), id, { fontSize: paneFont(panes.size ? 1 : 0), onFocus: () => setActivePane(id) });
   panes.set(id, { el, t });

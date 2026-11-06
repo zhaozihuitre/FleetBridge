@@ -724,3 +724,17 @@ html.web [data-win] { display: none; }
 /* full / phone version switch (other devices only) */
 .icon-btn.view-switch { width: auto; padding: 0 12px; font-family: var(--body); font-size: 13px; }
 .icon-btn.view-switch[hidden] { display: none; } /* .icon-btn is display:flex, which beats [hidden] */
+
+/* organizations: whose quota the boxes show (a legend on their top edge), the other organization's
+   last reading, each terminal's */
+.energy-group { position: relative; flex: 1; min-width: 0; display: flex; gap: 10px; }
+.energy-group.other { flex: 0 0 auto; }
+.org-legend { position: absolute; top: -8px; left: 12px; z-index: 1; max-width: calc(100% - 24px); padding: 0 6px; background: var(--bg); font-family: var(--name); font-size: 11px; line-height: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; }
+.org-legend b { color: var(--oc); font-weight: 700; letter-spacing: 0.3px; }
+.org-legend i { font-style: normal; color: var(--amber); }
+.energy-group > .energy { border-top-color: color-mix(in srgb, var(--oc) 60%, transparent); }
+.energy-other { opacity: 0.9; }
+.energy-other .other-pct { font-family: var(--display); font-size: 13px; color: var(--text); }
+.org-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--oc) 55%, transparent); color: var(--oc); font-family: var(--name); font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: 0.3px; vertical-align: 1px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.pane .t-org { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.pane .t-org:empty { display: none; }
