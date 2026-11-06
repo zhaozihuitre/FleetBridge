@@ -3065,6 +3065,29 @@
       "updated": "2026-11-06 09:28",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-057",
+      "type": "change",
+      "title": "界面美化第一批：翻页条、部队计数、名字字体、单语标签、全部结束按钮、图标（0.9.31）",
+      "summary": "docs/ui-polish.md 第 1、2、3、4、5、8 条",
+      "detail": "按 docs/ui-polish.md 的第一批改动：\n\n1. 翻页条：只有一页时隐藏（保留占位，页面高度不变）；页数多时只显示当前页附近 7 个点，两侧用「…」，数字不换行。\n2. 部队标签的数字写成「运行中/总数」（如 3/19），悬停说明后面还有多少个没在运行的项目，和翻页数对得上。\n3. 名字不再用 Orbitron 全大写：部队卡片标题、存档文件夹名和会话行、活动终端行、播报行里的项目名改用新的 --name 字体（Rajdhani + Noto Sans SC），保留原来的大小写；Orbitron 只用于品牌、数字和时钟。文件夹名占满剩余宽度，「运行中」徽章不再被挤到第二行。\n4. 小标签只用当前语言：「记忆负载 / 僚机 / 仓库」（英文 Context / Subagents / Repos），活动终端行去掉 ENGAGED/AWAITING 前缀，「负载 57%」。区块大标题（QUEUE、LOG、FOLDERS、SAVE DATA）保留英文装饰。\n5. 「全部结束」放到「全部打开」后面，平时是灰色描边按钮，悬停或聚焦才变红；点击后的确认框照旧列出会结束的终端。\n8. 加了 favicon（web/favicon.svg）和 apple-touch-icon（web/icon.png），所有页面都引用；/favicon.ico 指向 SVG，不再 404；手机服务也能取到。\n\n测试：demo 实例 1600 和 1100 宽截图（部队、活动终端、存档）。\n",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/style.css",
+        "web/i18n.js",
+        "web/*.html",
+        "web/favicon.svg",
+        "server/index.js",
+        "server/mobile.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 13:32",
+      "updated": "2026-11-06 13:32",
+      "notes": []
     }
   ]
 }

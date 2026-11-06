@@ -19,7 +19,7 @@ const FILE = path.join(DATA_DIR, 'mobile.json');
 const PORT = Number(process.env.MONITOR_MOBILE_PORT) || config.port + 2;
 const COOKIE = 'fbm';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
-const FILES = new Set(['/web/m.html', '/web/m.js', '/web/m.css', '/web/i18n.js', '/web/style.css', '/web/theme.js']);
+const FILES = new Set(['/web/m.html', '/web/m.js', '/web/m.css', '/web/i18n.js', '/web/style.css', '/web/theme.js', '/web/favicon.svg', '/web/icon.png']);
 
 let settings = load();
 const auth = createAuth(settings, save);

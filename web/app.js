@@ -166,7 +166,7 @@ function renderOperator() {
       ? `${answer}<div class="msg-acts"><button type="button" data-msg-go="${i}">${l.kind === 'PERMIT' ? L('▶ 去终端授权') : L('▶ 跳到终端')}</button><button type="button" data-msg-snooze="${esc(l.key)}">${L('稍后')}</button></div>`
       : '';
     return `<div class="msg in ${i === ui.line ? 'on' : ''}" style="--mc:${k.c || 'var(--cyan)'}" data-line="${i}">
-      <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project.toUpperCase())}</span>` : ''}<i>${k.label || ''}</i>${l.at ? `<time title="${esc(new Date(l.at).toLocaleString(locale, { hour12: false }))}">${clock(l.at, Date.now() - l.at > 86_400_000)}</time>` : ''}</div>
+      <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project)}</span>` : ''}<i>${k.label || ''}</i>${l.at ? `<time title="${esc(new Date(l.at).toLocaleString(locale, { hour12: false }))}">${clock(l.at, Date.now() - l.at > 86_400_000)}</time>` : ''}</div>
       <div class="msg-text">${text}</div>${acts}</div>`;
   });
   const outgoing = sentLog
@@ -467,7 +467,7 @@ async function deployAll() {
     else picks.push({ project: f.project, resume: s.sessionId, title: s.title || s.lastPrompt || '' });
   }
   if (!picks.length) return toast(L('没有可以出击的项目会话'));
-  const lines = picks.map((p) => `◆ ${p.project.toUpperCase()}${p.open ? L('　已在指挥中心') : '　' + p.title.slice(0, 40)}`);
+  const lines = picks.map((p) => `◆ ${p.project}${p.open ? L('　已在指挥中心') : '　' + p.title.slice(0, 40)}`);
   const go = await ask({
     tag: 'FULL DEPLOY',
     title: L('全军出击：{0} 个项目', picks.length),
@@ -519,11 +519,11 @@ function unitCard(u) {
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
     <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
-      <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('LOAD 记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
-      <div class="stat"><div class="k"><span>${L('DRONES 僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
+      <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
+      <div class="stat"><div class="k"><span>${L('僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
     </div>
     <div class="repos">
-      <div class="k"><span>${L('REPOS 仓库')} ×${u.repos.length}</span><span>${oldestFetch ? L('最早 fetch 在 ') + ago(now - oldestFetch) : ''}</span></div>
+      <div class="k"><span>${L('仓库')} ×${u.repos.length}</span><span>${oldestFetch ? L('最早 fetch 在 ') + ago(now - oldestFetch) : ''}</span></div>
       ${!u.gitScanned ? `<div class="empty">${L('扫描中…')}</div>` : u.repos.length ? repos : `<div class="empty">${L('这个目录下没有 git 仓库')}</div>`}
     </div>
   </article>`;
@@ -630,16 +630,16 @@ function waitText(ms) {
 
 function agentRow(a) {
   const u = state.units.find((x) => x.agentId === a.id);
-  const [code, c] = u?.permission ? ['PERMIT', 'var(--red)'] : u?.status === 'busy' ? ['ENGAGED', 'var(--cyan)'] : u ? ['AWAITING', 'var(--amber)'] : ['BOOT', 'var(--muted)'];
+  const [, c] = u?.permission ? ['PERMIT', 'var(--red)'] : u?.status === 'busy' ? ['ENGAGED', 'var(--cyan)'] : u ? ['AWAITING', 'var(--amber)'] : ['BOOT', 'var(--muted)'];
   const st = u?.permission ? L('等你授权') : u?.status === 'busy' ? L('作战中') : u ? L('待命') : L('启动中');
   const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u?.lastText || L('（还没有汇报）');
   const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}">
     <span class="lv">◆</span>
-    <div class="body"><span class="type">${code} · ${esc(st)} · ${esc((u?.project || a.cwd.split(/[\\/]/).pop() || '').toUpperCase())}</span>
+    <div class="body"><span class="type">${esc(st)} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
-    <div class="side"><span class="mono">LOAD ${pct}</span><div>
+    <div class="side"><span class="mono">${L('负载 {0}', pct)}</span><div>
       ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
   </article>`;
 }
@@ -662,7 +662,7 @@ function archiveRow(h) {
   return `<article class="save ${h.pid ? 'live' : ''}">
     <div class="when"><span class="mono">${clock(h.updatedAt, true)}</span><small>${ago(now - h.updatedAt)}</small></div>
     <div class="info">
-      <div class="r1"><b>${esc(h.project.toUpperCase())}</b>${h.pid ? `<span class="running">${L('运行中')}</span>` : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
+      <div class="r1"><b>${esc(h.project)}</b>${h.pid ? `<span class="running">${L('运行中')}</span>` : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
       ${h.snippets
         ? h.snippets.slice(0, 2).map((s) => `<div class="hit" title="${esc(s.text)}"><i>${s.role === 'user' ? 'YOU' : 'CLAUDE'}</i>${mark(s.text, ui.search.q)}</div>`).join('')
         : `<div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>
@@ -753,7 +753,7 @@ function renderPage() {
   else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${size}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
   else if (ui.tab === 'agents')
     html = items.length
-      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button><button class="btn" data-open-all>${L('⧉ 全部打开')}</button></span></div>${items.map(agentRow).join('')}</div>`
+      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
   else if (ui.tab === 'orders') html = ordersPage();
   if (kind !== 'archive') {
@@ -768,13 +768,24 @@ function renderPage() {
   }
 
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
-  $('n-units').textContent = state.units.length;
+  // running units, and how many cards the tab pages through (the projects not running come after them)
+  const offline = (state.offline || []).length;
+  $('n-units').innerHTML = offline ? `${state.units.length}<small>/${state.units.length + offline}</small>` : String(state.units.length);
+  $('n-units').closest('.tab').title = offline ? L('{0} 个运行中，后面还有 {1} 个没在运行的项目', state.units.length, offline) : '';
   $('n-agents').textContent = liveAgents().length;
   $('n-archive').textContent = (state.history || []).length;
   $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0);
   const busy = state.units.filter((u) => u.status === 'busy').length;
   $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
-  $('dots').innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i === ui.page ? 'on' : ''}"></i>`).join('') + `<span>${pad(ui.page + 1)} / ${pad(total)}</span>`;
+  // one page: no pager; many pages: a window of 7 dots around the current one, and the count
+  document.querySelector('.pager').classList.toggle('single', total <= 1);
+  const lo = Math.max(0, Math.min(ui.page - 3, total - 7));
+  const shown = Array.from({ length: Math.min(total, 7) }, (_, k) => lo + k);
+  $('dots').innerHTML =
+    (lo > 0 ? '<b>…</b>' : '') +
+    shown.map((i) => `<i class="${i === ui.page ? 'on' : ''}"></i>`).join('') +
+    (lo + 7 < total ? '<b>…</b>' : '') +
+    `<span>${pad(ui.page + 1)} / ${pad(total)}</span>`;
   $('prev').disabled = ui.page === 0;
   $('next').disabled = ui.page >= total - 1;
 }

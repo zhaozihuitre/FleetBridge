@@ -16,6 +16,7 @@
   --display: 'Orbitron', sans-serif;
   --label: 'Rajdhani', 'Noto Sans SC', sans-serif;
   --body: 'Noto Sans SC', system-ui, sans-serif;
+  --name: 'Rajdhani', 'Noto Sans SC', system-ui, sans-serif; /* names of terminals, projects, folders */
 }
 
 * { box-sizing: border-box; }
@@ -410,7 +411,7 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .unit::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }
 .unit .top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: var(--c); }
 .unit .top .timer { font-family: var(--display); font-size: 12px; font-weight: 500; color: var(--muted); }
-.unit h3 { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unit h3 { margin: 0; font-family: var(--name); font-size: 28px; font-weight: 700; letter-spacing: .3px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit .call { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit .loc { margin-top: 4px; display: flex; align-items: center; gap: 6px; font-family: var(--body); font-size: 12px; color: var(--c); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit .loc svg { flex: none; }
@@ -448,8 +449,9 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .agents-head { flex: none; height: 36px; display: flex; align-items: center; justify-content: space-between; font-family: var(--body); font-size: 13px; color: var(--muted); }
 .agents-head .btn { height: 34px; }
 .agents-acts { display: flex; gap: 8px; }
-.agents-acts .danger { border-color: rgba(255,77,109,.6); color: #ff8fa3; background: rgba(255,77,109,.08); }
-.agents-acts .danger:hover { background: rgba(255,77,109,.18); color: #fff; }
+/* a quiet button, red only when pointed at (it asks before ending anything) */
+.agents-acts .danger { margin-left: 14px; }
+.agents-acts .danger:hover, .agents-acts .danger:focus-visible { border-color: rgba(255,77,109,.6); color: #ff8fa3; background: rgba(255,77,109,.1); }
 .agent-row .lv { font-size: 22px; }
 .agent-row.open { background: rgba(61,245,255,.05); border-color: var(--line-hi); }
 .agent-row .opened { align-self: center; font-family: var(--body); font-size: 12px; color: var(--cyan); margin-right: 4px; }
@@ -471,9 +473,9 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .folder { flex: none; min-height: 52px; text-align: left; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--line); color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .folder:hover { background: #0c1628; }
 .folder.on { border-left-color: var(--cyan); background: rgba(61,245,255,.1); }
-.folder .fname { font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder .fname { font-family: var(--name); font-size: 15px; font-weight: 700; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder .fmeta { width: 100%; font-family: var(--body); font-size: 12px; color: var(--muted); }
-.folder .running { font-size: 11px; font-weight: 700; color: var(--bg); background: var(--cyan); padding: 0 6px; }
+.folder .running { flex: none; font-size: 11px; font-weight: 700; color: var(--bg); background: var(--cyan); padding: 0 6px; }
 .saves { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .save.live { border-left-color: var(--cyan); }
 .save .running { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--bg); background: var(--cyan); padding: 0 6px; flex: none; }
@@ -485,7 +487,7 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .save .when small { font-size: 12px; color: var(--muted); }
 .save .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .save .r1 { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
-.save .r1 b { font-family: var(--display); font-size: 15px; letter-spacing: 1px; flex: none; }
+.save .r1 b { font-family: var(--name); font-size: 17px; font-weight: 700; flex: none; }
 .save .title { font-family: var(--body); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .save .prompt, .save .path { font-family: var(--body); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .save .path { color: var(--dim); }
@@ -503,7 +505,10 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .dots { display: flex; align-items: center; gap: 8px; }
 .dots i { width: 10px; height: 10px; transform: rotate(45deg); background: var(--line); }
 .dots i.on { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
-.dots span { margin-left: 8px; font-family: var(--display); font-size: 13px; color: var(--soft); }
+.dots span { margin-left: 8px; font-family: var(--display); font-size: 13px; color: var(--soft); white-space: nowrap; }
+.dots b { font-weight: 400; color: var(--muted); letter-spacing: 1px; }
+.pager.single { visibility: hidden; }
+.tab .n small { font-size: 10px; opacity: .7; margin-left: 1px; }
 
 .keys { height: 24px; flex: none; display: flex; justify-content: space-between; gap: 22px; font-size: 12px; letter-spacing: 1px; color: var(--dim); }
 .keys b { color: var(--muted); }

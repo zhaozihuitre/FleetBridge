@@ -50,8 +50,8 @@ const EN = {
   '{0} 架出击：{1}': '{0} out: {1}', '{0} 架 · 全部返航': '{0} · all back', '还有 {0} 个仓库…': '{0} more repos…',
   '打开它的终端，直接下指令': 'Open its terminal and give orders', '▶ 终端': '▶ Terminal', '在外部终端里运行，只能切过去': 'Runs in an outside terminal; can only switch to it',
   '跳过去': 'Switch', '我方': 'ours', '呼号': 'Callsign', '请求授权：': 'Approval needed: ', '需要你确认': 'needs your confirmation',
-  '执行中：': 'Working on: ', '（还没有汇报）': '(no report yet)', 'LOAD 记忆负载': 'LOAD · context', 'DRONES 僚机': 'DRONES · subagents',
-  'REPOS 仓库': 'REPOS', '最早 fetch 在 ': 'oldest fetch ', '扫描中…': 'Scanning…', '这个目录下没有 git 仓库': 'No git repos in this folder',
+  '执行中：': 'Working on: ', '（还没有汇报）': '(no report yet)', '记忆负载': 'Context', '僚机': 'Subagents', '负载 {0}': 'Context {0}',
+  '仓库': 'Repos', '最早 fetch 在 ': 'oldest fetch ', '扫描中…': 'Scanning…', '这个目录下没有 git 仓库': 'No git repos in this folder',
   // repos
   '无上游': 'no upstream', '工作区干净': 'clean', '卡在 {0} 中途': 'stuck mid-{0}', '，{0} 个冲突': ', {0} conflicts',
   '{0} 个文件未提交': '{0} files uncommitted', '（{0} 新）': ' ({0} new)', ' · 已放 ': ' · idle ',
@@ -143,8 +143,8 @@ const JA = {
   '{0} 架出击：{1}': '{0} 機出撃中：{1}', '{0} 架 · 全部返航': '{0} 機 · 全機帰還', '还有 {0} 个仓库…': 'ほか {0} リポジトリ…',
   '打开它的终端，直接下指令': 'ターミナルを開いて直接指示', '▶ 终端': '▶ ターミナル', '在外部终端里运行，只能切过去': '外部ターミナルで実行中。切り替えのみ可能',
   '跳过去': '切り替え', '我方': '自軍', '呼号': 'コールサイン', '请求授权：': '承認要求：', '需要你确认': '確認が必要です',
-  '执行中：': '実行中：', '（还没有汇报）': '（まだ報告なし）', 'LOAD 记忆负载': 'LOAD · コンテキスト', 'DRONES 僚机': 'DRONES · サブエージェント',
-  'REPOS 仓库': 'REPOS · リポジトリ', '最早 fetch 在 ': '最古の fetch ', '扫描中…': 'スキャン中…', '这个目录下没有 git 仓库': 'このフォルダに git リポジトリはありません',
+  '执行中：': '実行中：', '（还没有汇报）': '（まだ報告なし）', '记忆负载': 'コンテキスト', '僚机': 'サブエージェント', '负载 {0}': 'コンテキスト {0}',
+  '仓库': 'リポジトリ', '最早 fetch 在 ': '最古の fetch ', '扫描中…': 'スキャン中…', '这个目录下没有 git 仓库': 'このフォルダに git リポジトリはありません',
   // repos
   '无上游': '上流なし', '工作区干净': 'クリーン', '卡在 {0} 中途': '{0} の途中で停止', '，{0} 个冲突': '、競合 {0} 件',
   '{0} 个文件未提交': '未コミット {0} ファイル', '（{0} 新）': '（新規 {0}）', ' · 已放 ': ' · 放置 ',

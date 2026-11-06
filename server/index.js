@@ -192,6 +192,7 @@ function serveStatic(req, res) {
   if (pathname === '/widget' || pathname === '/pet') pathname = '/web/widget.html';
   if (pathname === '/term') pathname = '/web/term.html';
   if (pathname === '/term-preview') pathname = '/web/preview.html';
+  if (pathname === '/favicon.ico') pathname = '/web/favicon.svg'; // browsers ask for it on their own
   const prefix = Object.keys(STATIC).find((p) => pathname.startsWith(p));
   if (!prefix) return false;
   const base = STATIC[prefix];
