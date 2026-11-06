@@ -133,8 +133,13 @@ export function toastText(n) {
 export function pushText(n, withContent) {
   // whose quota ran out is no content: it is told even then
   if (!withContent) return { title: head(n) + (n.org ? ` · ${n.org}` : ''), body: L('打开手机页查看。', 'Open the phone page to see it.', 'スマホページで確認してください。') };
-  const t = toastText(n);
-  return { title: t.title, body: clipSentence([n.result, n.needs ? L('需要你：', 'For you: ', '対応：') + n.needs : ''].filter(Boolean).join(' '), 250) };
+  // the title: icon, project, conclusion ("🟡 monitor：手机版按钮只在触屏设备上显示"); the body: what it
+  // needs of you first, then what came out of it; 250 characters at most, never the answer itself
+  const title = n.title ? clipSentence(`${kindIcon(n.kind)} ${n.name || ''}：${n.title}`, 60) : head(n);
+  const needs = n.needs ? clipSentence(L('需要你：', 'For you: ', '対応：') + n.needs, 130) : '';
+  const room = 250 - needs.length - 1;
+  const result = n.result && n.result !== n.title && room > 20 ? clipSentence(n.result, room) : '';
+  return { title, body: [needs, result].filter(Boolean).join('\n') || L('打开手机页查看。', 'Open the phone page to see it.', 'スマホページで確認してください。') };
 }
 
 /** One line for lists (task list, widget, phone page cards). */

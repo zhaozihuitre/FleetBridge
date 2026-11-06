@@ -7,9 +7,10 @@ import { L } from './i18n.js';
 import { pushText } from './notices.js';
 
 // Phone push through ntfy (https://ntfy.sh, free iOS / Android app): what needs you arrives as a
-// system notification even when nobody watches a screen. By default only "which terminal, what
-// happened" is sent, no commands, code or Claude's replies, since the message passes through the ntfy
-// server; with "content" on, the summary of the answer goes too. The topic is a long random name,
+// system notification even when nobody watches a screen. By default "which terminal, what
+// happened" plus the conclusion and what it needs of you (from the summary; never the answer itself,
+// commands or code) is sent. It passes through the ntfy server: with "content" off, only which
+// terminal and what kind of thing happened go. The topic is a long random name,
 // which is what keeps it private. Off by default.
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode');
@@ -38,13 +39,14 @@ export async function pushInfo() {
   // the Android app subscribes from an ntfy:// link (https links do not open the app)
   const link = settings.topic ? `ntfy://${host}/${settings.topic}?display=Fleet+Bridge` : null;
   const qr = settings.enabled && link ? await QRCode.toString(link, { type: 'svg', margin: 1, color: { dark: '#04060c', light: '#ddf6ff' } }) : null;
-  return { enabled: Boolean(settings.enabled), content: Boolean(settings.content), server: settings.server, topic: settings.topic, link, qr };
+  return { enabled: Boolean(settings.enabled), content: settings.content !== false, server: settings.server, topic: settings.topic, link, qr };
 }
 
 export async function setPush({ enabled, regenerate, content }) {
   if (regenerate || !settings.topic) settings.topic = newTopic();
   if (typeof enabled === 'boolean') settings.enabled = enabled;
-  // the summary of an answer in the push: off by default, since the message passes through the ntfy server
+  // the conclusion and what it needs of you in the push: on by default (it is what makes a push useful);
+  // off sends only the kind and the project, for when nothing may pass through the ntfy server
   if (typeof content === 'boolean') settings.content = content;
   save();
   primed = false; // what is pending right now is not news
@@ -83,7 +85,7 @@ export function pushNotices(notices, click) {
     sent.add(n.key);
     if (sent.size > 1000) sent.delete(sent.values().next().value);
     if (!primed) continue; // what was there when push was turned on (or the server started) is not news
-    const t = pushText(n, Boolean(settings.content));
+    const t = pushText(n, settings.content !== false);
     send({ title: t.title, message: t.body, priority: PRIORITY[n.kind] || 3, tags: [TAGS[n.kind] || 'bell'], click });
   }
   primed = true;

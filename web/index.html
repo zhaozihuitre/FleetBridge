@@ -140,7 +140,7 @@
 <p class="ph-note">用 ntfy（安卓免费 App，Google Play / F-Droid）：有事时手机通知栏会弹出提示，锁屏也能收到，点通知打开手机页。通知默认只写「哪个终端、什么事」，不带命令、代码或回答内容（消息经过 ntfy 的服务器）；可以在下面的「通知内容」里选择带上回答的总结。</p>
 <div class="ph-main"><div class="ph-qr" id="pu-qr"></div><div class="ph-side"><p class="ph-tip" id="pu-tip"></p><ol class="ph-steps" id="pu-steps"><li>手机安装 ntfy App</li><li>用手机扫左边的码（或在 App 里点 ＋，频道名填下面这串）</li><li>点「发送测试通知」确认能收到</li></ol><code class="ph-topic" id="pu-topic"></code></div></div>
 <div class="deploy-row"><button type="button" class="btn ghost" id="pu-test">发送测试通知</button><button type="button" class="btn ghost" id="pu-regen">换一个频道</button><button type="button" class="btn" id="pu-toggle">开启推送</button></div>
-<fieldset class="nt-opts"><legend>通知内容</legend><label><input type="checkbox" id="nt-model"> 做完时用 Haiku 总结回答（我方终端；失败或超过 15 秒用规则截取）</label><label><input type="checkbox" id="nt-ext"> 外部会话也用 Haiku 总结（会占用额度）</label><label><input type="checkbox" id="pu-content"> 手机推送里带上总结（内容会经过 ntfy 服务器）</label></fieldset>
+<fieldset class="nt-opts"><legend>通知内容</legend><label><input type="checkbox" id="nt-model"> 做完时用 Haiku 总结回答（我方终端；失败或超过 15 秒用规则截取）</label><label><input type="checkbox" id="nt-ext"> 外部会话也用 Haiku 总结（会占用额度）</label><label><input type="checkbox" id="pu-content"> 手机推送带上结论和「需要你」（默认；会经过 ntfy 服务器。关掉则只发分类和项目名）</label></fieldset>
 </div>
 <div class="deploy-row"><button type="button" class="btn ghost" id="ph-logout">让所有设备退出登录</button><button type="button" class="btn" id="ph-toggle">关闭 Web 访问</button><button type="submit" class="btn ghost">关闭</button></div>
 </form>
