@@ -3285,6 +3285,28 @@
       "created": "2026-11-06 14:44",
       "updated": "2026-11-06 14:44",
       "notes": []
+    },
+    {
+      "id": "C-064",
+      "type": "change",
+      "title": "完整版顶栏的「手机版」按钮只在触屏设备的浏览器上显示（0.9.40）",
+      "summary": "Electron 桌面应用和无触屏的电脑浏览器不再显示「手机版」；平板等触屏设备保留；手机页的「完整版」保留作兜底。",
+      "detail": "用户反馈电脑上不需要「手机版」按钮。原因有两个：一是 0.9.39 的 .icon-btn 设了 display:flex，覆盖了 [hidden]，所以按钮在 Electron 本机指挥中心里也露了出来（当时的测试只检查了 hidden 属性，没检查实际是否可见）；二是浏览器里不分设备都显示。修改：style.css 加 .icon-btn.view-switch[hidden]{display:none}；device.js 新增 hasTouch()（maxTouchPoints>0 或 pointer:coarse），app.js 只在非本机且 hasTouch() 时显示。测试（实际可见性）：iPad（UA 伪装成 Mac 且有触屏）和 Android 平板显示；Windows、Mac 浏览器和 Electron 不显示；iPhone 的 /m 上「完整版」显示。",
+      "status": "done",
+      "files": [
+        "web/device.js",
+        "web/app.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "web",
+        "ui"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 15:46",
+      "updated": "2026-11-06 15:46",
+      "notes": []
     }
   ]
 }

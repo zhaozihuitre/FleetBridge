@@ -1,6 +1,6 @@
 import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
 import { stateChip, stateOf, waitingKind } from './status.js';
-import { switchView, wantedView } from './device.js';
+import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
@@ -2277,9 +2277,12 @@ function connect() {
   };
 }
 connect();
-if (!LOCAL) {
+// the phone page is offered on touch screens only (a tablet), not in this app nor a computer's browser
+if (!LOCAL && hasTouch()) {
   $('view-phone').hidden = false;
   $('view-phone').addEventListener('click', () => switchView('phone'));
+}
+if (!LOCAL) {
   $('phone-btn').title = L('退出登录（这台设备）');
   $('phone-btn').setAttribute('aria-label', L('退出登录（这台设备）'));
 }

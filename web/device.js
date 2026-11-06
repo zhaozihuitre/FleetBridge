@@ -6,6 +6,9 @@
 // "full version / phone version" on either page is kept on this device and wins.
 export const VIEW_KEY = 'fb-view'; // 'full' | 'phone'
 
+/** A touch screen (a tablet's, a phone's): only there does the command center offer the phone page. */
+export const hasTouch = () => (navigator.maxTouchPoints || 0) > 0 || matchMedia('(pointer: coarse)').matches;
+
 /** 'phone' | 'tablet' | 'desktop' */
 export function deviceKind() {
   const ua = navigator.userAgent || '';

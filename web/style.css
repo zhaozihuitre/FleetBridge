@@ -723,3 +723,4 @@ html.web [data-win] { display: none; }
 
 /* full / phone version switch (other devices only) */
 .icon-btn.view-switch { width: auto; padding: 0 12px; font-family: var(--body); font-size: 13px; }
+.icon-btn.view-switch[hidden] { display: none; } /* .icon-btn is display:flex, which beats [hidden] */
