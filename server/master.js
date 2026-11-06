@@ -290,6 +290,13 @@ function doneNotice(x) {
   const reply = x.reply
     ? `${L('回答：', 'Answer:', '回答：')}\n${x.reply}${x.cut ? '\n' + L('（太长已截断，完整内容用 fleet_read_screen 查看）', '(cut: fleet_read_screen shows it in full)', '（長いため省略。全文は fleet_read_screen で確認）') : ''}`
     : L('（没取到回答，用 fleet_read_screen 查看）', '(no answer found: see fleet_read_screen)', '（回答を取得できません。fleet_read_screen で確認）');
+  // never ran: idle a minute with nothing of the order in its transcript (a dialog before it was cancelled)
+  if (x.neverRan)
+    return L(
+      `【舰桥通知】未执行：${x.name}（${x.agentId.slice(0, 8)}）没有执行你派的指令「${head}」：已经空闲 1 分钟，会话记录里没有这条指令的任何动作（多半是指令前弹出的对话框被取消了，指令没送进去）。请用 fleet_read_screen 看屏幕，需要的话重新派。`,
+      `[Fleet notice] Not run: ${x.name} (${x.agentId.slice(0, 8)}) did not run your order "${head}": idle for a minute with nothing of it in its transcript (most likely a dialog shown before it was cancelled and the order dropped). See fleet_read_screen, and send it again if needed.`,
+      `【艦橋通知】未実行：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を実行していません。1 分間待機のままで、会話記録にこの指示の動きがありません（直前のダイアログがキャンセルされ、指示が届かなかった可能性）。fleet_read_screen で画面を確認し、必要なら再送してください。`,
+    );
   // stopped by the user (Esc, a tool use turned down): not done, and it waits for what to do instead
   if (x.interrupted)
     return L(

@@ -103,7 +103,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_answer',
-    description: "Answer the permission dialog or question an agent is waiting on (needs-approval / needs-answer), by option number from fleet_status 'options' or the 【舰桥通知】 notice. For permission dialogs usually 1 = yes, 2 = yes and don't ask again, 3 = no. Only after the user agreed, unless the answer is plainly harmless.",
+    description: "Answer the permission dialog or question an agent is waiting on (needs-approval / needs-answer), by option number from fleet_status 'options' or the 【舰桥通知】 notice (unnumbered pickers, such as the model / usage-credits choice after a resume, are numbered 1, 2, … from the top). For permission dialogs usually 1 = yes, 2 = yes and don't ask again, 3 = no. Only after the user agreed, unless the answer is plainly harmless.",
     inputSchema: { type: 'object', properties: { agent: { type: 'string' }, choice: { type: 'string' } }, required: ['agent', 'choice'] },
     async run({ agent, choice }) {
       const { ours } = await fleet();

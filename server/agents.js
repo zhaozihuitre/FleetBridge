@@ -412,9 +412,53 @@ export function trustPrompt(agent) {
   };
 }
 
-/** Any dialog waiting on a person: the trust dialog, a permission dialog or a numbered menu. */
+/**
+ * Claude Code's unnumbered pickers: a list with a ❯ cursor and "Enter to confirm · Esc to cancel"
+ * under it, such as "Fable 5.1 now uses usage credits" (Switch to Opus 5.5 / Request usage credits)
+ * shown when a resumed session's model can't be used. Read as a question numbered 1, 2, … from the
+ * top; answerPrompt moves the cursor for them.
+ */
+export function pickerPrompt(agent) {
+  const lines = screenLines(agent);
+  const foot = lines.findLastIndex((l) => /Enter to (confirm|select|continue)|Esc to (cancel|go back|exit)/i.test(l));
+  if (foot < 0) return null;
+  // the options: the lines just above the footer, one of them with the cursor
+  const opt = /^(\s*)([❯›>▸]\s+|\s{2})(\S.*?)\s*$/;
+  let end = foot - 1;
+  while (end >= 0 && !lines[end].trim()) end--;
+  const rows = [];
+  for (let i = end; i >= 0; i--) {
+    const m = lines[i].match(opt);
+    if (!m || /^\s*\d\.\s/.test(lines[i]) || /^[\s─━═]{8,}$/.test(lines[i])) break;
+    rows.unshift({ i, label: m[3], current: /^[❯›>▸]/.test(m[2]), indent: m[1].length });
+  }
+  // the options: the rows next to the cursor's row in its column; anything else above is the question
+  const c = rows.findIndex((r) => r.current);
+  if (c < 0) return null;
+  let a = c;
+  let b = c;
+  while (a > 0 && rows[a - 1].indent === rows[c].indent) a--;
+  while (b < rows.length - 1 && rows[b + 1].indent === rows[c].indent) b++;
+  const list = rows.slice(a, b + 1);
+  if (list.length < 2) return null;
+  const first = list[0].i;
+  // the question: up to the rule that opens the box
+  const body = [];
+  for (let i = first - 1; i >= 0 && body.length < 16; i--) {
+    if (/^[\s─━═]{8,}$/.test(lines[i])) break;
+    body.unshift(lines[i].replace(/^[\s│╭╰╮╯]+|[\s│╭╰╮╯]+$/g, ''));
+  }
+  return {
+    kind: 'question',
+    picker: true,
+    text: body.filter((l, i, a) => l || (i && a[i - 1])).join('\n').trim(),
+    options: list.map((r, k) => ({ key: String(k + 1), label: r.label, current: r.current })),
+  };
+}
+
+/** Any dialog waiting on a person: the trust dialog, a permission dialog, a numbered menu or a picker. */
 export function dialogShowing(agent) {
-  return Boolean(trustPrompt(agent) || menuOptions(agent).length || permissionPrompt(agent));
+  return Boolean(trustPrompt(agent) || menuOptions(agent).length || permissionPrompt(agent) || pickerPrompt(agent));
 }
 
 // Typed as a bracketed paste so multi-line text arrives as one message, then Enter submits it.
@@ -573,9 +617,9 @@ export function inputEmpty(agent) {
 /** Answer a permission dialog by its option number (1 = yes); Esc rejects. */
 export function answerPrompt(agent, choice) {
   if (!agent?.alive) return false;
-  // the trust dialog takes the arrow keys and Enter, not digits
-  const trust = trustPrompt(agent);
-  if (trust && /^[12]$/.test(choice)) {
+  // the trust dialog and the unnumbered pickers take the arrow keys and Enter, not digits
+  const trust = trustPrompt(agent) || (!permissionPrompt(agent) && !menuOptions(agent).length && pickerPrompt(agent));
+  if (trust && /^\d$/.test(choice) && Number(choice) >= 1 && Number(choice) <= trust.options.length) {
     const want = Number(choice) - 1;
     const at = trust.options.findIndex((o) => o.current);
     const moves = want - (at < 0 ? 0 : at);

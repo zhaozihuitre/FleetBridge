@@ -3043,6 +3043,28 @@
       "updated": "2026-11-06 09:25",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-033",
+      "type": "issue",
+      "title": "resume 后弹出的模型选择框没报等回答，1 秒后就发了「完成」（0.9.30）",
+      "summary": "识别无编号选择框并报 needs-answer；会话记录里没有本轮动作的空闲不算完成，空闲 1 分钟后报「未执行」",
+      "detail": "现象：fleet_spawn 用 resume 加首条指令恢复 newpad（原来用 Fable 5.1），恢复后弹出「Fable 5.1 now uses usage credits」选择框（Switch to Opus 5.5 and continue / Request usage credits from your admin，Enter to confirm · Esc to cancel）。舰桥没报 needs-answer，1 秒后就发了「完成」，附的是上一轮的旧回答。pms 那次（I-032）多半也是这个框被 Esc 掉了。\n\n原因：\n1. 只认带编号的菜单（授权、AskUserQuestion）和信任文件夹对话框，这种不带编号、用 ❯ 光标选的选择框认不出来，所以既不算等回答，也不挡完成判定。\n2. 完成判定只看状态：resume 的会话一出现就是 idle、状态时间也是新的，最后一条指令又正好是这条，就被当成做完了。（旧回答的问题在 0.9.29 已修，见 I-032。）\n\n修复：\n- agents.js 新增 pickerPrompt：屏幕底部有「Enter to confirm / Esc to cancel」一类提示，上面是一组同一缩进、其中一行带 ❯ 光标的选项（至少 2 个），就当成一个问题，选项从上到下编号 1、2…。报 needs-answer，主控会收到等回答通知；fleet_answer 选号时用方向键移到那一项再按回车。dialogShowing 也算上它，首条指令会等它答完再送。\n- turns.js：状态空闲还不够，会话记录里必须有本轮的动作（agent 的回复、工具调用，或中断标记）才算结束；空闲但记录里什么都没有，等 1 分钟，还是没有就发「【舰桥通知】未执行」（多半是指令前的对话框被取消，指令没送进去），请主控看屏幕后重派。\n\n测试：用 newpad 屏幕的真实内容，选择框识别出 2 个选项，选 2 发出「↓ + 回车」、选 1 只发回车；普通空闲屏、授权框、作战中都不误判。完成判定：对话框在时不结束；没有动作时 1 秒、30 秒都不结束，61 秒报「未执行」；pms 那次（有中断标记）立即结束。\n",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/turns.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 09:28",
+      "updated": "2026-11-06 09:28",
+      "notes": [],
+      "count": 1
     }
   ]
 }

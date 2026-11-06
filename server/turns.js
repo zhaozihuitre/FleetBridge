@@ -64,9 +64,22 @@ export function endedTurns(units, waiting, now = Date.now()) {
     const head = t.text.replace(/\s+/g, ' ').trim().slice(0, 30);
     const ours = !head || String(u.lastPrompt || '').replace(/\s+/g, ' ').trim().startsWith(head);
     const started = t.started || ((u.statusSince || 0) > t.at + 500 && ours);
-    if (!started || u.status !== 'idle' || waiting.has(u.agentId)) continue;
+    if (!started || u.status !== 'idle' || waiting.has(u.agentId)) {
+      delete t.quiet;
+      continue;
+    }
+    // Idle isn't enough: the transcript must show this turn (an answer, a tool call, an interruption).
+    // A resumed session can sit idle under a dialog that came before the order ran (e.g. "Fable 5.1 now
+    // uses usage credits"); idle with nothing in the transcript is told only after a minute of it, as
+    // an order that never ran (the dialog cancelled, the order dropped).
+    let neverRan = false;
+    if (traced(u.sessionId, t.at) === false) {
+      t.quiet ||= now;
+      if (now - t.quiet < 60_000) continue;
+      neverRan = true;
+    }
     turns.delete(u.agentId);
-    done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at });
+    done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan });
   }
   // agents that are gone don't finish
   const live = new Set(units.map((u) => u.agentId));
@@ -155,6 +168,20 @@ export function turnReply(sessionId, since) {
     }
   }
   return { reply, messaged, interrupted };
+}
+
+/** Whether the transcript has anything of the turn that started at `since` (null: no transcript to read). */
+function traced(sessionId, since) {
+  const file = sessionId && transcriptOf(sessionId);
+  if (!file) return null;
+  try {
+    return tail(file).some((e) => {
+      const at = Date.parse(e.timestamp || '') || 0;
+      return at >= since - 2000 && (e.type === 'assistant' || (e.type === 'user' && cutShort(e.message?.content)));
+    });
+  } catch {
+    return null;
+  }
 }
 
 // Claude Code's mark for a turn stopped by the user: "[Request interrupted by user]",

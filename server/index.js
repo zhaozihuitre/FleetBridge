@@ -26,7 +26,7 @@ import { buildState, snooze } from './state.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 const STATIC = {
   '/web/': path.join(ROOT, 'web'),
@@ -87,7 +87,7 @@ function publish() {
     const id = byPid.get(s.pid) || bySession.get(s.sessionId);
     // a permission dialog, or any other question with a numbered menu (AskUserQuestion, plan approval)
     const a = id && getAgent(id);
-    const prompt = a ? permissionPrompt(a) || questionPrompt(a) : null;
+    const prompt = a ? permissionPrompt(a) || questionPrompt(a) || pickerPrompt(a) : null;
     if (!prompt) {
       promptSeen.delete(id);
       continue;
@@ -147,7 +147,7 @@ function publish() {
     const u = owned.find((x) => x.agentId === t.agentId);
     // the screen's last answer only when there's no transcript at all: it can be an older turn's
     const { text: reply, cut } = clip(r ? r.reply : u?.lastText || '');
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan });
   }
   notifyMaster(asks);
   // phone push: whatever needs you, whether or not anyone is looking at a screen
