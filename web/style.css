@@ -720,3 +720,6 @@ html.web [data-win] { display: none; }
 .ph-setup p { margin: 0; line-height: 1.6; }
 .ph-setup .btn { align-self: flex-start; }
 .ph-setup[hidden] { display: none; }
+
+/* full / phone version switch (other devices only) */
+.icon-btn.view-switch { width: auto; padding: 0 12px; font-family: var(--body); font-size: 13px; }

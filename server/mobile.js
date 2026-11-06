@@ -11,9 +11,10 @@ import { createAuth, isPrivateAddress, normPassword, PASSWORD_MIN, SESSION_DAYS 
 // Web access: the command center (the same page as on the computer) and the phone page, for other
 // devices on the local network (a tablet, a phone, another computer), on a second server; the main one
 // stays on 127.0.0.1 for this computer only. On by default, never open:
-//   - signing in takes the password (generated at first, shown on the computer; changeable), and then
-//     the computer's OK for each new device (a dialog in the command center), or the QR link shown on
-//     the computer's screen (it carries a random key: seeing the screen is the OK);
+//   - signing in takes the password (set on the computer first: nothing listens before) and then the
+//     computer's OK for each new device (a dialog in the command center). The QR code on the computer
+//     is only the address: one for every device (phones then go on to /m, tablets and computers to /),
+//     and it leads to the same sign-in, it never lets anyone in by itself;
 //   - a device stays signed in 30 days from its last use; each can be signed out on its own;
 //   - only private addresses (LAN, Tailscale) may connect, even if a router forwards the port;
 //   - what only this computer may do is never reachable from here: the settings of this access itself
@@ -54,7 +55,6 @@ function save() {
   fs.writeFileSync(FILE, JSON.stringify(settings, null, 2));
 }
 
-const newToken = () => crypto.randomBytes(24).toString('base64url');
 // eight digits, shown as "1234 5678": easy to type on a tablet's number row
 const newPassword = () => String(crypto.randomInt(0, 1e8)).padStart(8, '0').replace(/^(\d{4})(\d{4})$/, '$1 $2');
 
@@ -80,8 +80,9 @@ function migrate() {
     settings.v = 3;
     changed = true;
   }
-  if (!settings.token) {
-    settings.token = newToken();
+  // the QR code's sign-in key (up to 0.9.37) is gone: the code is the address only now
+  if (settings.token) {
+    delete settings.token;
     changed = true;
   }
   if (changed) save();
@@ -131,8 +132,9 @@ export async function mobileInfo() {
   const list = shouldListen() ? addresses() : [];
   const urls = list.map((a) => ({ ...a, web: `http://${a.ip}:${PORT}/`, phone: `http://${a.ip}:${PORT}/m` }));
   const best = list.find((u) => !u.tailscale) || list[0];
-  // the QR code signs a device in at once (seeing this screen is the OK): dark on light, which every camera reads
-  const qr = best && settings.token ? await QRCode.toString(`http://${best.ip}:${PORT}/?k=${settings.token}`, { type: 'svg', margin: 1, color: { dark: '#04060c', light: '#ddf6ff' } }) : null;
+  // the QR code is the address only (the same for phones, tablets and computers): it opens the sign-in,
+  // it does not sign anyone in. Dark on light, which every camera reads.
+  const qr = best ? await QRCode.toString(`http://${best.ip}:${PORT}/`, { type: 'svg', margin: 1, color: { dark: '#04060c', light: '#ddf6ff' } }) : null;
   const host = shouldListen() ? `http://${os.hostname().toLowerCase()}:${PORT}/` : null;
   return {
     enabled: Boolean(settings.enabled),
@@ -151,7 +153,7 @@ export async function mobileInfo() {
   };
 }
 
-export async function setMobile({ enabled, regenerate, password, logoutAll, revoke, approve, newGenerated, setupSeen }) {
+export async function setMobile({ enabled, password, logoutAll, revoke, approve, newGenerated, setupSeen }) {
   if (setupSeen) settings.setupSeen = true; // "later": not asked again at start
   if (password !== undefined) {
     const r = auth.setPassword(password);
@@ -179,10 +181,6 @@ export async function setMobile({ enabled, regenerate, password, logoutAll, revo
     }
     hooks?.changed?.();
   }
-  if (regenerate) {
-    auth.logoutAll(); // a new key: the old QR link and every signed-in device stop working
-    settings.token = newToken();
-  }
   if (typeof enabled === 'boolean') settings.enabled = enabled;
   save();
   if (shouldListen()) await listen();
@@ -194,12 +192,6 @@ export async function setMobile({ enabled, regenerate, password, logoutAll, revo
 function cookieOf(req) {
   const m = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`));
   return m ? decodeURIComponent(m[1]) : null;
-}
-
-function safeEqual(a, b) {
-  const x = Buffer.from(String(a || ''));
-  const y = Buffer.from(String(b || ''));
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
 function send(res, code, body, headers = {}) {
@@ -279,12 +271,6 @@ async function handle(req, res) {
   // only this server's own pages may call it (no other site's page, with the cookie or without)
   const origin = req.headers.origin;
   if (origin && origin !== `http://${req.headers.host}`) return send(res, 403, { error: 'forbidden' });
-  // the QR link on the computer's screen signs this device in right away, then drops the key from the address bar
-  if (req.method === 'GET' && url.searchParams.has('k') && (url.pathname === '/' || url.pathname === '/m')) {
-    if (!safeEqual(url.searchParams.get('k'), settings.token)) return loginPage(res, url.pathname, L('二维码已失效，请输入密码登录。', 'The code is no longer valid. Sign in with the password.', 'コードが無効です。パスワードでログインしてください。'));
-    res.writeHead(302, { 'Set-Cookie': sessionCookie(auth.issue(req.headers['user-agent'], req.socket.remoteAddress)), Location: url.pathname });
-    return res.end();
-  }
   if (req.method === 'POST' && url.pathname === '/api/login') {
     const { password, pin } = await readBody(req);
     const r = auth.check(password ?? pin, req.socket.remoteAddress);

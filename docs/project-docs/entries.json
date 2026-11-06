@@ -3259,6 +3259,32 @@
       "created": "2026-11-06 14:40",
       "updated": "2026-11-06 14:40",
       "notes": []
+    },
+    {
+      "id": "C-063",
+      "type": "change",
+      "title": "Web 访问：平板、电脑、手机同一个地址 / 二维码，按设备自动分流，可手动切换；二维码不再免密（0.9.39）",
+      "summary": "屏幕尺寸和触屏为主、UA 为辅判断设备（iPad 伪装 Mac 也认得出）；两页都有切换并记在本机；二维码只是地址，登录仍要口令 + 电脑允许",
+      "detail": "需求（用户追加，合进 Web 访问）：平板、电脑和手机用同一个登录二维码，扫码或打开同一个链接后按设备自动跳转（手机 → /m，平板和电脑 → /）；判断设备以屏幕尺寸和触屏为主、User-Agent 为辅，处理 iPad 伪装成 Mac；两个页面都有手动切换并在本机记住；扫码仍走既定鉴权，不能免密。\n\n**实现**\n- web/device.js：deviceKind() 判断 phone / tablet / desktop：Macintosh UA + maxTouchPoints > 1（iPadOS 默认的桌面模式）或 iPad → 平板；触屏且屏幕短边 < 600px → 手机；手机 UA（iPhone、Android … Mobile 等）且短边 < 760px → 手机；Android 触屏其余 → 平板；其他 → 电脑。本机保存的选择（localStorage fb-view = full / phone）优先。\n- 完整页（app.js）：其他设备上若该进手机版就跳 /m；顶栏加「手机版」按钮（只在其他设备上显示）。\n- 手机页（m.js）：其他设备上若该进完整版就跳 /；右上角加「完整版」按钮。这台电脑自己打开 /web/m.html 不跳。\n- 二维码：只编码地址 http://<IP>:8789/，打开就是登录页（口令 → 电脑上「允许」）。原来二维码里带的密钥（扫码直接登录）连同「重新生成二维码」按钮一起取消，设置里存的旧密钥在迁移时删除；旧的带 ?k= 的链接现在只会看到登录页。\n\n**测试**（Playwright 按设备模拟，开发实例局域网地址；「允许」通过本机接口模拟对话框点击）\n- 旧二维码密钥 /?k=… → 登录页，接口 401。\n- iPhone Safari → /m；iPad（UA 为 Mac + 触屏）→ /；Android 手机 → /m；Android 平板 → /；Windows 电脑 → /；Mac（无触屏）→ /。每台都经过口令 + 电脑允许（允许对话框里显示的设备类型正确）。\n- 手动切换：手机上点「完整版」后刷新仍在 /；平板 / 电脑上点「手机版」后再打开同一地址进 /m。\n",
+      "status": "done",
+      "files": [
+        "web/device.js",
+        "web/app.js",
+        "web/m.js",
+        "web/m.html",
+        "web/index.html",
+        "web/m.css",
+        "web/style.css",
+        "web/i18n.js",
+        "server/mobile.js",
+        "docs/web-access-plan.md"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 14:44",
+      "updated": "2026-11-06 14:44",
+      "notes": []
     }
   ]
 }

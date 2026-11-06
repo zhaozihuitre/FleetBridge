@@ -1,5 +1,6 @@
 import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
 import { stateChip, stateOf, waitingKind } from './status.js';
+import { switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
@@ -11,11 +12,8 @@ const $ = (id) => document.getElementById(id);
 const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 if (!LOCAL) {
   document.documentElement.classList.add('web');
-  try {
-    if (innerWidth < 700 && !localStorage.getItem('fb-full')) location.replace('/m');
-  } catch {
-    // storage unavailable: stay on the full page
-  }
+  // one address for every device: a phone goes on to the phone page (unless it chose the full one)
+  if (wantedView() === 'phone') location.replace('/m');
 }
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
 const ITEM = { unitW: 400, unitH: 330, unitGap: 16, questH: 92, questGap: 10, saveH: 64, saveGap: 6 };
@@ -1617,10 +1615,9 @@ let phoneInfo = null;
 async function renderPhone(info) {
   phoneInfo = info;
   $('ph-toggle').textContent = info.enabled ? L('关闭 Web 访问') : L('开启 Web 访问');
-  $('ph-regen').hidden = !info.enabled;
   $('ph-qr').innerHTML = info.qr || '';
   if (!info.qr) $('ph-qr').textContent = info.enabled ? L('找不到局域网地址') : L('Web 访问已关闭');
-  $('ph-tip').textContent = !info.enabled ? '' : !info.hasPassword ? L('还没有设置访问口令：设好后才对局域网开放') : info.running ? L('扫码直接登录（看得到这块屏幕就算同意）') : L('端口 {0} 没能打开，可能被占用', info.port);
+  $('ph-tip').textContent = !info.enabled ? '' : !info.hasPassword ? L('还没有设置访问口令：设好后才对局域网开放') : info.running ? L('用平板或手机扫码打开（仍要输入口令，并在这台电脑上允许）') : L('端口 {0} 没能打开，可能被占用', info.port);
   $('ph-setup').hidden = !(info.enabled && !info.hasPassword);
   $('ph-later').hidden = !info.setup;
   if (!info.qr && info.enabled && !info.hasPassword) $('ph-qr').textContent = L('设置口令后显示');
@@ -1724,10 +1721,6 @@ $('ph-devs').addEventListener('click', async (e) => {
 $('ph-logout').addEventListener('click', async () => {
   renderPhone(await post('/api/mobile', { logoutAll: true }));
   toast(L('所有设备都已退出登录'));
-});
-$('ph-regen').addEventListener('click', async () => {
-  renderPhone(await post('/api/mobile', { regenerate: true }));
-  toast(L('已生成新密钥'));
 });
 
 // A device on the network signed in with the right password: it waits for this computer's OK
@@ -2285,6 +2278,8 @@ function connect() {
 }
 connect();
 if (!LOCAL) {
+  $('view-phone').hidden = false;
+  $('view-phone').addEventListener('click', () => switchView('phone'));
   $('phone-btn').title = L('退出登录（这台设备）');
   $('phone-btn').setAttribute('aria-label', L('退出登录（这台设备）'));
 }

@@ -3,8 +3,14 @@
 // shows up as a unit waiting for approval. Talks only to the phone server.
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
+import { switchView, wantedView } from './device.js';
+
+// one address for every device: a tablet or computer that lands here goes on to the full page
+// (unless it chose this one); the switch stays at hand either way
+if (!['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname) && wantedView() === 'full') location.replace('/');
 
 translateDom();
+document.getElementById('view-full').addEventListener('click', () => switchView('full'));
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const pad = (n) => String(n).padStart(2, '0');
