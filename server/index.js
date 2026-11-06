@@ -145,8 +145,9 @@ function publish() {
     const r = turnReply(t.sessionId, t.since);
     if (r?.messaged) continue; // it already answered the master itself (SendMessage)
     const u = owned.find((x) => x.agentId === t.agentId);
-    const { text: reply, cut } = clip(r?.reply || u?.lastText || '');
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut });
+    // the screen's last answer only when there's no transcript at all: it can be an older turn's
+    const { text: reply, cut } = clip(r ? r.reply : u?.lastText || '');
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted });
   }
   notifyMaster(asks);
   // phone push: whatever needs you, whether or not anyone is looking at a screen

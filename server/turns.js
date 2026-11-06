@@ -123,9 +123,11 @@ function tail(file) {
 }
 
 /**
- * What the agent answered in the turn that started at `since`: its last assistant text, and whether
- * it already messaged the master itself (SendMessage) in that turn.
- * @returns {{ reply: string, messaged: boolean } | null} null: no transcript to read
+ * What the agent answered in the turn that started at `since`: its last assistant text, whether it
+ * already messaged the master itself (SendMessage) in that turn, and whether the turn was cut short
+ * (Esc, or a tool use turned down: "[Request interrupted by user…]" with no answer after it).
+ * Only this turn counts: a turn that wrote no text has no reply (not the one before it).
+ * @returns {{ reply: string, messaged: boolean, interrupted: boolean } | null} null: no transcript to read
  */
 export function turnReply(sessionId, since) {
   const file = sessionId && transcriptOf(sessionId);
@@ -138,16 +140,28 @@ export function turnReply(sessionId, since) {
   }
   let reply = '';
   let messaged = false;
+  let interrupted = false;
   for (const e of entries) {
-    if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
     const at = Date.parse(e.timestamp || '') || 0;
-    if (at && at < since - 2000) continue; // before this turn
+    if (!at || at < since - 2000) continue; // before this turn (entries with no time aren't messages)
+    if (e.type === 'user' && cutShort(e.message?.content)) interrupted = true;
+    if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
     for (const c of e.message.content) {
-      if (c.type === 'text' && c.text?.trim()) reply = c.text.trim();
+      if (c.type === 'text' && c.text?.trim()) {
+        reply = c.text.trim();
+        interrupted = false; // it went on and answered after all
+      }
       if (c.type === 'tool_use' && c.name === 'SendMessage') messaged = true;
     }
   }
-  return { reply, messaged };
+  return { reply, messaged, interrupted };
+}
+
+// Claude Code's mark for a turn stopped by the user: "[Request interrupted by user]",
+// "[Request interrupted by user for tool use]"
+function cutShort(content) {
+  const texts = typeof content === 'string' ? [content] : Array.isArray(content) ? content.filter((c) => c?.type === 'text').map((c) => c.text) : [];
+  return texts.some((s) => /^\[Request interrupted by user/.test(String(s || '').trim()));
 }
 
 /** Start and end of a long answer, with a marker in between. */

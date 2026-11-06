@@ -3022,6 +3022,27 @@
       "updated": "2026-11-06 08:24",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-032",
+      "type": "issue",
+      "title": "被中断的指令也发了「完成」通知，回答还是上一轮的（0.9.29）",
+      "summary": "被中断的轮次改发「中断」通知；回答只取本轮的，不再退回屏幕上的旧回答",
+      "detail": "现象：主控给 pms（resume 恢复的会话）派了指令，它执行了 1 个 shell 命令就被中断了（屏幕上是「Interrupted · What should Claude do instead?」），舰桥却发了「完成」通知，附的回答是 resume 之前那一轮的旧回答。\n\n原因：\n1. 判断一轮结束只看终端回到空闲（不在授权、提问上），没有区分「做完」和「被中断」。被中断后 Claude Code 也回到空闲。\n2. 这一轮里 agent 没有写任何文字（只有思考和工具调用），从会话记录取到的回答为空，代码就退回去用屏幕上「最后一条回答」（unit.lastText），而那是上一轮的。\n\n修复：\n- turnReply 读本轮的记录时，同时找 Claude Code 的中断标记「[Request interrupted by user…]」（按 Esc，或拒绝了工具调用）；中断之后没有再回答的，算被中断。\n- 被中断的轮次发「【舰桥通知】中断」：没做完、用时多久、正等着新的指示，有中断前的回答就附上，没有就提示用 fleet_read_screen 看屏幕。\n- 回答只取本轮的；屏幕上的最后回答只在完全找不到会话记录时才用。\n- fleet_send 的说明补上「或被中断」。\n\n测试：用 pms 的真实记录，新指令那一轮得到「中断、无回答」，旧回答只属于它自己那一轮；通知三种文本（中断无回答、中断有回答、完成无回答）渲染正确。\n",
+      "status": "resolved",
+      "files": [
+        "server/turns.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-06 09:25",
+      "updated": "2026-11-06 09:25",
+      "notes": [],
+      "count": 1
     }
   ]
 }

@@ -290,6 +290,13 @@ function doneNotice(x) {
   const reply = x.reply
     ? `${L('回答：', 'Answer:', '回答：')}\n${x.reply}${x.cut ? '\n' + L('（太长已截断，完整内容用 fleet_read_screen 查看）', '(cut: fleet_read_screen shows it in full)', '（長いため省略。全文は fleet_read_screen で確認）') : ''}`
     : L('（没取到回答，用 fleet_read_screen 查看）', '(no answer found: see fleet_read_screen)', '（回答を取得できません。fleet_read_screen で確認）');
+  // stopped by the user (Esc, a tool use turned down): not done, and it waits for what to do instead
+  if (x.interrupted)
+    return L(
+      `【舰桥通知】中断：${x.name}（${x.agentId.slice(0, 8)}）没做完你派的指令「${head}」，用时 ${mins(x.ms)}，被中断了（按了 Esc 或拒绝了工具调用），正等着新的指示。\n${x.reply ? reply : '（中断前没有回答，屏幕用 fleet_read_screen 查看）'}`,
+      `[Fleet notice] Interrupted: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": stopped after ${mins(x.ms)} (Esc, or a tool use turned down) and waits for what to do instead.\n${x.reply ? reply : '(no answer before it stopped: see fleet_read_screen)'}`,
+      `【艦橋通知】中断：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了せず、${mins(x.ms)} 後に中断されました（Esc またはツール実行の拒否）。次の指示を待っています。\n${x.reply ? reply : '（中断前の回答なし。画面は fleet_read_screen で確認）'}`,
+    );
   return L(
     `【舰桥通知】完成：${x.name}（${x.agentId.slice(0, 8)}）做完了你派的指令「${head}」，用时 ${mins(x.ms)}。\n${reply}`,
     `[Fleet notice] Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${reply}`,

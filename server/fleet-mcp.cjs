@@ -86,7 +86,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_send',
-    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
+    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
     async run({ agents, text, mode = 'auto' }) {
       const { ours } = await fleet();
