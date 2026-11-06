@@ -92,7 +92,7 @@ function unitLook(u) {
   const th = state.thresholds;
   const now = Date.now();
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
-  if (u.permission) return { c: 'var(--red)', s: L('等你授权！'), blink: true };
+  if (u.permission) return { c: 'var(--red)', s: u.permission.prompt?.kind === 'question' ? L('等你回答！') : L('等你授权！'), blink: true };
   if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? L('执行：') + u.lastPrompt : L('作战中'), blink: false, hot };
   const standby = now - u.statusSince > th.standbyMinutes * 60_000;
   return { c: standby ? 'var(--muted)' : 'var(--amber)', s: standby ? L('休眠') : L('做完了，等你指令'), blink: false, hot };
@@ -114,7 +114,7 @@ function renderUnits() {
 
   const busy = units.filter((u) => u.status === 'busy').length;
   const permit = units.filter((u) => u.permission).length;
-  $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('授权 ')}<b>${permit}</b></span>` : ''}${awakeOn ? `<span class="awake" title="${esc(L('保持唤醒中：电脑不会自动休眠'))}">☀</span>` : ''}`;
+  $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('等你 ')}<b>${permit}</b></span>` : ''}${awakeOn ? `<span class="awake" title="${esc(L('保持唤醒中：电脑不会自动休眠'))}">☀</span>` : ''}`;
 }
 
 const LV = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };

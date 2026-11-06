@@ -61,10 +61,11 @@ function renderQuota() {
 /* ---------- units: every terminal of ours (agents and plain shells) and the sessions outside ---------- */
 
 const ST = {
-  permit: () => [L('等授权'), 'var(--red)', 0],
-  busy: () => [L('作战中'), 'var(--cyan)', 1],
+  permit: () => [L('⚠ 等授权'), 'var(--red)', 0],
+  question: () => [L('? 等回答'), 'var(--red)', 0],
+  busy: () => [L('▶ 作战中'), 'var(--cyan)', 1],
   starting: () => [L('启动中'), 'var(--cyan)', 2],
-  idle: () => [L('待命'), 'var(--amber)', 3],
+  idle: () => [L('◆ 待命'), 'var(--amber)', 3],
   shell: () => [L('终端'), 'var(--green)', 4],
 };
 
@@ -72,7 +73,7 @@ function rows() {
   const out = [];
   const seen = new Set();
   for (const u of state.units) {
-    const kind = u.permission ? 'permit' : u.status === 'busy' ? 'busy' : 'idle';
+    const kind = u.permission ? (u.permission.prompt?.kind === 'question' ? 'question' : 'permit') : u.status === 'busy' ? 'busy' : 'idle';
     const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
     if (a) seen.add(a.id);
     const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || '';
@@ -93,7 +94,7 @@ function renderChips() {
   const all = rows();
   const n = (k) => all.filter((r) => r.kind === k).length;
   const chip = (c, label, color, alarm) => `<span class="chip ${c ? '' : 'zero'} ${alarm && c ? 'alarm' : ''}" style="--c:${color}"><b>${c}</b>${esc(label)}</span>`;
-  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit'), L('等授权'), 'var(--red)', true);
+  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit') + n('question'), L('等你处理'), 'var(--red)', true);
 }
 
 function renderUnits() {
@@ -104,11 +105,11 @@ function renderUnits() {
         const [label, color] = ST[r.kind]();
         const mins = r.since ? Math.max(0, Math.round((now - r.since) / 60_000)) : null;
         const age = mins == null ? '' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h${pad(mins % 60)}`;
-        const inner = `<div class="head"><span class="dot ${r.kind === 'permit' ? 'blink' : ''}"></span><b class="nm">${esc(r.name)}</b><span class="st">${esc(label)}</span></div>
+        const inner = `<div class="head"><span class="dot ${r.kind === 'permit' || r.kind === 'question' ? 'blink' : ''}"></span><b class="nm">${esc(r.name)}</b><span class="st">${esc(label)}</span></div>
           <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${age ? `<time>${age}</time>` : ''}</div>
           ${r.text ? `<div class="sub">${esc(r.text)}</div>` : ''}`;
         return r.ours
-          ? `<button type="button" class="card ${r.kind === 'permit' ? 'permit' : ''}" style="--c:${color}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
+          ? `<button type="button" class="card ${r.kind === 'permit' || r.kind === 'question' ? 'permit' : ''}" style="--c:${color}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
           : `<div class="card ext" style="--c:${color}" title="${esc(L('不是舰桥启动的会话，只能查看状态'))}">${inner}</div>`;
       })
       .join('') || `<div class="empty">${EMPTY}${L('没有运行中的会话')}</div>`;

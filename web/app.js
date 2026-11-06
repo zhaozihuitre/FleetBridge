@@ -1,15 +1,20 @@
 import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
+import { stateChip, stateOf, waitingKind } from './status.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 // How many items of each list fit the page area at its current size (the window is not a fixed size).
-const ITEM = { unitW: 400, unitGap: 16, questH: 92, questGap: 10, saveH: 108, saveGap: 8 };
+const ITEM = { unitW: 400, unitH: 330, unitGap: 16, questH: 92, questGap: 10, saveH: 64, saveGap: 6 };
+const unitCols = (W) => Math.max(1, Math.floor((W + ITEM.unitGap) / (ITEM.unitW + ITEM.unitGap)));
+const unitRows = (H) => Math.max(1, Math.floor((H + ITEM.unitGap) / (ITEM.unitH + ITEM.unitGap)));
 function pageSize(kind) {
   const W = $('page').clientWidth || 900;
   const H = $('page').clientHeight || 600;
-  if (kind === 'units') return Math.max(1, Math.floor((W + ITEM.unitGap) / (ITEM.unitW + ITEM.unitGap)));
+  // units: as many columns as fit, and a second row when the page is tall enough for two (2×2 on a
+  // big screen instead of two tall cards with their lower half empty)
+  if (kind === 'units') return unitCols(W) * unitRows(H);
   if (kind === 'agents') return Math.max(1, Math.floor((H - 46 + ITEM.questGap) / (ITEM.questH + ITEM.questGap))); // minus the header row
   return Math.max(1, Math.floor((H - 30) / (ITEM.saveH + ITEM.saveGap))); // archive
 }
@@ -499,7 +504,6 @@ function unitCard(u) {
   const now = Date.now();
   const standby = u.status === 'idle' && now - u.statusSince > th.standbyMinutes * 60_000;
   const cls = u.offline ? 'offline' : u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
-  const label = u.offline ? { zh: 'OFFLINE · 未出击', en: 'OFFLINE', ja: 'OFFLINE · 未出撃' }[lang] : lang === 'en' ? (u.permission ? 'PERMIT' : u.status === 'busy' ? 'ENGAGED' : standby ? 'STANDBY' : 'AWAITING') : lang === 'ja' ? (u.permission ? 'PERMIT · 承認待ち' : u.status === 'busy' ? 'ENGAGED · 作業中' : standby ? 'STANDBY · 休止' : 'AWAITING · 待機') : u.permission ? 'PERMIT · 等你授权' : u.status === 'busy' ? 'ENGAGED · 作战中' : standby ? 'STANDBY · 休眠' : 'AWAITING · 待命';
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
@@ -514,10 +518,10 @@ function unitCard(u) {
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
   <article class="unit ${cls}" data-unit="${esc(u.key)}">
-    <div class="top"><span>◆ ${label}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
+    <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
-    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? L('请求授权：') + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
+    <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
       <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
       <div class="stat"><div class="k"><span>${L('僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
@@ -646,16 +650,16 @@ function waitText(ms) {
 
 function agentRow(a) {
   const u = state.units.find((x) => x.agentId === a.id);
-  const [, c] = u?.permission ? ['PERMIT', 'var(--red)'] : u?.status === 'busy' ? ['ENGAGED', 'var(--cyan)'] : u ? ['AWAITING', 'var(--amber)'] : ['BOOT', 'var(--muted)'];
-  const st = u?.permission ? L('等你授权') : u?.status === 'busy' ? L('作战中') : u ? L('待命') : L('启动中');
+  const s = stateOf(u, { agent: a });
+  const c = s.color;
   const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u?.lastText || L('（还没有汇报）');
   const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}">
-    <span class="lv">◆</span>
-    <div class="body"><span class="type">${esc(st)} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
+    <span class="lv" aria-hidden="true">${s.icon}</span>
+    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
-    <div class="side"><span class="mono">${L('负载 {0}', pct)}</span><div>
+    <div class="side"><span class="mono">${L('负载 {0}', pct)}</span>${a.startedAt ? `<span class="ran">${L('已运行 {0}', waitText(Date.now() - a.startedAt))}</span>` : ''}<div>
       ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
   </article>`;
 }
@@ -674,15 +678,15 @@ function archiveRow(h) {
     : h.pid
       ? `<button class="btn" data-focus="${h.pid}" title="${L('正在外部终端里运行')}">▶ ${L('跳过去')}</button>`
       : `<div class="save-actions"><button class="btn" data-takeover="${esc(h.sessionId)}" title="${L('在指挥中心里继续，可以直接下指令')}">${L('▶ 在此继续')}</button>
-         <button class="btn ghost" data-resume="${esc(h.sessionId)}" title="${L('在新的 Windows Terminal 里继续')}">${L('外部终端')}</button></div>`;
+         <button class="btn ghost icon" data-resume="${esc(h.sessionId)}" title="${L('在新的 Windows Terminal 里继续')}" aria-label="${L('外部终端')}">⧉</button></div>`;
   return `<article class="save ${h.pid ? 'live' : ''}">
     <div class="when"><span class="mono">${clock(h.updatedAt, true)}</span><small>${ago(now - h.updatedAt)}</small></div>
     <div class="info">
       <div class="r1"><b>${esc(h.project)}</b>${h.pid ? `<span class="running">${L('运行中')}</span>` : ''}<span class="title">${esc(h.title || h.lastPrompt)}</span></div>
       ${h.snippets
-        ? h.snippets.slice(0, 2).map((s) => `<div class="hit" title="${esc(s.text)}"><i>${s.role === 'user' ? 'YOU' : 'CLAUDE'}</i>${mark(s.text, ui.search.q)}</div>`).join('')
-        : `<div class="prompt" title="${esc(h.lastPrompt)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>
-      <div class="path">${esc(h.cwd)}</div>`}
+        ? h.snippets.slice(0, 1).map((s) => `<div class="hit" title="${esc(s.text)}"><i>${s.role === 'user' ? 'YOU' : 'CLAUDE'}</i>${mark(s.text, ui.search.q)}</div>`).join('')
+        : `<div class="prompt" title="${esc(h.lastPrompt)}
+${esc(h.cwd)}">${h.lastPrompt ? L('最后指令：') + esc(h.lastPrompt) : ''}</div>`}
     </div>
     ${action}
   </article>`;
@@ -766,7 +770,7 @@ function renderPage() {
     $('page').innerHTML = html;
     document.querySelector('.folders').scrollTop = scroll; // keep the folder list where it was across live refreshes
   }
-  else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${size}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
+  else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${unitCols($('page').clientWidth || 900)}, minmax(0, 1fr)); grid-template-rows: repeat(${unitRows($('page').clientHeight || 600)}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
   else if (ui.tab === 'agents')
     html = items.length
       ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
@@ -859,8 +863,7 @@ function mentionAll() {
   const items = live.map((a) => {
     const u = units.get(a.id);
     const shell = a.kind === 'shell';
-    const st = shell ? L('终端') : !u ? L('启动中') : u.permission ? L('等你授权') : u.status === 'busy' ? L('作战中') : L('待命');
-    const c = shell ? 'var(--soft)' : u?.permission ? 'var(--red)' : u?.status === 'busy' ? 'var(--cyan)' : 'var(--amber)';
+    const { label: st, color: c } = stateOf(u, { agent: a });
     const handle = hs.get(a.id) || agentLabel(a.id).name.toLowerCase().replace(/\s+/g, '-') + (shell ? '-' + a.id.slice(0, 4) : '');
     return { handle, st, c, sub: a.cwd, busy: u?.status === 'busy' || Boolean(u?.permission) };
   });
@@ -1095,18 +1098,16 @@ function renderTermHeads() {
     // the project folder tells panes apart when callsigns don't (alpha, bravo…);
     // without a callsign (name is just the id) the project is the name
     const proj = cwd.split(/[\\/]/).filter(Boolean).pop() || '';
-    const bare = name === id.slice(0, 8);
+    const bare = name === id.slice(0, 8) || a?.kind === 'shell';
     el.querySelector('.t-name').textContent = bare && proj ? proj : name;
     el.querySelector('.t-proj').textContent = !bare && proj && proj.toLowerCase() !== name.toLowerCase() ? proj : '';
     el.querySelector('.term-who').title = `${name}${proj ? ' · ' + proj : ''}\n${cwd}`;
     el.querySelector('.t-cwd').textContent = cwd;
     const st = el.querySelector('.t-state');
     const u = state?.units.find((x) => x.agentId === id);
-    const [label, cls] = !alive
-      ? [a?.exitCode != null ? L('● 已退出（{0}）', a.exitCode) : L('● 已退出'), 'off']
-      : a?.kind === 'shell' ? [L('● 终端'), 'on'] : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
-    st.textContent = label;
-    st.className = 't-state ' + cls;
+    const s = stateOf(u, { agent: { ...a, alive } });
+    st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
+    st.className = 't-state';
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
     el.querySelector('[data-tact=remove]').hidden = alive !== false;

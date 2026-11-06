@@ -3,6 +3,7 @@ import { createTerminal, onTermFont, paneFont } from './terminal.js';
 import { ask } from './ui.js';
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
+import { stateChip } from './status.js';
 
 translateDom();
 
@@ -20,9 +21,8 @@ function render(state) {
   const name = a?.name || u?.name || id.slice(0, 8);
   q('.t-name').textContent = name;
   q('.t-cwd').textContent = a?.cwd || u?.cwd || '';
-  const [label, cls] = !a?.alive ? [L('● 已退出'), 'off'] : u?.permission ? [L('● 等你授权'), 'permit'] : u?.status === 'busy' ? [L('● 作战中'), 'busy'] : [L('● 待命'), 'on'];
-  q('.t-state').textContent = label;
-  q('.t-state').className = 't-state ' + cls;
+  q('.t-state').innerHTML = stateChip(u, { agent: a || { alive: false } });
+  q('.t-state').className = 't-state';
   q('.t-ctx').innerHTML = ''; // rebuilt every update: load badge, then the repo tag
   if (u?.contextPct != null) {
     const pct = Math.round(u.contextPct);
