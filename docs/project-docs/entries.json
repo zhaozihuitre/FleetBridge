@@ -3442,6 +3442,29 @@
       "updated": "2026-11-06 16:49",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-035",
+      "type": "issue",
+      "title": "主控重复收到同一个问题的「等回答」通知（0.9.46 修复）",
+      "summary": "同一个 AskUserQuestion 没动，主控却收到多次一样的等回答通知：判断「新问题」用的是整段屏幕文字和全部选项，滚动提示、Tab 勾选、光标，以及用户往「Type something.」里打的字都会让它变。",
+      "detail": "现象：mobileapp 停在同一个多 Tab 的 AskUserQuestion 上，主控连收 3 次；第二次屏幕文字末尾多了「Jump to bottom (ctrl+End) ↓」。主要原因（用户补充）：用户正在终端里往选项 3「Type something.」打字，选项文字随输入变化（做成内置 → 做成AI内置 → 做成AI内置工具，），每变一次就当成新问题。修改（server/master.js）：问题的键只取问题文字和固定选项：去掉滚动/按键提示行（Jump to bottom、ctrl+End、Enter to select、Tab/Arrow keys、Esc to cancel），去掉光标和勾选符号（❯ ☐ ☒ ✔ 等），不算自由输入那一项（第一次见到时是「Type something.」，记下它的编号，之后那一项怎么变都不算）。有人在终端作答时不发：最近 30 秒内有人在这个终端按过键（含回车，多 Tab 时回车是切到下一题；新增 agent.keyAt，回车不清零），或手机页 / 输入框向它发过按键或文字，或自由输入项里已有内容；停下后问题还在才发。问题文字或固定选项真正变了（比如切到下一个 Tab 的问题）才算新问题。桌面通知和手机推送按对话框出现的时间去重，不受影响。测试：用这道题的屏幕构造 9 种情况，重复、多出滚动提示、在自由输入项里打字、Tab 勾选变化、光标移动、提示行都判为同一问题；换到下一个问题、固定选项改变判为新问题；自由输入项有内容时判为正在作答。",
+      "status": "done",
+      "files": [
+        "server/master.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "master",
+        "notify",
+        "bug"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-07 13:25",
+      "updated": "2026-11-07 13:25",
+      "notes": [],
+      "count": 1
     }
   ]
 }

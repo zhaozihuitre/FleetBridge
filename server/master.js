@@ -245,7 +245,37 @@ export const masterWanted = () => Boolean(load().on);
 const notified = new Map(); // agentId -> key of the question last sent
 const TYPING_PAUSE = 8_000; // after the last real keystroke (inputEmpty() guards text still in the input)
 
-const askKey = (p) => `${p.kind}|${p.text}|${p.options.map((o) => o.label).join('|')}`;
+// What makes a question the same question: its words and its fixed choices. Not what changes on the
+// screen while it waits: a scroll hint ("Jump to bottom (ctrl+End) ↓"), the key hints, the cursor (❯),
+// the ticks on a multi-question's tabs (☐ / ☒ / ✔), nor the free-text choice ("Type something."),
+// whose label is what the user is typing into it.
+const FREE = /^Type something\.?$/i;
+const freeKeys = new Map(); // agentId -> the key of its question's free-text choice
+const HINT = /Jump to bottom|ctrl\s*\+\s*End|Esc to (cancel|go back)|Enter to (select|confirm|submit)|Tab\/Arrow keys|↑\/↓|to navigate/i;
+export function askKey(x) {
+  const p = x.prompt;
+  const free = p.options.find((o) => FREE.test(o.label.trim()));
+  if (free) freeKeys.set(x.agentId, free.key);
+  const text = p.text
+    .split('\n')
+    .filter((l) => !HINT.test(l))
+    .map((l) => l.replace(/[☐☑☒✔✓✗□■●○◉◯❯›▸←→]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+  const fixed = p.options.filter((o) => o.key !== freeKeys.get(x.agentId) && !FREE.test(o.label.trim()));
+  return `${p.kind}|${text}|${fixed.map((o) => `${o.key}.${o.label.replace(/\s+/g, ' ').trim()}`).join('|')}`;
+}
+
+// Someone is answering in the terminal itself (keys typed into it lately, or text in the free-text
+// choice): no "waiting for an answer" notice now; if the question is still there when they stop, it is.
+const ANSWERING_PAUSE = 30_000;
+export function answering(x) {
+  const a = getAgent(x.agentId);
+  if (a?.keyAt && Date.now() - a.keyAt < ANSWERING_PAUSE) return true;
+  const fk = freeKeys.get(x.agentId);
+  const free = fk && x.prompt.options.find((o) => o.key === fk);
+  return Boolean(free && free.label.trim() && !FREE.test(free.label.trim()));
+}
 
 function notice(x) {
   const kind = x.prompt.kind === 'permission' ? L('授权', 'a permission', '承認') : L('回答', 'an answer', '回答');
@@ -374,12 +404,13 @@ export function masterTurnDone(x) {
 export function notifyMaster(asks) {
   const waiting = new Set(asks.map((x) => x.agentId));
   for (const id of notified.keys()) if (!waiting.has(id)) notified.delete(id); // answered: a new question is new again
+  for (const id of freeKeys.keys()) if (!waiting.has(id)) freeKeys.delete(id);
   // ended turns wait for the master at most an hour
   while (finished.length && Date.now() - finished[0].at > 3_600_000) finished.shift();
   saveFinished();
   const m = masterAgent();
   if (!m?.alive) return; // nothing sent: they go out once the master is up
-  const fresh = asks.filter((x) => notified.get(x.agentId) !== askKey(x.prompt));
+  const fresh = asks.filter((x) => notified.get(x.agentId) !== askKey(x) && !answering(x));
   if (!fresh.length && !finished.length) return;
   // never type into the middle of what the user is writing to the master: wait for an empty input
   if (Date.now() - (m.typedAt || 0) < TYPING_PAUSE || !inputEmpty(m)) return;
@@ -401,5 +432,5 @@ export function notifyMaster(asks) {
   }
   saveFinished();
   rememberTold(done);
-  for (const x of fresh) notified.set(x.agentId, askKey(x.prompt));
+  for (const x of fresh) notified.set(x.agentId, askKey(x));
 }
