@@ -3700,6 +3700,30 @@
       "updated": "2026-11-09 10:50",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-076",
+      "type": "change",
+      "title": "0.9.56 终端上不再显示组织名",
+      "summary": "按用户决定：部队卡片、活动终端列表、分屏标题栏去掉组织标签（orgTag 及 .org-tag/.t-org 样式删除），卡片/小窗/手机卡片的额度到限文字也不再带组织（只写「额度到限：…」）。组织名只保留在顶部额度框、手机页额度上方、⛔ 额度到限通知和最近通知列表。服务端 units 仍带 org 字段（通知要用）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/app.js",
+        "web/m.js",
+        "web/widget.js",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "ui",
+        "org"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 11:07",
+      "updated": "2026-11-09 11:07",
+      "notes": []
     }
   ]
 }

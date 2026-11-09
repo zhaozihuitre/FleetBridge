@@ -784,6 +784,3 @@ html.web [data-win] { display: none; }
 .energy-group > .energy { border-top-color: color-mix(in srgb, var(--oc) 60%, transparent); }
 .energy-other { opacity: 0.9; }
 .energy-other .other-pct { font-family: var(--display); font-size: 13px; color: var(--text); }
-.org-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--oc) 55%, transparent); color: var(--oc); font-family: var(--name); font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: 0.3px; vertical-align: 1px; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-.pane .t-org { flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.pane .t-org:empty { display: none; }

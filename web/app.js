@@ -167,17 +167,13 @@ function orgColor(key) {
   return ['var(--cyan)', 'var(--amber)', 'var(--green)', 'var(--red)'][(i < 0 ? 0 : i) % 4];
 }
 
-// A terminal's organization, as a small tag (title: why it is that one).
-function orgTag(u) {
-  if (!u?.org) return '';
-  return `<span class="org-tag" style="--oc:${orgColor(u.org.id)}" title="${esc(L('登录的组织：{0}（按它最后一次工作时登录的组织）', u.org.name))}">${esc(u.org.name)}</span>`;
-}
 
 // The quota ran out in this terminal's last turn: whose.
 // how long a dialog has waited, as a negative animation delay: its few blinks run once from when it came up
 const agoVar = (u) => (u?.permission?.at ? `--ago:${((u.permission.at - Date.now()) / 1000).toFixed(1)}s` : '');
 const agoStyle = (u) => (u?.permission?.at ? ` style="${agoVar(u)}"` : '');
-const limitText = (u) => (u?.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '');
+// (whose quota is in the top bar, the ⛔ notice and the notices list: the cards only say it ran out)
+const limitText = (u) => (u?.limit && u.status !== 'busy' ? L('额度到限：') + u.limit.text : '');
 
 // A time with its day: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
 function when(ms) {
@@ -578,7 +574,7 @@ function unitCard(u) {
   return `
   <article class="unit ${cls}"${agoStyle(u)} data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
     <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
-    <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}${orgTag(u)}</div>
+    <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
     <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u.summary || u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
     <div class="stats">
@@ -789,7 +785,7 @@ function agentRow(a) {
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}" data-flash="${esc(a.id)}" data-st="${s.key}">
     <span class="lv" aria-hidden="true">${s.icon}</span>
-    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}${orgTag(u)}</span>
+    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
     <div class="side"><span class="mono">${L('负载 {0}', pct)}</span>${a.startedAt ? `<span class="ran">${L('已运行 {0}', waitText(Date.now() - a.startedAt))}</span>` : ''}<div>
       ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
@@ -1268,7 +1264,6 @@ function renderTermHeads() {
     const s = stateOf(u, { agent: { ...a, alive } });
     st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color};${agoVar(u)}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
     st.className = 't-state';
-    el.querySelector('.t-org').innerHTML = orgTag(u);
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
     el.querySelector('[data-tact=remove]').hidden = alive !== false;
@@ -1401,7 +1396,7 @@ function openTerm(id) {
   const el = document.createElement('div');
   el.className = 'pane';
   el.dataset.pane = id;
-  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-org"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
+  el.innerHTML = `<header class="term-head"><div class="term-who"><b class="t-name"></b><span class="t-proj"></span><span class="t-state"></span><span class="t-ctx"></span><span class="term-cwd t-cwd"></span></div><div class="term-actions">${PANE_ACTIONS}</div></header><div class="term-host"></div>`;
   $('term-grid').appendChild(el);
   const t = createTerminal(el.querySelector('.term-host'), id, { fontSize: paneFont(panes.size ? 1 : 0), onFocus: () => setActivePane(id) });
   panes.set(id, { el, t });

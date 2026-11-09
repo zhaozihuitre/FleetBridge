@@ -97,8 +97,8 @@ function rows() {
     const kind = u.permission ? (u.permission.prompt?.kind === 'question' ? 'question' : 'permit') : u.status === 'busy' ? 'busy' : 'idle';
     const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
     if (a) seen.add(a.id);
-    // stopped on the quota: whose quota, as on the command center's cards
-    const limit = u.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '';
+    // stopped on the quota, as on the command center's cards (whose: the quota at the top)
+    const limit = u.limit && u.status !== 'busy' ? L('额度到限：') + u.limit.text : '';
     const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limit || u.summary || u.lastText || '';
     out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a), waitAt: u.permission?.at || null });
   }
