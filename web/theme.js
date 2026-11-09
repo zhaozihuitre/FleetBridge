@@ -175,8 +175,11 @@ export function applyTheme(key) {
   // the phone page's terminal (colored by the server with --t0..--t15) in the theme's terminal colors, the
   // same as the command center's xterm; the paper theme adds its text/background variants
   ANSI.forEach((k, i) => root.style.setProperty(`--t${i}`, T.term[k]));
-  const vars = { '--tfg': T.term.foreground, '--tbg': T.term.background, ...T.paperVars };
-  for (const v of ['--tfg', '--tbg', '--tf8', '--tb7', '--tb15']) vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v);
+  // on a dark theme, black and brightBlack as text sit on a near-black screen (xterm lifts them with its
+  // minimum contrast, the phone page cannot): they read as the theme's dim gray there
+  const dark = !T.paperVars ? { '--tf0': T.ui.dim, '--tf8': T.ui.dim } : {};
+  const vars = { '--tfg': T.term.foreground, '--tbg': T.term.background, ...dark, ...T.paperVars };
+  for (const v of ['--tfg', '--tbg', '--tf0', '--tf8', '--tb7', '--tb15']) vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v);
   root.style.colorScheme = name === 'light' ? 'light' : 'dark';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', T.ui.bg);
   return name;

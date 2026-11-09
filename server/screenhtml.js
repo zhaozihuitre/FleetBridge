@@ -10,7 +10,7 @@ const NEON = [
   '#24384a', '#3df5ff', '#8affc4', '#ffd166', '#82bcff', '#dcaaff', '#b8fcff', '#dcf8e8',
 ];
 const PALETTE = NEON.map((c, i) => `var(--t${i},${c})`);
-const PALETTE_FG = PALETTE.map((v, i) => (i === 8 ? `var(--tf8,${v})` : v));
+const PALETTE_FG = PALETTE.map((v, i) => (i === 0 || i === 8 ? `var(--tf${i},${v})` : v));
 const PALETTE_BG = PALETTE.map((v, i) => (i === 7 || i === 15 ? `var(--tb${i},${v})` : v));
 const FG = 'var(--tfg,#a6e8c0)';
 const BG = 'var(--tbg,#050a12)';
@@ -18,8 +18,10 @@ const BG = 'var(--tbg,#050a12)';
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
 // xterm's 256-color table beyond the first 16: a 6x6x6 cube, then a gray ramp
-function color256(i, fg) {
-  if (i < 16) return (fg ? PALETTE_FG : PALETTE_BG)[i];
+// (text uses its own variant only on the screen's own background: black text on a colored band, like a
+// diff's line number, stays black)
+function color256(i, fg, onDefault = true) {
+  if (i < 16) return (fg ? (onDefault ? PALETTE_FG : PALETTE) : PALETTE_BG)[i];
   if (i < 232) {
     const c = i - 16;
     const v = (x) => (x ? 55 + x * 40 : 0);
@@ -33,7 +35,7 @@ function colorOf(cell, fg) {
   if (fg ? cell.isFgDefault() : cell.isBgDefault()) return null;
   const v = fg ? cell.getFgColor() : cell.getBgColor();
   if (fg ? cell.isFgRGB() : cell.isBgRGB()) return hex(v);
-  return color256(v, fg);
+  return color256(v, fg, !fg || cell.isBgDefault());
 }
 
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);

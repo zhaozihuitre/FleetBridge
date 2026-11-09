@@ -3596,6 +3596,27 @@
       "created": "2026-11-09 10:06",
       "updated": "2026-11-09 10:06",
       "notes": []
+    },
+    {
+      "id": "C-073",
+      "type": "change",
+      "title": "0.9.52 深色主题手机页黑色文字可读",
+      "summary": "手机页终端（server/screenhtml.js）没有 xterm 的 minimumContrastRatio，深色主题下 ANSI black / brightBlack 作文字几乎看不见。现在这两种前景色在默认背景上走 --tf0/--tf8，深色主题设为 ui.dim；压在彩色背景上的黑字（diff 行号等）保持原色。浅色主题不变（它的 --tf8 是灰墨）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/screenhtml.js",
+        "web/theme.js"
+      ],
+      "tags": [
+        "theme",
+        "mobile"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:08",
+      "updated": "2026-11-09 10:08",
+      "notes": []
     }
   ]
 }
