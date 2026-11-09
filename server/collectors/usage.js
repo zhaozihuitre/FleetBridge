@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { L } from '../i18n.js';
 import { config, DATA_DIR } from '../config.js';
-import { noteOrg, orgAt, orgInfo } from '../accounts.js';
+import { currentOrg, noteOrg, orgAt, orgInfo } from '../accounts.js';
 
 const API = 'https://api.anthropic.com/api/oauth';
 const PROFILE_TTL = 10 * 60_000;
@@ -142,6 +142,18 @@ async function profile(cred) {
   return profileCache.data;
 }
 
+// The profile call failed (it is rate limited too, and a /login always needs a fresh one: the cache goes by
+// the credentials): the reading still says whose quota it is. The same credentials' last profile while it is
+// there, else the organization signed in now (~/.claude.json: a /login writes it with the new token).
+// Without this the reading carried no organization: the quota boxes lost their name and the current
+// organization showed as "another" one.
+function profileFallback(cred) {
+  if (profileCache.fingerprint === cred.fingerprint && profileCache.data?.orgId) return profileCache.data;
+  const id = currentOrg();
+  const o = id && orgInfo(id);
+  return o ? { email: o.email || null, org: o.name || null, orgId: id, seat: o.seat || null, fromConfig: true } : null;
+}
+
 // Claude Code owns the token and refreshes it; we only read, so an expired token
 // means "open Claude Code once", never a refresh from here (that would rotate it under CC).
 export async function collectUsage(force = false) {
@@ -152,7 +164,7 @@ export async function collectUsage(force = false) {
   if (Date.now() - (last?.fetchedAt || 0) < MIN_GAP && last?.ok !== false && !force) return { ...last, stale: false };
   try {
     const cred = readCredentials();
-    const [u, p] = await Promise.all([get('usage', cred.token), profile(cred).catch(() => null)]);
+    const [u, p] = await Promise.all([get('usage', cred.token), profile(cred).catch(() => profileFallback(cred))]);
     if (p?.orgId) {
       noteOrg(p.orgId, { name: p.org, email: p.email, seat: p.seat, tier: cred.tier });
       // a token of an organization signed in before: keep reading that one with it while it lasts

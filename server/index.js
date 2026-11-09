@@ -116,14 +116,16 @@ function publish() {
   // a window whose reset time has passed (the last reading is older than it) started over: nothing used
   // yet and no reset time, rather than the old percentage with a reset in the past
   const rolled = (l) => (l.resetsAt > 0 && l.resetsAt <= Date.now() ? { ...l, usedPct: 0, resetsAt: 0, active: false } : l);
-  const others = otherOrgs(merged?.account?.orgId).map((x) => ({ ...x, limits: x.limits.map(rolled) }));
+  // whose quota the reading is: the API's profile; a reading made without it (the profile call failed, as
+  // right after a /login) goes by the organization signed in when it was read (the sign-in timeline)
+  const readOrg = merged?.account?.orgId || (merged?.fetchedAt && orgAt(merged.fetchedAt)) || orgNow;
+  const others = otherOrgs(readOrg).map((x) => ({ ...x, limits: x.limits.map(rolled) }));
   const view = merged && {
     ...merged,
     limits: merged.limits?.map((l) => ({ ...rolled(l), label: limitLabel(l.key) })),
-    // whose quota this is: the organization the reading was made under (the API's profile)
-    org: orgInfo(merged.account?.orgId) || (merged.account?.org ? { name: merged.account.org, email: merged.account.email } : null),
+    org: orgInfo(readOrg) || (merged.account?.org ? { name: merged.account.org, email: merged.account.email } : null),
     // signed in now, if not the one read yet (a /login since the last reading)
-    signedIn: orgNow && orgNow !== merged.account?.orgId ? orgInfo(orgNow) : null,
+    signedIn: orgNow && readOrg && orgNow !== readOrg ? orgInfo(orgNow) : null,
     others,
   };
   const base = buildState({ sessions, gitByCwd, usage: view });

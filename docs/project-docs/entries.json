@@ -3677,6 +3677,29 @@
       "created": "2026-11-09 10:34",
       "updated": "2026-11-09 10:34",
       "notes": []
+    },
+    {
+      "id": "I-037",
+      "type": "issue",
+      "title": "0.9.55 重新登录后组织名消失",
+      "summary": "原因：用量读数里的组织来自 /api/oauth/profile，失败时被 .catch(() => null) 吞掉，读数照常保存但 account 没有 orgId/组织名；顶栏额度框的组织名只认它，于是消失，且 otherOrgs(undefined) 把当前组织当成「另一个组织」单列一个旧读数框（手机页同样）。/login 换了凭证后 profile 缓存（按凭证指纹）必须重取，profile 接口也限流，最容易在这时失败，失败后每次刷新都再试。修法：usage.js profile 失败时用同一凭证上次的 profile，否则用 ~/.claude.json 当前登录的组织（profileFallback）；index.js 读数缺组织时按读数时刻的登录时间线（orgAt(fetchedAt)）或当前组织补上，另一组织按这个排除。卡片上的组织走登录时间线，不受影响。在开发实例上把缓存读数改成无 profile 复现，修后 5 个主题电脑和手机都显示当前登录的组织。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/collectors/usage.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "bug",
+        "usage",
+        "org"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:50",
+      "updated": "2026-11-09 10:50",
+      "notes": [],
+      "count": 1
     }
   ]
 }
