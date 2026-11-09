@@ -1,7 +1,7 @@
 // Electron shell: runs the monitor server as a child process from the current app folder (an update
 // replaces that folder's version and restarts only the server; the terminals live in the PTY host and
 // keep running), shows the always-on-top status widget and opens the command center on demand.
-const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, screen, shell, Tray } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -53,6 +53,10 @@ let baseUrl = null; // this instance's own server (set below from PORT, then fro
 let serverChild = null;
 let summary = { live: [], busy: false }; // the server's last /api/admin/summary (keep-awake, quit)
 let quitting = false;
+// Windows is shutting down or signing out: it kills the server (and soon us). A server that dies then, or a
+// restart that dies before it is ready, says nothing about the version: it used to be set aside as "failed to
+// start", and the next start came back on the previous version.
+let endingSession = false;
 let widget = null;
 let mainWin = null;
 let muted = false;
@@ -125,6 +129,13 @@ async function startServer() {
     } catch (e) {
       console.error(`server ${cur.version} failed: ${e.message}`);
       if (/EADDRINUSE/.test(e.message)) return null; // a standalone `npm start` already serves: use it
+      if (quitting || endingSession) throw e; // the system is taking us down: not the version's fault
+      // a version is set aside only when it fails twice in a row (one failure can be the moment, not the code)
+      if (attempt === 0 && !/did not start in/.test(e.message)) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (quitting || endingSession) throw e;
+        continue;
+      }
       if (!apps?.rollback(e.message)) throw e;
     }
   }
@@ -135,7 +146,7 @@ async function startServer() {
 // again and again right after an update means that version is bad: back to the previous one.
 async function onServerLost(code) {
   serverChild = null;
-  if (quitting) return;
+  if (quitting || endingSession) return;
   const now = Date.now();
   restarts = [...restarts.filter((t) => now - t < 120_000), now];
   if (restarts.length >= 3 && apps?.rollback(`crashed ${restarts.length} times (${code})`)) restarts = [];
@@ -485,6 +496,10 @@ if (!app.requestSingleInstanceLock()) {
     startAwake({ mode: p.awakeMode, screen: p.awakeScreen, busy: () => summary.busy, changed: sendSettings });
   });
   app.on('window-all-closed', (e) => e.preventDefault?.()); // the widget keeps the app alive; quit from its menu
+  // the system going down (shutdown, restart, sign-out): don't restart the server, don't judge its version
+  const sessionEnds = () => (endingSession = true);
+  app.on('session-end', sessionEnds);
+  powerMonitor.on('shutdown', sessionEnds);
   // Quitting ends the terminals too (the server tells the PTY host); they are not brought
   // back next start. Waits for that (a few seconds at most) before the app goes.
   app.on('before-quit', (e) => {
