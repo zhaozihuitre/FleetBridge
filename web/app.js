@@ -806,7 +806,7 @@ function mark(text, q) {
 
 // An empty or still-loading area: a quiet mark, one sentence that says why and what to do, and maybe the
 // action itself; the same look on every tab ('loading' spins while it waits).
-const EMPTY_MARK = '<svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="currentColor" stroke-width="1.4"/><path d="M12 17h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const EMPTY_MARK = '<svg width="34" height="34" viewBox="0 0 64 64" fill="none" aria-hidden="true"><ellipse cx="32" cy="41" rx="26" ry="10" stroke="currentColor" stroke-width="2" opacity=".6"/><path d="M32 9 L42 39 L32 33 L22 39 Z" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 42 L15 51 L11 49 L7 51 Z M53 42 L57 51 L53 49 L49 51 Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 function emptyBlock(kind, text, action = '') {
   const mark = kind === 'loading' ? '<span class="spin" aria-hidden="true"></span>' : EMPTY_MARK;
   return `<div class="blank ${kind}" role="status"><div class="blank-in">${mark}<p>${esc(kind === 'loading' ? L('搜索中…') : text)}</p>${action}</div></div>`;

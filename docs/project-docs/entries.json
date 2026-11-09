@@ -3769,6 +3769,46 @@
       "updated": "2026-11-09 11:24",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-078",
+      "type": "change",
+      "title": "0.9.59 新应用图标：环绕护航的舰队",
+      "summary": "图标换成主舰加 3 艘僚舰在斜椭圆轨道上护航（机头始终朝上，转到后方变暗）；页面 logo 有动画，托盘随作战/等待切换帧动画，减少动态效果时停在静帧。",
+      "detail": "设计源文件 build/icon.svg（大尺寸静帧）和 build/icon-small.svg（16/32 px 专用：2 艘僚舰固定在前方、无尾焰）。build/icon.ico 和 desktop/icon.ico 内含 16/24/32（小图）和 48/64/128/256（大图），安装包、exe、窗口和任务栏都用它。web/favicon.svg 用小图；web/icon.png 是 512 px 满版的主屏图标。页面 logo（index.html、m.html）是内联 SVG：僚舰用 SMIL animateMotion 沿椭圆绕行（不带 rotate，所以机头不转），尾焰用 CSS 脉动；theme.js 在系统开了减少动态效果时暂停并停在时间 0（和静帧一致），各主题照常按角色换色。托盘：desktop/tray 下的 idle / busy-0..3 / wait-0..1 帧（16 px 加 @2x）；小窗把舰队状态通过 opsBridge.trayState 告诉外壳，作战中两艘僚舰轮流亮，有终端等你时主舰琥珀色闪，减少动态效果时只换一帧。托盘和窗口图标属于外壳，要装新安装包才生效；旧外壳没有 trayState，网页照常。",
+      "status": "done",
+      "files": [
+        "build/icon.svg",
+        "build/icon-small.svg",
+        "build/icon.ico",
+        "build/icon.png",
+        "desktop/icon.ico",
+        "desktop/icon.png",
+        "desktop/tray/",
+        "desktop/main.cjs",
+        "desktop/preload.cjs",
+        "web/widget.js",
+        "web/theme.js",
+        "web/index.html",
+        "web/m.html",
+        "web/favicon.svg",
+        "web/icon.png",
+        "web/style.css",
+        "web/m.css",
+        "web/app.js",
+        "web/m.js",
+        "package.json"
+      ],
+      "tags": [
+        "图标",
+        "托盘",
+        "动画"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 16:42",
+      "updated": "2026-11-09 16:42",
+      "notes": []
     }
   ]
 }

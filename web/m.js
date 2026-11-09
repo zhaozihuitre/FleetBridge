@@ -112,7 +112,7 @@ function rows() {
   return out.sort((x, y) => Number(y.ours) - Number(x.ours) || ST[x.kind]()[2] - ST[y.kind]()[2] || String(x.name).localeCompare(String(y.name)));
 }
 
-const EMPTY = '<svg width="40" height="40" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="#4f7a90" stroke-width="1.4"/><path d="M11 17l4 4 8-8" stroke="#4dffa6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const EMPTY = '<svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true"><ellipse cx="32" cy="41" rx="26" ry="10" stroke="#4f7a90" stroke-width="2" opacity=".6"/><path d="M32 9 L42 39 L32 33 L22 39 Z" stroke="#4f7a90" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 42 L15 51 L11 49 L7 51 Z M53 42 L57 51 L53 49 L49 51 Z" stroke="#4f7a90" stroke-width="2" stroke-linejoin="round"/><path d="M44 14l4 4 8-8" stroke="#4dffa6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 // how long a dialog has waited, as a negative animation delay: its few blinks run once from when it came up
 const ago = (at) => (at ? `--ago:${((at - Date.now()) / 1000).toFixed(1)}s` : '');

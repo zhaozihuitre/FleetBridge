@@ -792,3 +792,11 @@ html.web [data-win] { display: none; }
 .energy-group > .energy { border-top-color: color-mix(in srgb, var(--oc) 60%, transparent); }
 .energy-other { opacity: 0.9; }
 .energy-other .other-pct { font-family: var(--display); font-size: 13px; color: var(--text); }
+
+/* the fleet logo (index.html / m.html): the escorts orbit with SMIL (stopped by theme.js under "reduce motion"),
+   the flames pulse here */
+.fleet-logo { flex: 0 0 auto; overflow: visible; }
+@media (prefers-reduced-motion: no-preference) {
+  .fleet-logo .fl { animation: fleet-flame 1.1s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 0; }
+}
+@keyframes fleet-flame { 0%, 100% { transform: scaleY(.72); opacity: .8; } 50% { transform: scaleY(1.12); opacity: 1; } }

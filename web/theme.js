@@ -235,3 +235,18 @@ try {
   followLightGrain(false);
 }
 followTheme(last || DEFAULT_THEME);
+
+// The fleet logo's escorts orbit (SMIL, index.html / m.html): under "reduce motion" they stop where the
+// still icon has them (time 0)
+const still = matchMedia('(prefers-reduced-motion: reduce)');
+function logoMotion() {
+  for (const s of document.querySelectorAll('svg.fleet-logo')) {
+    if (still.matches) {
+      s.pauseAnimations();
+      s.setCurrentTime(0);
+    } else s.unpauseAnimations();
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', logoMotion);
+else logoMotion();
+still.addEventListener?.('change', logoMotion);

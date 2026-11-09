@@ -117,6 +117,8 @@ function renderUnits() {
 
   const busy = units.filter((u) => u.status === 'busy').length;
   const permit = units.filter((u) => u.permission).length;
+  // the tray icon follows the fleet (an older shell has no trayState: nothing happens)
+  bridge?.trayState?.(permit ? 'wait' : busy ? 'busy' : 'idle', matchMedia('(prefers-reduced-motion: reduce)').matches);
   $('chips').innerHTML = `<span>${L('作战 ')}<b>${busy}</b></span><span>${L('待命 ')}<b>${units.length - busy}</b></span>${permit ? `<span style="color:var(--red)">${L('等你 ')}<b>${permit}</b></span>` : ''}${awakeOn ? `<span class="awake" title="${esc(L('保持唤醒中：电脑不会自动休眠'))}">☀</span>` : ''}`;
 }
 

@@ -203,3 +203,11 @@ body.in-term { overflow: hidden; }
 .pend .pd-acts { display: flex; gap: 8px; margin-top: 8px; }
 .pend .pd-acts button { flex: 1; height: 40px; font-size: 15px; font-weight: 700; border: 1px solid var(--cyan); background: transparent; color: var(--cyan); }
 .pend .pd-acts button.no { border-color: var(--line-hi, var(--dim)); color: var(--muted); }
+
+/* the fleet logo (index.html / m.html): the escorts orbit with SMIL (stopped by theme.js under "reduce motion"),
+   the flames pulse here */
+.fleet-logo { flex: 0 0 auto; overflow: visible; }
+@media (prefers-reduced-motion: no-preference) {
+  .fleet-logo .fl { animation: fleet-flame 1.1s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 0; }
+}
+@keyframes fleet-flame { 0%, 100% { transform: scaleY(.72); opacity: .8; } 50% { transform: scaleY(1.12); opacity: 1; } }

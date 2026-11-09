@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('opsBridge', {
   openMain: (term) => ipcRenderer.send('ops:open-main', term ? String(term) : null),
   action: (name) => ipcRenderer.send('ops:action', String(name)),
   quit: () => ipcRenderer.send('ops:quit'),
+  // the tray icon's state: 'idle' | 'busy' | 'wait'; still: one frame (reduce motion)
+  trayState: (state, still) => ipcRenderer.send('ops:tray', String(state), Boolean(still)),
   // tag: handed back to onNotifyClick when the toast is clicked (which terminal it is about)
   notify: (title, body, tag) => ipcRenderer.send('ops:notify', String(title), String(body), tag ? String(tag) : ''),
   onNotifyClick: (fn) => ipcRenderer.on('ops:notify-click', (_e, tag) => fn(String(tag || ''))),

@@ -1,7 +1,7 @@
 // Electron shell: runs the monitor server as a child process from the current app folder (an update
 // replaces that folder's version and restarts only the server; the terminals live in the PTY host and
 // keep running), shows the always-on-top status widget and opens the command center on demand.
-const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -21,7 +21,8 @@ const INSTALLED = VARIANT !== 'dev'; // the installer's app or the npm one: the 
 if (!INSTALLED && !process.env.FLEET_DEV) process.env.FLEET_DEV = '1';
 if (INSTALLED) delete process.env.FLEET_DEV; // inherited from a dev run's terminal: not this one
 
-const ICON = path.join(__dirname, 'icon.png'); // window / taskbar icon, independent of any shortcut
+// window / taskbar icon, independent of any shortcut (Windows: the .ico carries a drawing made for 16-32 px)
+const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const WIDGET_WIDTH = 302; // the page's 300px card plus its border
 const prefsFile = () => path.join(app.getPath('userData'), 'widget.json');
 // as server/config.js: a dev run has its own data folder
@@ -320,8 +321,33 @@ function setWidgetTucked(on) {
   else widget.showInactive();
 }
 
+// The tray icon follows the fleet (the widget tells it): still when idle, the two escorts lighting in turn while
+// any terminal works, the main ship blinking amber while one waits on you; under "reduce motion" one still frame
+// per state. Frames in desktop/tray (16 px, @2x 32 px).
+const TRAY_FRAMES = { idle: ['idle'], busy: ['busy-0', 'busy-1', 'busy-2', 'busy-3'], wait: ['wait-0', 'wait-1'] };
+const TRAY_STEP = { busy: 350, wait: 600 };
+const trayImages = {};
+const trayImage = (name) => (trayImages[name] ||= nativeImage.createFromPath(path.join(__dirname, 'tray', name + '.png')));
+let trayAnim = null;
+let trayKey = 'idle';
+function setTrayState(state, still) {
+  const frames = TRAY_FRAMES[state] || TRAY_FRAMES.idle;
+  const key = state + (still ? ':still' : '');
+  if (!tray || key === trayKey) return;
+  trayKey = key;
+  clearInterval(trayAnim);
+  trayAnim = null;
+  const imgs = frames.map(trayImage);
+  if (imgs.some((i) => i.isEmpty())) return tray.setImage(ICON);
+  tray.setImage(imgs[0]);
+  if (still || imgs.length < 2) return;
+  let i = 0;
+  trayAnim = setInterval(() => tray?.setImage(imgs[(i = (i + 1) % imgs.length)]), TRAY_STEP[state] || 500);
+}
+
 function createTray() {
-  tray = new Tray(ICON);
+  const idle = trayImage('idle');
+  tray = new Tray(idle.isEmpty() ? ICON : idle);
   tray.setToolTip('舰桥 · Fleet Bridge');
   tray.on('click', () => setWidgetTucked(!widgetTucked));
   tray.setContextMenu(
@@ -384,6 +410,7 @@ ipcMain.on('ops:action', (_e, name) => {
   sendSettings();
 });
 ipcMain.on('ops:quit', () => app.quit()); // already confirmed in the page
+ipcMain.on('ops:tray', (_e, state, still) => setTrayState(String(state), Boolean(still)));
 ipcMain.on('ops:notify', (_e, title, body, tag) => {
   if (muted || !Notification.isSupported()) return;
   if (!INSTALLED && process.env.MONITOR_DEV_NOTIFY !== '1') {

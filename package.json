@@ -1,6 +1,6 @@
 {
   "name": "fleet-bridge",
-  "version": "0.9.58",
+  "version": "0.9.59",
   "private": true,
   "description": "Fleet Bridge: game-style command bridge for multiple Claude Code sessions and agents",
   "type": "module",
@@ -58,7 +58,7 @@
           ]
         }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
