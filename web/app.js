@@ -1,6 +1,7 @@
 import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
-import { lamp, lampAttrs, lampDetail, legendHtml, stateChip, stateKey, stateOf, STATES, waitingKind } from './status.js';
+import { lamp, lampAttrs, lampDetail, stateChip, stateKey, stateOf, STATES, waitingKind } from './status.js';
 import './tip.js';
+import { openLegend, toggleLegend } from './legend.js';
 import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
@@ -247,13 +248,8 @@ function renderDeskLamp() {
   $('operator').style.setProperty('--glow-soft', `color-mix(in srgb, ${s.color} 35%, transparent)`);
 }
 
-// the legend: every light, what it means, how fast it breathes (the ? by the desk's light)
-$('lamp-legend-btn').addEventListener('click', () => {
-  const pop = $('lamp-legend');
-  pop.hidden = !pop.hidden;
-  if (!pop.hidden) pop.innerHTML = `<h4>${esc(L('状态灯图例'))}</h4>${legendHtml()}`;
-  $('lamp-legend-btn').setAttribute('aria-expanded', String(!pop.hidden));
-});
+// the legend: every light, what it means, how fast it breathes (a small panel by the ? of the desk's light)
+$('lamp-legend-btn').addEventListener('click', () => toggleLegend($('lamp-legend-btn')));
 
 // You opened a terminal (or looked at it as it finished): its turn is no longer "done, not looked at yet".
 const seenSent = new Set();
@@ -2278,8 +2274,9 @@ $('theme-btn').addEventListener('click', (e) => {
 $('theme-menu').addEventListener('click', async (e) => {
   if (e.target.closest('#theme-menu .legend-opt')) {
     toggleThemeMenu(false);
-    if ($('lamp-legend').hidden) $('lamp-legend-btn').click();
-    $('lamp-legend-btn').scrollIntoView({ block: 'nearest' });
+    // the same panel, by the desk's ? (by the theme button if that one isn't on screen)
+    const q = $('lamp-legend-btn');
+    openLegend(q.offsetParent ? q : $('theme-btn'));
     return;
   }
   // only the menu's own items: the page root carries data-theme and data-paper too

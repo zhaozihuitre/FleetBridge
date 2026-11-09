@@ -3,8 +3,9 @@
 // shows up as a unit waiting for approval. Talks only to the phone server.
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
-import { lamp, lampAttrs, lampDetail, legendHtml, stateKey, STATES } from './status.js';
+import { lamp, lampAttrs, lampDetail, stateKey, STATES } from './status.js';
 import './tip.js';
+import { toggleLegend } from './legend.js';
 import { switchView, wantedView } from './device.js';
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
@@ -209,12 +210,7 @@ document.querySelector('.list-tabs').addEventListener('click', (e) => {
 });
 
 // the legend: every light, what it means, how fast it breathes (the ? by the chips)
-$('lamp-legend-btn').addEventListener('click', () => {
-  const pop = $('lamp-legend');
-  pop.hidden = !pop.hidden;
-  if (!pop.hidden) pop.innerHTML = '<h4>' + esc(L('状态灯图例')) + '</h4>' + legendHtml();
-  $('lamp-legend-btn').setAttribute('aria-expanded', String(!pop.hidden));
-});
+$('lamp-legend-btn').addEventListener('click', () => toggleLegend($('lamp-legend-btn')));
 
 function renderSheet() {
   // (a link straight to a terminal opens it before the first state is here: its name and state come with it)

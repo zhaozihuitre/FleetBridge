@@ -3871,6 +3871,33 @@
       "created": "2026-11-09 17:22",
       "updated": "2026-11-09 17:22",
       "notes": []
+    },
+    {
+      "id": "C-080",
+      "type": "change",
+      "title": "0.9.62 状态灯图例改成贴着按钮的小浮层",
+      "summary": "图例原来嵌在总指令台里，打开会把下面的内容往下推，只能再点「?」关。改成贴着按钮的浮层：不推挤内容，点外面、按 Esc、再点「?」都能关；主题菜单的「状态灯图例…」打开同一个浮层；不记忆打开状态。",
+      "detail": "web/legend.js 统一管理（指挥中心、手机页、主题菜单入口共用）：浮层挂在 body 上、position: fixed，放在按钮下方右对齐，窗口不够时翻到上方，最大宽 380px、最高 70vh 可滚动；pointerdown 在浮层和按钮之外就关闭，Esc 关闭并把焦点还给按钮（捕获阶段处理，同一下 Esc 不会再关掉下面的东西），滚动和改变窗口大小时跟着按钮。主题菜单入口锚定在总指令台的「?」上（不在屏幕上时锚定主题按钮）。index.html / m.html 里原来的内嵌容器去掉了。",
+      "status": "done",
+      "files": [
+        "web/legend.js",
+        "web/app.js",
+        "web/m.js",
+        "web/index.html",
+        "web/m.html",
+        "web/lamp.css",
+        "web/style.css",
+        "web/m.css"
+      ],
+      "tags": [
+        "UI",
+        "呼吸灯"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 17:28",
+      "updated": "2026-11-09 17:28",
+      "notes": []
     }
   ]
 }

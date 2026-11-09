@@ -145,7 +145,6 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .op-lamp { display: inline-flex; align-items: center; gap: 6px; }
 .operator .tag.mood { letter-spacing: 1px; font-weight: 700; }
 .desk-lamp { display: inline-flex; align-items: center; gap: 6px; }
-.operator .lamp-legend-pop { margin: -4px 4px 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 /* message box: reminders arrive as incoming messages, sent commands show as outgoing ones */
 .msg-box { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; background: color-mix(in srgb, var(--x-040a12) 92%, transparent); border: 1px solid var(--line-hi); scrollbar-width: thin; scrollbar-color: var(--line-hi) transparent; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
