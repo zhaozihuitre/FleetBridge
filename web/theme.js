@@ -161,10 +161,10 @@ export function applyTheme(key) {
   }
   const root = document.documentElement;
   root.dataset.theme = name;
-  // the phone page's terminal (colored by the server with --t0..--t15): a theme with paper inks sets them;
-  // the others keep the neon colors written as the fallbacks
-  ANSI.forEach((k, i) => (T.paper ? root.style.setProperty(`--t${i}`, T.term[k]) : root.style.removeProperty(`--t${i}`)));
-  const vars = T.paper ? { '--tfg': T.term.foreground, '--tbg': T.term.background, ...T.paperVars } : {};
+  // the phone page's terminal (colored by the server with --t0..--t15) in the theme's terminal colors, the
+  // same as the command center's xterm; the paper theme adds its text/background variants
+  ANSI.forEach((k, i) => root.style.setProperty(`--t${i}`, T.term[k]));
+  const vars = { '--tfg': T.term.foreground, '--tbg': T.term.background, ...T.paperVars };
   for (const v of ['--tfg', '--tbg', '--tf8', '--tb7', '--tb15']) vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v);
   root.style.colorScheme = name === 'light' ? 'light' : 'dark';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', T.ui.bg);

@@ -3492,6 +3492,29 @@
       "created": "2026-11-09 09:27",
       "updated": "2026-11-09 09:27",
       "notes": []
+    },
+    {
+      "id": "I-036",
+      "type": "issue",
+      "title": "0.9.48 主题菜单点任何主题都只切换纸张纹理",
+      "summary": "0.9.47 起点主题菜单里的任意主题，主题不变，只是纸张纹理开/关来回切。原因：菜单点击判断用了 e.target.closest('[data-paper]')，而 0.9.47 给 <html> 加了 data-paper（纹理开关状态），closest 一路找到根元素，所有点击都被当成「纸张纹理」。修复：只认菜单自己的项（#theme-menu .paper-opt、#theme-menu button[data-theme]）。教训：页面根元素上带 data-* 状态时，委托点击不能用裸属性选择器。同时手机页终端在所有主题下都用该主题的终端配色（--t0..--t15 / --tfg / --tbg 对每个主题都设置）。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "web/app.js",
+        "web/theme.js"
+      ],
+      "tags": [
+        "theme",
+        "bug",
+        "mobile"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 09:32",
+      "updated": "2026-11-09 09:32",
+      "notes": [],
+      "count": 1
     }
   ]
 }

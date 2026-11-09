@@ -1984,7 +1984,8 @@ $('theme-btn').addEventListener('click', (e) => {
   toggleThemeMenu();
 });
 $('theme-menu').addEventListener('click', async (e) => {
-  if (e.target.closest('[data-paper]')) {
+  // only the menu's own items: the page root carries data-theme and data-paper too
+  if (e.target.closest('#theme-menu .paper-opt')) {
     const on = state?.paper === false;
     toggleThemeMenu(false);
     followTheme(state?.theme, on);
@@ -1992,7 +1993,7 @@ $('theme-menu').addEventListener('click', async (e) => {
     await post('/api/theme', { paper: on });
     return;
   }
-  const next = e.target.closest('[data-theme]')?.dataset.theme;
+  const next = e.target.closest('#theme-menu button[data-theme]')?.dataset.theme;
   toggleThemeMenu(false);
   if (!next) return;
   followTheme(next); // right away here; the other pages and the phone follow with the next state
