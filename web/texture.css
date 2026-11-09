@@ -6,11 +6,12 @@
    One layer over the terminal's frame: small tiled SVG noise or a repeating line (no image file); it never
    scrolls or repaints with the text and does not catch the mouse. Deep space and Tokyo Night have none. */
 :root {
-  --grain-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .18 1.6 0 0 0 -.55'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .31 0 0 0 0 .33 1.6 0 0 0 -.55'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
   --grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .84 0 0 0 0 .66 1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 html:is([data-theme="light"], [data-theme="warm"], [data-theme="neon"]) :is(.term-host, .master-term, .screen-wrap) { position: relative; }
-html[data-texture="on"]:is([data-theme="light"], [data-theme="warm"], [data-theme="neon"]) :is(.term-host, .master-term, .screen-wrap)::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-html[data-texture="on"][data-theme="light"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-paper) 0 0 / 180px 180px; opacity: .12; }
+html[data-texture="on"]:is([data-theme="warm"], [data-theme="neon"]) :is(.term-host, .master-term, .screen-wrap)::after, html[data-light-grain="on"][data-theme="light"] :is(.term-host, .master-term, .screen-wrap)::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+/* light: a neutral gray grain with its own switch, off unless turned on */
+html[data-light-grain="on"][data-theme="light"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-paper) 0 0 / 180px 180px; opacity: .12; }
 html[data-texture="on"][data-theme="warm"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-dark) 0 0 / 160px 160px; opacity: .07; }
 html[data-texture="on"][data-theme="neon"] :is(.term-host, .master-term, .screen-wrap)::after { background: repeating-linear-gradient(to bottom, transparent 0 2px, color-mix(in srgb, var(--cyan) 5%, transparent) 2px 3px); }

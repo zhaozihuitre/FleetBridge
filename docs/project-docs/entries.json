@@ -3648,6 +3648,35 @@
       "created": "2026-11-09 10:22",
       "updated": "2026-11-09 10:22",
       "notes": []
+    },
+    {
+      "id": "C-075",
+      "type": "change",
+      "title": "0.9.54 浅色主题改为中性灰白",
+      "summary": "用户要中性灰白、去掉暖意。终端 #f6f7f8，面板 #f4f5f7、panelDeep #eef0f2、页面 #e9ebee、边线 #d8dbe0/#b0b5bd，中性灰阶靠明度分层；文字中性墨色 #2b2d31（12.9:1），16 色在终端上最低 5.8:1，界面次要小字在页面底色上 5.1:1；选中色淡蓝墨 rgba(42,95,143,.18)。浅色的颗粒改为独立开关（服务端 lightGrain，默认关，html[data-light-grain]），开了是中性灰颗粒；其他主题的纹理开关不变。菜单名改为「颗粒纹理」。另外：会话压缩后的「This session is being continued…」摘要（isCompactSummary）不再当成指令显示。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/texture.css",
+        "web/app.js",
+        "web/i18n.js",
+        "server/i18n.js",
+        "server/index.js",
+        "server/collectors/transcript.js",
+        "web/m.js",
+        "web/widget.js",
+        "web/term.js",
+        "web/preview.html"
+      ],
+      "tags": [
+        "theme"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:34",
+      "updated": "2026-11-09 10:34",
+      "notes": []
     }
   ]
 }

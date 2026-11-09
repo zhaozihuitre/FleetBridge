@@ -46,7 +46,7 @@ function render(state) {
 
 new EventSource('/api/stream').onmessage = (e) => {
   const s = JSON.parse(e.data);
-  followTheme(s.theme, s.paper);
+  followTheme(s.theme, s.paper, s.lightGrain);
   render(s);
 };
 

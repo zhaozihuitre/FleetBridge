@@ -7,7 +7,7 @@ import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
-import { getLang, getPaper, getTheme, L, setLang, setPaper, setTheme } from './i18n.js';
+import { getLang, getLightGrain, getPaper, getTheme, L, setLang, setLightGrain, setPaper, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
 import { changes, commit, diff, pushRepo } from './gitops.js';
@@ -147,6 +147,7 @@ function publish() {
     lang: getLang(),
     theme: getTheme(),
     paper: getPaper(),
+    lightGrain: getLightGrain(),
   };
   // queued orders: the next one goes to each of our agents that has finished its turn
   dispatch(state.units.filter((u) => u.owned), (id, text, item) => {
@@ -597,9 +598,10 @@ async function handleRequest(req, res) {
     return send(res, 200, { notices: noticeHistory().slice(0, n).map((x) => ({ ...x, icon: kindIcon(x.kind), word: kindWord(x.kind) })) });
   }
   if (req.method === 'POST' && req.url === '/api/theme') {
-    const { theme, paper } = await readBody(req);
+    const { theme, paper, lightGrain } = await readBody(req);
     if (theme !== undefined) setTheme(theme);
     if (paper !== undefined) setPaper(paper);
+    if (lightGrain !== undefined) setLightGrain(lightGrain);
     publish(); // every open page (and the phone) recolors with the next state
     return send(res, 200, { ok: true, theme: getTheme(), paper: getPaper() });
   }

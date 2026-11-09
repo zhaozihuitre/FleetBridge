@@ -48,14 +48,14 @@ export const THEMES = {
     glow: 'none',
     grain: 'paper',
     // the phone page's screen, where a color is text or background (server/screenhtml.js): brightBlack as
-    // text is a gray ink, white / brightWhite behind text a darker paper
-    paperVars: { '--tf8': '#706860', '--tb7': '#e4e0d6', '--tb15': '#ebe8e0' },
-    // paper: the terminals are near-white paper with only a trace of warmth (not cream), ink colors on it, the
-    // panels, page and lines around them in the same tone. Every ink is at least 4.5:1 on the paper (WCAG AA).
-    ui: { bg: '#ecebe6', panel: '#f8f7f3', panelDeep: '#f2f0eb', line: '#dcd9d1', lineHi: '#b8b3a8', text: '#47413a', soft: '#57514a', muted: '#655e56', dim: '#726b62', accent: '#2a6286', amber: '#82570b', red: '#a43d37', green: '#3b6833', termBg: '#faf9f5' },
-    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a slightly darker
-    // paper here; the selection is a pale wash of the blue ink (no yellow on the white)
-    term: { background: '#faf9f5', foreground: '#38332d', cursor: '#2a5f86', cursorAccent: '#faf9f5', selectionBackground: 'rgba(42,98,134,.18)', black: '#2f2a25', red: '#a8322d', green: '#3d6b2f', yellow: '#7a5306', blue: '#2b5a8f', magenta: '#84407a', cyan: '#22696f', white: '#58514a', brightBlack: '#ebe8e0', brightRed: '#2a5f86', brightGreen: '#356029', brightYellow: '#74500e', brightBlue: '#2d5285', brightMagenta: '#763a6e', brightCyan: '#1f5f64', brightWhite: '#2e2924' },
+    // text is a gray ink, white / brightWhite behind text a darker gray
+    paperVars: { '--tf8': '#5c6068', '--tb7': '#dcdfe4', '--tb15': '#e3e5e9' },
+    // neutral gray-white: no warmth, no cream. Panels, page and lines are one neutral gray scale told apart by
+    // lightness; the text is a neutral ink. Every ink is at least 4.5:1 on the terminal and on the page.
+    ui: { bg: '#e9ebee', panel: '#f4f5f7', panelDeep: '#eef0f2', line: '#d8dbe0', lineHi: '#b0b5bd', text: '#2b2d31', soft: '#43464d', muted: '#55595f', dim: '#5f636a', accent: '#2a5f8f', amber: '#845800', red: '#ab3434', green: '#2e6a39', termBg: '#f6f7f8' },
+    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a light gray here;
+    // the selection is a pale wash of the blue ink
+    term: { background: '#f6f7f8', foreground: '#2b2d31', cursor: '#2a5f8f', cursorAccent: '#f6f7f8', selectionBackground: 'rgba(42,95,143,.18)', black: '#1f2125', red: '#b0302f', green: '#2e6a31', yellow: '#765300', blue: '#2459a6', magenta: '#873f8d', cyan: '#1b6a77', white: '#50545b', brightBlack: '#e3e5e9', brightRed: '#2a5f8f', brightGreen: '#285f2b', brightYellow: '#6b4b00', brightBlue: '#1f4f94', brightMagenta: '#77357e', brightCyan: '#165d68', brightWhite: '#1f2125' },
   },
 };
 export const THEME_KEYS = ['auto', ...Object.keys(THEMES)];
@@ -112,6 +112,9 @@ const ANSI = [...BASE, ...BASE.map((k) => 'bright' + k[0].toUpperCase() + k.slic
 
 /** The terminal texture of the themes that have one (web/texture.css): on unless turned off (kept with the theme
     on the server as "paper", its first name). */
+export function followLightGrain(on) {
+  document.documentElement.dataset.lightGrain = on === true ? 'on' : 'off';
+}
 export function followTexture(on) {
   const v = on === false ? 'off' : 'on';
   if (document.documentElement.dataset.texture === v) return false;
@@ -189,7 +192,15 @@ export function applyTheme(key) {
 let chosen = null;
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => chosen === 'auto' && applyTheme('auto'));
 /** The theme (and the texture switch, when given) from the server state: applied when it changed (cheap to call on every state). */
-export function followTheme(key, paper) {
+export function followTheme(key, paper, lightGrain) {
+  if (lightGrain !== undefined) {
+    followLightGrain(lightGrain);
+    try {
+      localStorage.setItem('fb-light-grain', lightGrain === true ? 'on' : 'off');
+    } catch {
+      // only the first paint of the next visit is affected
+    }
+  }
   if (paper !== undefined && followTexture(paper)) {
     try {
       localStorage.setItem('fb-texture', paper === false ? 'off' : 'on');
@@ -218,4 +229,9 @@ try {
   // storage unavailable
 }
 followTexture(lastPaper !== 'off');
+try {
+  followLightGrain(localStorage.getItem('fb-light-grain') === 'on');
+} catch {
+  followLightGrain(false);
+}
 followTheme(last || DEFAULT_THEME);

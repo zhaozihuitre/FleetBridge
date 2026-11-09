@@ -435,7 +435,7 @@ function connect() {
   };
   es.onmessage = (e) => {
     state = JSON.parse(e.data);
-    followTheme(state.theme, state.paper);
+    followTheme(state.theme, state.paper, state.lightGrain);
     render();
   };
   es.onerror = async () => {

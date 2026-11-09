@@ -58,7 +58,8 @@ function apply(st, d) {
         if (p) st.edits.set(p.replace(/\\/g, '/').toLowerCase(), d.timestamp);
       }
     }
-  } else if (d.type === 'user' && msg && typeof msg.content === 'string' && !d.isMeta) {
+  } else if (d.type === 'user' && msg && typeof msg.content === 'string' && !d.isMeta && !d.isCompactSummary) {
+    // (a compaction's summary of the conversation so far is not an order: isCompactSummary is skipped)
     // null for a command's own output or a system note: not what the agent was asked
     const line = promptLine(msg.content);
     if (line) st.lastPrompt = line;

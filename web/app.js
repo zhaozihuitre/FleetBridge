@@ -2112,9 +2112,9 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '纸面：近白的纸，一点暖意，墨水色文字，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '灰白：中性灰阶，墨色文字，白天用' };
 // the texture each theme has (web/texture.css), named in the menu for the theme in use
-const TEXTURE_NAME = { paper: '纸张纹理', dark: '纸张颗粒', scan: '扫描线' };
+const TEXTURE_NAME = { paper: '颗粒纹理', dark: '纸张颗粒', scan: '扫描线' };
 function renderThemeMenu() {
   const cur = state?.theme || 'deepspace';
   $('theme-menu').innerHTML = THEME_KEYS.map((k) => {
@@ -2127,7 +2127,8 @@ function renderThemeMenu() {
 }
 function textureItem() {
   const T = THEMES[document.documentElement.dataset.theme] || THEMES.deepspace;
-  const on = state?.paper !== false;
+  const light = T === THEMES.light;
+  const on = light ? state?.lightGrain === true : state?.paper !== false;
   const name = T.grain ? L(TEXTURE_NAME[T.grain]) : L('终端纹理');
   const note = T.grain ? L('终端上一层很淡的纹理，跟主题风格走；关掉就是纯色') : L('这个主题没有纹理（只有浅色、暖色、霓虹有）');
   return `<button role="menuitemcheckbox" class="paper-opt" aria-checked="${on}" ${T.grain ? '' : 'disabled'} title="${esc(note)}"><span class="sw"><i style="background:${T.term.background}"></i></span>${esc(name)}</button>`;
@@ -2149,8 +2150,15 @@ $('theme-btn').addEventListener('click', (e) => {
 $('theme-menu').addEventListener('click', async (e) => {
   // only the menu's own items: the page root carries data-theme and data-paper too
   if (e.target.closest('#theme-menu .paper-opt')) {
-    const on = state?.paper === false;
     toggleThemeMenu(false);
+    // the light theme's grain has its own switch (off by default); the other themes share theirs
+    if (document.documentElement.dataset.theme === 'light') {
+      const on = state?.lightGrain !== true;
+      followTheme(state?.theme, state?.paper, on);
+      if (state) state.lightGrain = on;
+      return post('/api/theme', { lightGrain: on });
+    }
+    const on = state?.paper === false;
     followTheme(state?.theme, on);
     if (state) state.paper = on;
     await post('/api/theme', { paper: on });
@@ -2464,7 +2472,7 @@ function connect() {
   es.onmessage = (e) => {
     const first = !state;
     state = JSON.parse(e.data);
-    followTheme(state.theme, state.paper);
+    followTheme(state.theme, state.paper, state.lightGrain);
     // deep link: /#term=<id>[,<id>...] opens those agents' terminals (split view)
     const deep = first && location.hash.match(/^#term=([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/);
     if (first && !deep) {

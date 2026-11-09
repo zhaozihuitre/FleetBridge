@@ -59,6 +59,28 @@ let paper = (() => {
   }
 })();
 export const getPaper = () => paper;
+// the light theme's grain: off unless turned on
+let lightGrain = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(FILE, 'utf8')).lightGrain === true;
+  } catch {
+    return false;
+  }
+})();
+export const getLightGrain = () => lightGrain;
+export function setLightGrain(on) {
+  if (typeof on !== 'boolean' || on === lightGrain) return false;
+  lightGrain = on;
+  let s = {};
+  try {
+    s = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  } catch {
+    // first setting
+  }
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(FILE, JSON.stringify({ ...s, lightGrain }, null, 2));
+  return true;
+}
 export function setPaper(on) {
   if (typeof on !== 'boolean' || on === paper) return false;
   paper = on;
