@@ -3574,6 +3574,28 @@
       "created": "2026-11-09 10:02",
       "updated": "2026-11-09 10:02",
       "notes": []
+    },
+    {
+      "id": "C-072",
+      "type": "change",
+      "title": "0.9.51 浅色主题从纸色改成近白",
+      "summary": "用户反馈纸色太黄。终端底色 #f6f1e7 → #faf9f5（只留一点暖意，不要米黄），面板 #f8f7f3、panelDeep #f2f0eb、页面底色 #ecebe6、边线 #dcd9d1/#b8b3a8 同一色调。正文墨色 #38332d（11.9:1），黄/亮黄略加深（#7a5306/#74500e），16 色在新底色上最低 6.0:1；界面文字 text 9.4、dim 4.9（面板上）。选中色由黄色荧光笔改为淡蓝墨 rgba(42,98,134,.18)。brightBlack（Claude 高亮面板）#ebe8e0，手机页 --tf8/--tb7/--tb15 同步。纸张颗粒 opacity .22 → .12。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/texture.css",
+        "web/app.js",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "theme"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:06",
+      "updated": "2026-11-09 10:06",
+      "notes": []
     }
   ]
 }

@@ -11,6 +11,6 @@
 }
 html:is([data-theme="light"], [data-theme="warm"], [data-theme="neon"]) :is(.term-host, .master-term, .screen-wrap) { position: relative; }
 html[data-texture="on"]:is([data-theme="light"], [data-theme="warm"], [data-theme="neon"]) :is(.term-host, .master-term, .screen-wrap)::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-html[data-texture="on"][data-theme="light"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-paper) 0 0 / 180px 180px; opacity: .22; }
+html[data-texture="on"][data-theme="light"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-paper) 0 0 / 180px 180px; opacity: .12; }
 html[data-texture="on"][data-theme="warm"] :is(.term-host, .master-term, .screen-wrap)::after { background: var(--grain-dark) 0 0 / 160px 160px; opacity: .07; }
 html[data-texture="on"][data-theme="neon"] :is(.term-host, .master-term, .screen-wrap)::after { background: repeating-linear-gradient(to bottom, transparent 0 2px, color-mix(in srgb, var(--cyan) 5%, transparent) 2px 3px); }

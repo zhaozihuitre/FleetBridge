@@ -1990,7 +1990,7 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '纸面：暖纸色，墨水色文字，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '纸面：近白的纸，一点暖意，墨水色文字，白天用' };
 // the texture each theme has (web/texture.css), named in the menu for the theme in use
 const TEXTURE_NAME = { paper: '纸张纹理', dark: '纸张颗粒', scan: '扫描线' };
 function renderThemeMenu() {

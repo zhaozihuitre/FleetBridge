@@ -49,13 +49,13 @@ export const THEMES = {
     grain: 'paper',
     // the phone page's screen, where a color is text or background (server/screenhtml.js): brightBlack as
     // text is a gray ink, white / brightWhite behind text a darker paper
-    paperVars: { '--tf8': '#73695d', '--tb7': '#ddd4c3', '--tb15': '#e5ddce' },
-    // paper: the terminals are warm off-white paper with ink colors, the panels around them the same warm
-    // tone (no cool gray frame around a warm sheet). Every ink is at least 4.5:1 on the paper (WCAG AA body text).
-    ui: { bg: '#e8e2d6', panel: '#f2ede3', panelDeep: '#ece6da', line: '#d7cfc0', lineHi: '#b3a893', text: '#4a433a', soft: '#5a5248', muted: '#675e54', dim: '#746a5e', accent: '#2a6286', amber: '#875a0e', red: '#a9403a', green: '#3d6b35', termBg: '#f6f1e7' },
-    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a darker paper here;
-    // the selection is a pale highlighter over the ink
-    term: { background: '#f6f1e7', foreground: '#3b352e', cursor: '#2a5f86', cursorAccent: '#f6f1e7', selectionBackground: 'rgba(205,160,60,.32)', black: '#2f2a25', red: '#a8322d', green: '#3d6b2f', yellow: '#805808', blue: '#2b5a8f', magenta: '#84407a', cyan: '#22696f', white: '#5a524a', brightBlack: '#e5ddce', brightRed: '#2a5f86', brightGreen: '#356029', brightYellow: '#7a5410', brightBlue: '#2d5285', brightMagenta: '#763a6e', brightCyan: '#1f5f64', brightWhite: '#2e2924' },
+    paperVars: { '--tf8': '#706860', '--tb7': '#e4e0d6', '--tb15': '#ebe8e0' },
+    // paper: the terminals are near-white paper with only a trace of warmth (not cream), ink colors on it, the
+    // panels, page and lines around them in the same tone. Every ink is at least 4.5:1 on the paper (WCAG AA).
+    ui: { bg: '#ecebe6', panel: '#f8f7f3', panelDeep: '#f2f0eb', line: '#dcd9d1', lineHi: '#b8b3a8', text: '#47413a', soft: '#57514a', muted: '#655e56', dim: '#726b62', accent: '#2a6286', amber: '#82570b', red: '#a43d37', green: '#3b6833', termBg: '#faf9f5' },
+    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a slightly darker
+    // paper here; the selection is a pale wash of the blue ink (no yellow on the white)
+    term: { background: '#faf9f5', foreground: '#38332d', cursor: '#2a5f86', cursorAccent: '#faf9f5', selectionBackground: 'rgba(42,98,134,.18)', black: '#2f2a25', red: '#a8322d', green: '#3d6b2f', yellow: '#7a5306', blue: '#2b5a8f', magenta: '#84407a', cyan: '#22696f', white: '#58514a', brightBlack: '#ebe8e0', brightRed: '#2a5f86', brightGreen: '#356029', brightYellow: '#74500e', brightBlue: '#2d5285', brightMagenta: '#763a6e', brightCyan: '#1f5f64', brightWhite: '#2e2924' },
   },
 };
 export const THEME_KEYS = ['auto', ...Object.keys(THEMES)];
