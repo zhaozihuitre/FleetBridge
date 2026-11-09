@@ -2234,7 +2234,7 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '灰白：中性灰阶，墨色文字，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '灰白：中性灰阶，墨色文字，白天用', holo: '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光', cyber: '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁', bridge: '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过' };
 // the texture each theme has (web/texture.css), named in the menu for the theme in use
 const TEXTURE_NAME = { paper: '颗粒纹理', dark: '纸张颗粒', scan: '扫描线' };
 function renderThemeMenu() {

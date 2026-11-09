@@ -152,6 +152,13 @@ const EN = {
   '{0} 分 {1} 秒': '{0} min {1} s',
   '{0} 天 {1} 小时': '{0} d {1} h',
   '已持续 {0}': 'for {0}',
+  // flagship themes
+  '全息 HUD': 'Hologram HUD',
+  '赛博朋克': 'Cyberpunk',
+  '深空舰桥': 'Deep-space bridge',
+  '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光': 'Flagship · Hologram HUD: glass panels, corner brackets, a cyan glow, a slow scan line behind',
+  '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁': 'Flagship · Cyberpunk: magenta / cyan neon edges, a horizon grid, a glitch on the title now and then',
+  '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过': 'Flagship · Deep-space bridge: a slowly drifting starfield, a radar on the command desk, a beam of light on a state change',
 };
 
 const JA = {
@@ -289,6 +296,13 @@ const JA = {
   '{0} 分 {1} 秒': '{0} 分 {1} 秒',
   '{0} 天 {1} 小时': '{0} 日 {1} 時間',
   '已持续 {0}': '{0} 継続',
+  // flagship themes
+  '全息 HUD': 'ホログラム HUD',
+  '赛博朋克': 'サイバーパンク',
+  '深空舰桥': '深宇宙ブリッジ',
+  '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光': 'フラッグシップ · ホログラム HUD：ガラスのパネル、角のブラケット、シアンの光、背景にゆっくり走るスキャンライン',
+  '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁': 'フラッグシップ · サイバーパンク：マゼンタ / シアンのネオン縁取り、地平線グリッド、タイトルにときどきグリッチ',
+  '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过': 'フラッグシップ · 深宇宙ブリッジ：ゆっくり流れる星空、司令デスクのレーダー、状態が変わると光のビーム',
 };
 
 const DICT = { en: EN, ja: JA };

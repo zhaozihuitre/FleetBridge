@@ -3898,6 +3898,36 @@
       "created": "2026-11-09 17:28",
       "updated": "2026-11-09 17:28",
       "notes": []
+    },
+    {
+      "id": "C-081",
+      "type": "change",
+      "title": "0.9.63 三个旗舰主题：全息 HUD、赛博朋克、深空舰桥",
+      "summary": "主题菜单新增三个带动态效果的旗舰主题，现有 5 个不变；指挥中心、分屏、弹出终端、小窗、手机页都覆盖；终端区域一律实色，文字对比度 AA 以上；动效遵守减少动态效果，页面隐藏或最小化时停止。",
+      "detail": "配色在 web/theme.js（holo / cyber / bridge，各带 fx 字段），theme.js 给 <html> 设 data-fx。效果在 web/fx.css（这张表不参与 theme.js 的按角色换色，里面的颜色是专门写的）和 web/fx.js（每个页面在最底下放一层 fixed 的背景层，z-index -1，页面自己的背景改成透明，html 带底色）。全息：玻璃面板（指挥中心 backdrop-filter，手机只半透明）、四角 L 形括号、网格和光晕背景、每 9 秒一道扫描光（transform 动画）。赛博朋克：洋红边框加青色残影和外辉光、透视网格地平线、标题每 8 秒 RGB 错位故障（小窗不动）、状态变化时卡片抖一下、顶栏斜纹。深空舰桥：canvas 星空（三层视差，每秒 24 帧，setTimeout 驱动，只在指挥中心和弹出终端；手机是 CSS 画的静止星点；小窗没有背景层）、总指令台角上的雷达（10 秒一圈）、状态变化时光束扫过卡片。减少动态效果：所有动画只写在 no-preference 里，星空只画一帧；页面隐藏时 html.fx-paused 暂停所有 CSS 动画，星空停止。开发实例实测：页面 CPU 深空 13.9%、全息 11.8%、赛博 14.8%、舰桥 15.9%（星空脚本约 0.9%）；减少动态效果时运行中的动画 0 个；终端背景都是不透明的实色。服务端 i18n.js 的主题列表加了三个键。",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/fx.css",
+        "web/fx.js",
+        "web/app.js",
+        "web/i18n.js",
+        "web/index.html",
+        "web/term.html",
+        "web/m.html",
+        "web/widget.html",
+        "server/i18n.js"
+      ],
+      "tags": [
+        "主题",
+        "动效",
+        "UI"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 17:52",
+      "updated": "2026-11-09 17:52",
+      "notes": []
     }
   ]
 }

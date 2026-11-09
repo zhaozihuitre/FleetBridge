@@ -1,0 +1,104 @@
+/* The flagship themes' effects (holo / cyber / bridge, <html data-fx>, set by theme.js; the background layer is
+   made by fx.js). This sheet is written for those themes and is not recolored by theme.js (literal colors are
+   meant). The terminals keep their solid backgrounds: no glass, no layer, no overlay over terminal text.
+   Everything that moves runs only with motion allowed, and pauses while the page is hidden (.fx-paused).
+   Pages: .fx-main (command center), .fx-term (popped-out terminal), .fx-phone, .fx-widget (no layer). */
+
+/* ---- the layer behind every page ---- */
+.fx-layer { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.fx-layer > * { position: absolute; display: none; }
+.fx-layer .fx-stars { display: block; inset: 0; width: 100%; height: 100%; }
+html:not([data-fx]) .fx-layer { display: none; }
+html[data-fx]:not(.fx-widget) { background: var(--bg); }
+html[data-fx]:not(.fx-widget) body { background: transparent; }
+html[data-fx].fx-main .screen { background: transparent; }
+html.fx-paused * { animation-play-state: paused !important; }
+
+/* ---- ① holo: a hologram on the bridge ---- */
+html[data-fx=holo] { --fx-a: #55eeff; --fx-b: #3a8bff; --fx-glass: rgba(7, 21, 34, .72); --fx-k: rgba(85, 238, 255, .85); }
+html[data-fx=holo] .fx-layer {
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(58, 139, 255, .22), transparent 60%),
+    radial-gradient(ellipse at 100% 110%, rgba(85, 238, 255, .1), transparent 55%),
+    linear-gradient(rgba(85, 238, 255, .04) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(85, 238, 255, .04) 1px, transparent 1px) 0 0 / 32px 32px,
+    #030a12;
+}
+/* the scan line: a soft band drifting down the background every 9 s, behind the panels */
+html[data-fx=holo] .fx-sweep { display: block; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(transparent, rgba(85, 238, 255, .09) 50%, transparent); transform: translateY(-140px); }
+@media (prefers-reduced-motion: no-preference) { html[data-fx=holo] .fx-sweep { animation: fx-holo-sweep 9s linear infinite; will-change: transform; } }
+@keyframes fx-holo-sweep { to { transform: translateY(calc(100vh + 20px)); } }
+/* glass panels (the terminals stay solid) */
+html[data-fx=holo].fx-main :is(.box, .unit, .operator, .tab) { background-color: var(--fx-glass); backdrop-filter: blur(6px); }
+html[data-fx=holo].fx-phone .card { background: var(--fx-glass); }
+/* L-shaped corner brackets, drawn as backgrounds (corners a panel cuts off simply don't show) */
+html[data-fx=holo].fx-main :is(.unit, .operator, .pane, .box), html[data-fx=holo].fx-phone .card, html[data-fx=holo].fx-widget .w {
+  background-image:
+    linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k)),
+    linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k)), linear-gradient(var(--fx-k), var(--fx-k));
+  background-repeat: no-repeat;
+  background-size: 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px;
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+}
+html[data-fx=holo].fx-main :is(.unit, .operator), html[data-fx=holo].fx-phone .card { box-shadow: inset 0 0 30px rgba(85, 238, 255, .07), 0 0 18px rgba(85, 238, 255, .1); }
+html[data-fx=holo] .tab[aria-selected=true] { box-shadow: 0 6px 14px -8px #55eeff; }
+html[data-fx=holo] :is(.brand b, .w-head .logo), html[data-fx=holo] .tab[aria-selected=true] .cn { text-shadow: 0 0 10px rgba(85, 238, 255, .7); }
+
+/* ---- ② cyber: neon city ---- */
+html[data-fx=cyber] { --fx-hot: #ff2bd6; --fx-cool: #2af2ff; }
+html[data-fx=cyber] .fx-layer { background: radial-gradient(ellipse at 15% 0%, rgba(255, 43, 214, .16), transparent 50%), radial-gradient(ellipse at 90% 100%, rgba(42, 242, 255, .12), transparent 50%), #0a0612; }
+/* the horizon: a perspective grid floor at the bottom of the background */
+html[data-fx=cyber] .fx-horizon {
+  display: block; left: -20%; right: -20%; bottom: 0; height: 38vh; opacity: .55;
+  background-image: linear-gradient(rgba(255, 43, 214, .3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 43, 214, .3) 1px, transparent 1px);
+  background-size: 60px 30px; transform: perspective(300px) rotateX(58deg); transform-origin: bottom;
+  -webkit-mask-image: linear-gradient(transparent, #000 70%); mask-image: linear-gradient(transparent, #000 70%);
+}
+/* neon tubes: a magenta edge with a cyan ghost */
+html[data-fx=cyber].fx-main :is(.unit, .operator, .pane), html[data-fx=cyber].fx-phone .card, html[data-fx=cyber].fx-widget .w {
+  border-color: rgba(255, 43, 214, .6);
+  box-shadow: -2px 0 0 rgba(42, 242, 255, .45), 0 0 16px rgba(255, 43, 214, .22), inset 0 0 22px rgba(255, 43, 214, .06);
+}
+html[data-fx=cyber].fx-main .box { border-color: rgba(42, 242, 255, .35); }
+html[data-fx=cyber] .tab[aria-selected=true] { border-bottom-color: #ff2bd6; box-shadow: 0 4px 14px -6px #ff2bd6; }
+html[data-fx=cyber] :is(.brand b, .w-head .logo) { color: #2af2ff; text-shadow: -1.5px 0 #ff2bd6, 1.5px 0 rgba(42, 242, 255, .6); }
+/* glitch: an RGB split / slice jitter on the title every 8 s (not the widget's: always on screen), and once on a
+   card whose state just changed */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-fx=cyber]:is(.fx-main, .fx-phone, .fx-term) .brand b { animation: fx-cy-glitch 8s steps(1) infinite; }
+  html[data-fx=cyber].fx-main .unit.flash { animation: fx-cy-card .45s steps(2) 1; }
+}
+@keyframes fx-cy-glitch { 0%, 92%, 100% { transform: none; clip-path: none; } 93% { transform: translate(-2px, 1px); clip-path: inset(10% 0 55% 0); text-shadow: -3px 0 #ff2bd6, 3px 0 #2af2ff; } 94% { transform: translate(2px, -1px); clip-path: inset(55% 0 8% 0); } 95% { transform: translate(-1px, 0); clip-path: inset(30% 0 30% 0); } 96% { transform: none; clip-path: none; } }
+@keyframes fx-cy-card { 0% { transform: translate(2px, 0); filter: hue-rotate(40deg); } 50% { transform: translate(-2px, 1px); } 100% { transform: none; filter: none; } }
+/* hazard stripes along the header's right block */
+html[data-fx=cyber].fx-main .pilot { background-image: repeating-linear-gradient(135deg, rgba(255, 43, 214, .14) 0 6px, transparent 6px 14px); background-size: 100% 4px; background-repeat: no-repeat; background-position: bottom; }
+
+/* ---- ③ bridge: a ship in deep space ---- */
+html[data-fx=bridge] { --fx-a: #7cc4ff; --fx-glass: rgba(10, 16, 34, .82); }
+html[data-fx=bridge] .fx-layer { background: radial-gradient(ellipse at 70% 20%, #0d1633, #04060f 65%); }
+/* the phone: still stars instead of the canvas (scattered dots on a tile) */
+html[data-fx=bridge].fx-phone .fx-layer {
+  background:
+    radial-gradient(1px 1px at 13px 21px, rgba(190, 220, 255, .8), transparent), radial-gradient(1px 1px at 71px 9px, rgba(150, 180, 235, .6), transparent),
+    radial-gradient(1.5px 1.5px at 97px 63px, rgba(190, 220, 255, .9), transparent), radial-gradient(1px 1px at 41px 88px, rgba(150, 180, 235, .5), transparent),
+    radial-gradient(1px 1px at 128px 117px, rgba(150, 180, 235, .6), transparent), radial-gradient(1px 1px at 9px 131px, rgba(190, 220, 255, .7), transparent),
+    radial-gradient(ellipse at 70% 20%, #0d1633, #04060f 65%);
+  background-size: 140px 140px, 140px 140px, 140px 140px, 140px 140px, 140px 140px, 140px 140px, auto;
+}
+html[data-fx=bridge].fx-main :is(.box, .unit, .operator, .tab) { background-color: var(--fx-glass); }
+html[data-fx=bridge].fx-phone .card { background: var(--fx-glass); }
+html[data-fx=bridge].fx-main :is(.unit, .operator), html[data-fx=bridge].fx-phone .card { box-shadow: 0 0 22px rgba(124, 196, 255, .09); }
+/* the radar: a slow sweep in the command desk's corner */
+html[data-fx=bridge].fx-main .operator::after {
+  content: ''; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; pointer-events: none; opacity: .5;
+  background: conic-gradient(from 0deg, rgba(124, 196, 255, .28), transparent 22%), repeating-radial-gradient(circle, transparent 0 24px, rgba(124, 196, 255, .18) 24px 25px);
+}
+@media (prefers-reduced-motion: no-preference) { html[data-fx=bridge].fx-main .operator::after { animation: fx-br-radar 10s linear infinite; } }
+@keyframes fx-br-radar { to { transform: rotate(360deg); } }
+/* a state change: a beam of light across the card (instead of the plain flash) */
+html[data-fx=bridge].fx-main .unit.flash::after {
+  background: linear-gradient(100deg, transparent 30%, rgba(124, 196, 255, .4) 48%, rgba(255, 255, 255, .35) 50%, rgba(124, 196, 255, .4) 52%, transparent 70%);
+  background-size: 250% 100%; animation: fx-br-beam 1.1s ease-out forwards;
+}
+@keyframes fx-br-beam { from { background-position: 120% 0; opacity: 1; } to { background-position: -40% 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { html[data-fx=bridge].fx-main .unit.flash::after { animation: none; opacity: 0; } }

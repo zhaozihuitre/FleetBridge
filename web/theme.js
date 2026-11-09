@@ -8,6 +8,8 @@
 // Body text sits around 7:1 on the panels in the new themes (between WCAG AA and AAA): readable
 // without the glare of the neon one's 17:1; glowing text (blurred edges) is off in all of them.
 
+import './fx.js';
+
 export const THEMES = {
   neon: {
     name: '霓虹（原版）',
@@ -56,6 +58,33 @@ export const THEMES = {
     // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a light gray here;
     // the selection is a pale wash of the blue ink
     term: { background: '#f6f7f8', foreground: '#2b2d31', cursor: '#2a5f8f', cursorAccent: '#f6f7f8', selectionBackground: 'rgba(42,95,143,.18)', black: '#1f2125', red: '#b0302f', green: '#2e6a31', yellow: '#765300', blue: '#2459a6', magenta: '#873f8d', cyan: '#1b6a77', white: '#50545b', brightBlack: '#e3e5e9', brightRed: '#2a5f8f', brightGreen: '#285f2b', brightYellow: '#6b4b00', brightBlue: '#1f4f94', brightMagenta: '#77357e', brightCyan: '#165d68', brightWhite: '#1f2125' },
+  },
+  holo: {
+    name: '全息 HUD',
+    glow: 'soft',
+    fx: 'holo',
+    // a hologram on the bridge: glass panels letting a cool glow through, L-shaped corner brackets in the accent,
+    // a faint grid and a scan line drifting down behind the panels (web/fx.css, web/fx.js)
+    ui: { bg: '#030a12', panel: '#071522', panelDeep: '#05101b', line: '#12384d', lineHi: '#1e7590', text: '#d6f7ff', soft: '#a9dbe9', muted: '#86bccd', dim: '#6aa3b6', accent: '#55eeff', amber: '#ffc56e', red: '#ff6b86', green: '#5cffc1', termBg: '#040d17' },
+    term: { background: '#040d17', foreground: '#c9f1fa', cursor: '#55eeff', cursorAccent: '#040d17', selectionBackground: 'rgba(85,238,255,.25)', black: '#0b1d2b', red: '#ff6b86', green: '#5cffc1', yellow: '#ffc56e', blue: '#6fb7ff', magenta: '#c792ff', cyan: '#55eeff', white: '#9fc9d6', brightBlack: '#1b3446', brightRed: '#55eeff', brightGreen: '#8fffd6', brightYellow: '#ffd896', brightBlue: '#9ccfff', brightMagenta: '#dcb6ff', brightCyan: '#a8f7ff', brightWhite: '#e6fbff' },
+  },
+  cyber: {
+    name: '赛博朋克',
+    glow: 'soft',
+    fx: 'cyber',
+    // neon city: magenta / cyan neon tubes on the panels' edges, a perspective grid on the horizon, a short glitch on
+    // the title now and then and on a card whose state changes
+    ui: { bg: '#0a0612', panel: '#140b20', panelDeep: '#100819', line: '#2c1a42', lineHi: '#7a2f9a', text: '#f3eaff', soft: '#d2c2ee', muted: '#b19fd3', dim: '#9a88bf', accent: '#2af2ff', amber: '#ffe14d', red: '#ff3d71', green: '#3dffa2', termBg: '#0c0714' },
+    term: { background: '#0c0714', foreground: '#e9e0ff', cursor: '#ff2bd6', cursorAccent: '#0c0714', selectionBackground: 'rgba(255,43,214,.28)', black: '#1c1029', red: '#ff3d71', green: '#3dffa2', yellow: '#ffe14d', blue: '#5aa8ff', magenta: '#ff4fd8', cyan: '#2af2ff', white: '#bfb2dc', brightBlack: '#2d1c42', brightRed: '#ff2bd6', brightGreen: '#7dffc2', brightYellow: '#fff07a', brightBlue: '#8cc3ff', brightMagenta: '#ff8ae6', brightCyan: '#8ff8ff', brightWhite: '#f7f1ff' },
+  },
+  bridge: {
+    name: '深空舰桥',
+    glow: 'soft',
+    fx: 'bridge',
+    // the bridge of a ship in deep space: a slowly drifting starfield behind panels you can almost see through, a
+    // radar sweeping in the command desk's corner, a beam of light across a card whose state changes
+    ui: { bg: '#04060f', panel: '#0a1022', panelDeep: '#080d1c', line: '#1a2547', lineHi: '#34508f', text: '#e1e9ff', soft: '#b8c6ec', muted: '#97a8d6', dim: '#8091c2', accent: '#7cc4ff', amber: '#ffbe6b', red: '#ff6f86', green: '#72e6a8', termBg: '#060a17' },
+    term: { background: '#060a17', foreground: '#d4def7', cursor: '#9fd4ff', cursorAccent: '#060a17', selectionBackground: 'rgba(124,196,255,.25)', black: '#121a33', red: '#ff6f86', green: '#72e6a8', yellow: '#ffcf7a', blue: '#7cb4ff', magenta: '#c39bff', cyan: '#6fd6e8', white: '#a9b6d8', brightBlack: '#1c2850', brightRed: '#7cc4ff', brightGreen: '#98f0bf', brightYellow: '#ffdc9a', brightBlue: '#a2caff', brightMagenta: '#d8bdff', brightCyan: '#9ae6f2', brightWhite: '#eef3ff' },
   },
 };
 export const THEME_KEYS = ['auto', ...Object.keys(THEMES)];
@@ -135,6 +164,8 @@ export function applyTheme(key) {
   const name = resolveTheme(key);
   const T = THEMES[name];
   for (const sheet of document.styleSheets) {
+    // fx.css: the flagship themes' own effects, written for them: not recolored
+    if (sheet.href && /\/fx\.css/.test(sheet.href)) continue;
     try {
       record(sheet.cssRules);
     } catch {
@@ -175,6 +206,9 @@ export function applyTheme(key) {
   }
   const root = document.documentElement;
   root.dataset.theme = name;
+  // the flagship themes' effects (fx.css / fx.js), none for the others
+  if (T.fx) root.dataset.fx = T.fx;
+  else delete root.dataset.fx;
   // the phone page's terminal (colored by the server with --t0..--t15) in the theme's terminal colors, the
   // same as the command center's xterm; the paper theme adds its text/background variants
   ANSI.forEach((k, i) => root.style.setProperty(`--t${i}`, T.term[k]));
