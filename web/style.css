@@ -417,6 +417,12 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .deploy label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .deploy input, .deploy textarea { background: var(--x-050a12); border: 1px solid var(--line-hi); color: var(--text); font-family: var(--body); font-size: 14px; padding: 8px 10px; resize: vertical; }
 .deploy input:focus, .deploy textarea:focus { outline: 1px solid var(--cyan); }
+/* the folder field's suggestion list (app.js showFolders), drawn under the field in the theme's colors */
+.dp-combo { position: relative; display: flex; flex-direction: column; }
+.cmd-suggest.dp-suggest { top: calc(100% + 4px); bottom: auto; z-index: 30; max-height: 240px; }
+.dp-suggest .sg small { font-family: 'Cascadia Mono', Consolas, monospace; }
+/* native checkboxes and radio buttons in the theme's accent (they were the OS blue, white on the light theme too) */
+input[type=checkbox], input[type=radio] { accent-color: var(--cyan); }
 .dp-mode { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--x-050a12); border: 1px solid var(--line); }
 .dp-mode[hidden] { display: none; }
 .deploy .dp-mode label { flex-direction: row; align-items: center; gap: 8px; color: var(--text); cursor: pointer; }

@@ -165,8 +165,7 @@
 <dialog class="deploy" id="deploy">
 <form method="dialog" id="deploy-form">
 <h2><span class="mono">DEPLOY</span> 出击 · 启动新的 Claude Code</h2>
-<label>作战地点（文件夹）<input id="dp-cwd" list="dp-folders" required autocomplete="off" placeholder="D:\projects\xxx"></label>
-<datalist id="dp-folders"></datalist>
+<label>作战地点（文件夹）<span class="dp-combo"><input id="dp-cwd" required autocomplete="off" spellcheck="false" placeholder="D:\projects\xxx" role="combobox" aria-autocomplete="list" aria-controls="dp-folders" aria-expanded="false"><span class="cmd-suggest dp-suggest" id="dp-folders" role="listbox" aria-label="最近用过的文件夹" hidden></span></span></label>
 <div class="dp-mode" id="dp-mode" hidden>
 <label><input type="radio" name="dp-mode" value="resume" checked> <span id="dp-latest"></span></label>
 <label><input type="radio" name="dp-mode" value="new"> 开新会话</label>

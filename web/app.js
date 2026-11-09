@@ -1456,7 +1456,8 @@ function openDeploy() {
   const cwds = new Map();
   for (const u of state?.units || []) cwds.set(u.cwd.toLowerCase(), u.cwd);
   for (const h of state?.history || []) cwds.set(h.cwd.toLowerCase(), h.cwd);
-  $('dp-folders').innerHTML = [...cwds.values()].map((c) => `<option value="${esc(c)}"></option>`).join('');
+  dpFolders = [...cwds.values()];
+  closeFolders();
   $('dp-err').textContent = '';
   $('deploy-form').reset();
   updateDeployMode();
@@ -1486,6 +1487,68 @@ function updateDeployMode() {
 $('dp-cwd').addEventListener('input', () => {
   $('deploy-form').elements['dp-mode'].value = 'resume'; // a new folder starts back at "continue latest"
   updateDeployMode();
+  showFolders();
+});
+
+// The folders the deploy dialog offers (running units and the archive): a list drawn by the page in the theme's
+// colors (a native <datalist> pops up in the OS's own white). Typing filters it; arrows, Enter, Esc, a click.
+let dpFolders = [];
+let folderPick = -1;
+function showFolders() {
+  const box = $('dp-folders');
+  const q = $('dp-cwd').value.trim().toLowerCase();
+  const hits = dpFolders.filter((f) => !q || f.toLowerCase().includes(q)).slice(0, 50);
+  if (!hits.length || (hits.length === 1 && hits[0].toLowerCase() === q)) return closeFolders();
+  folderPick = Math.min(folderPick, hits.length - 1);
+  box.innerHTML = hits
+    .map((f, i) => {
+      const name = f.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || f;
+      return `<div class="sg ${i === folderPick ? 'on' : ''}" role="option" id="dp-f${i}" aria-selected="${i === folderPick}" data-path="${esc(f)}"><b>${esc(name)}</b><small>${esc(f)}</small></div>`;
+    })
+    .join('');
+  box.hidden = false;
+  $('dp-cwd').setAttribute('aria-expanded', 'true');
+  if (folderPick >= 0) $('dp-cwd').setAttribute('aria-activedescendant', `dp-f${folderPick}`);
+  else $('dp-cwd').removeAttribute('aria-activedescendant');
+  box.querySelector('.sg.on')?.scrollIntoView({ block: 'nearest' });
+}
+function closeFolders() {
+  $('dp-folders').hidden = true;
+  $('dp-cwd').setAttribute('aria-expanded', 'false');
+  $('dp-cwd').removeAttribute('aria-activedescendant');
+  folderPick = -1;
+}
+function pickFolder(path) {
+  $('dp-cwd').value = path;
+  closeFolders();
+  $('deploy-form').elements['dp-mode'].value = 'resume';
+  updateDeployMode();
+}
+$('dp-cwd').addEventListener('focus', showFolders);
+$('dp-cwd').addEventListener('click', showFolders);
+$('dp-cwd').addEventListener('blur', () => setTimeout(closeFolders, 120));
+$('dp-cwd').addEventListener('keydown', (e) => {
+  const open = !$('dp-folders').hidden;
+  const n = $('dp-folders').children.length;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!open) return showFolders();
+    folderPick = e.key === 'ArrowDown' ? (folderPick + 1) % n : (folderPick - 1 + n) % n;
+    showFolders();
+  } else if (e.key === 'Enter' && open && folderPick >= 0) {
+    e.preventDefault(); // pick it, don't deploy yet
+    pickFolder($('dp-folders').children[folderPick].dataset.path);
+  } else if (e.key === 'Escape' && open) {
+    e.preventDefault(); // close the list, not the dialog
+    e.stopPropagation();
+    closeFolders();
+  }
+});
+// mousedown, not click: the input keeps its focus (its blur would close the list first)
+$('dp-folders').addEventListener('mousedown', (e) => {
+  const sg = e.target.closest('.sg');
+  e.preventDefault();
+  if (sg) pickFolder(sg.dataset.path);
 });
 $('dp-mode').addEventListener('change', updateDeployMode);
 $('deploy-open').addEventListener('click', openDeploy);

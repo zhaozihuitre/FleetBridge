@@ -3809,6 +3809,29 @@
       "created": "2026-11-09 16:42",
       "updated": "2026-11-09 16:42",
       "notes": []
+    },
+    {
+      "id": "I-039",
+      "type": "issue",
+      "title": "出击对话框的文件夹下拉是白色背景，不跟主题",
+      "summary": "原生 datalist 的弹出框由系统绘制，不受页面主题控制；改成页面自己画的建议列表，各主题的背景、文字、边框、选中、悬停和滚动条都跟随主题。",
+      "detail": "原因：作战地点输入框用的是 <input list> + <datalist>，Chromium/Electron 在 Windows 上用系统控件画弹出框，页面的 CSS 和 color-scheme 都管不到，所以总是白底。改法：去掉 datalist，改成输入框下方的 .cmd-suggest 列表（和主控 @ 提及的建议列表同一套样式，颜色走主题变量）：显示文件夹名和完整路径，输入时按包含过滤，↑↓ 选择、Enter 选中（不会直接出击）、Esc 只关列表不关对话框、点击选中；带 combobox / listbox 的无障碍属性。顺带：所有复选框和单选框用主题强调色（原来是系统蓝）。检查过其他原生弹出：页面里没有别的 select / datalist，页面也没有系统右键菜单；托盘的右键菜单是系统菜单，跟随 Windows 自己的深浅色。",
+      "status": "resolved",
+      "files": [
+        "web/index.html",
+        "web/app.js",
+        "web/style.css"
+      ],
+      "tags": [
+        "主题",
+        "UI"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 16:54",
+      "updated": "2026-11-09 16:54",
+      "notes": [],
+      "count": 1
     }
   ]
 }
