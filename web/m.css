@@ -1,7 +1,7 @@
 /* The phone page: the command center's HUD look, sized for a thumb. */
 :root {
   --bg: #04060c; --panel: #0a1120; --panel-hi: #0d1729; --line: #12304a; --line-hi: #1b6f80;
-  --text: #ddf6ff; --soft: #a9c4d3; --muted: #7fa3b8; --dim: #4f7a90;
+  --text: #ddf6ff; --soft: #a9c4d3; --muted: #7fa3b8; --dim: #5b8aa1;
   --cyan: #3df5ff; --amber: #ffb020; --red: #ff4d6d; --green: #4dffa6; --off: #10263a;
   --display: 'Orbitron', 'Rajdhani', system-ui, sans-serif;
   --label: 'Rajdhani', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -103,10 +103,8 @@ main { flex: 1; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); disp
 .live i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: pulse 1.6s ease-in-out infinite; }
 .screen-wrap { flex: 1; min-height: 0; margin: 8px 10px 0; border: 1px solid var(--line-hi); box-shadow: inset 0 0 24px color-mix(in srgb, var(--cyan) 6%, transparent); background: var(--x-050a12); display: flex; }
 .screen { flex: 1; margin: 0; overflow: auto; padding: 10px; font: 11px/1.45 var(--mono); color: var(--tfg, var(--x-a6e8c0)); white-space: pre; }
-/* light theme: paper with ink colors (--t0..--t15 from web/theme.js) and the same faint grain as the
-   command center's terminals, on the frame (it stays put while the text scrolls) */
-html[data-theme="light"] .screen-wrap { position: relative; box-shadow: none; }
-html[data-theme="light"][data-paper="on"] .screen-wrap::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .18 1.6 0 0 0 -.55'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E") 0 0 / 180px 180px; opacity: .22; }
+/* the light theme is paper: no glow inside the frame */
+html[data-theme="light"] .screen-wrap { box-shadow: none; }
 .menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 8px 10px 0; max-height: 34vh; overflow-y: auto; }
 .menu:empty { display: none; }
 .menu button { min-height: 42px; padding: 6px 12px; text-align: left; background: var(--panel); border: 1px solid var(--line-hi); color: var(--soft); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }

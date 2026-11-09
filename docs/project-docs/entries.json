@@ -3515,6 +3515,34 @@
       "updated": "2026-11-09 09:32",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-070",
+      "type": "change",
+      "title": "0.9.49 各主题成套配色与按风格的纹理",
+      "summary": "深空（夜间观测站，石板蓝 215° 单一色调，冰蓝强调）、Tokyo Night（夜城，深靛蓝，Tokyo Night 原墨色）、暖色（灯下夜读，胡桃木 + 琥珀，少蓝光）重新成套设计：终端底色、文字、16 色、光标、选中色、面板层次、边线、强调色统一在一个色调里，所有文字色在终端底色上 ≥4.5:1，界面 dim 文字在面板上 ≥4.5:1（浅色、霓虹也提了 dim）。霓虹保持原版。纹理只给符合风格的主题：浅色纸张颗粒、暖色暗底细颗粒、霓虹 CRT 扫描线，深空和 Tokyo 无；统一放在 web/texture.css，html[data-texture=off] 关闭，主题菜单的开关按当前主题显示名字（无纹理的主题置灰）。服务端设置仍叫 paper（兼容）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/texture.css",
+        "web/app.js",
+        "web/style.css",
+        "web/m.css",
+        "web/i18n.js",
+        "web/index.html",
+        "web/term.html",
+        "web/m.html"
+      ],
+      "tags": [
+        "theme",
+        "ui"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 09:46",
+      "updated": "2026-11-09 09:46",
+      "notes": []
     }
   ]
 }

@@ -1958,7 +1958,9 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：高对比霓虹，带发光', deepspace: '柔和灰蓝，青色柔光（推荐）', tokyo: '蓝紫夜色，柔光', warm: '米白配琥珀，减少蓝光', light: '纸色浅色，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光，少蓝光', light: '纸面：暖纸色，墨水色文字，白天用' };
+// the texture each theme has (web/texture.css), named in the menu for the theme in use
+const TEXTURE_NAME = { paper: '纸张纹理', dark: '纸张颗粒', scan: '扫描线' };
 function renderThemeMenu() {
   const cur = state?.theme || 'deepspace';
   $('theme-menu').innerHTML = THEME_KEYS.map((k) => {
@@ -1966,8 +1968,15 @@ function renderThemeMenu() {
     const sw = k === 'auto' ? [THEMES.deepspace.ui.panel, THEMES.light.ui.panel, THEMES.deepspace.ui.accent] : [t.ui.panel, t.ui.text, t.ui.accent];
     return `<button role="menuitemradio" data-theme="${k}" aria-checked="${k === cur}" title="${esc(L(THEME_NOTE[k]))}"><span class="sw">${sw.map((c) => `<i style="background:${c}"></i>`).join('')}</span>${esc(k === 'auto' ? L('跟随系统') : L(t.name))}</button>`;
   }).join('') +
-    // the paper grain over the light theme's terminals (every page and the phone follow)
-    `<button role="menuitemcheckbox" class="paper-opt" data-paper aria-checked="${state?.paper !== false}" title="${esc(L('浅色主题下终端的纸张颗粒，关掉就是纯纸色'))}"><span class="sw"><i style="background:${THEMES.light.term.background}"></i></span>${esc(L('纸张纹理'))}</button>`;
+    // the terminal texture switch (every page and the phone follow); a theme without one says so
+    textureItem();
+}
+function textureItem() {
+  const T = THEMES[document.documentElement.dataset.theme] || THEMES.deepspace;
+  const on = state?.paper !== false;
+  const name = T.grain ? L(TEXTURE_NAME[T.grain]) : L('终端纹理');
+  const note = T.grain ? L('终端上一层很淡的纹理，跟主题风格走；关掉就是纯色') : L('这个主题没有纹理（只有浅色、暖色、霓虹有）');
+  return `<button role="menuitemcheckbox" class="paper-opt" aria-checked="${on}" ${T.grain ? '' : 'disabled'} title="${esc(note)}"><span class="sw"><i style="background:${T.term.background}"></i></span>${esc(name)}</button>`;
 }
 // The header panel's clip-path (its cut corners) clips everything inside it, fixed menus included:
 // the menus live on the body instead.
