@@ -66,6 +66,7 @@ export function endedTurns(units, waiting, now = Date.now()) {
     const started = t.started || ((u.statusSince || 0) > t.at + 500 && ours);
     if (!started || u.status !== 'idle' || waiting.has(u.agentId)) {
       delete t.quiet;
+      delete t.settle;
       continue;
     }
     // Idle isn't enough: the transcript must show this turn (an answer, a tool call, an interruption).
@@ -78,6 +79,13 @@ export function endedTurns(units, waiting, now = Date.now()) {
       if (now - t.quiet < 60_000) continue;
       neverRan = true;
     }
+    // Idle, but the transcript doesn't show the end yet (its last lines are a moment behind the status):
+    // look again on the next publish, for up to 30 s, then go by idle as before (never lose a turn)
+    if (!neverRan && turnOver(u.sessionId, t.at) === false) {
+      t.settle ||= now;
+      if (now - t.settle < 30_000) continue;
+    }
+    delete t.settle;
     turns.delete(u.agentId);
     done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan });
   }
@@ -177,6 +185,36 @@ export function turnReply(sessionId, since) {
     }
   }
   return { reply, messaged, interrupted, error };
+}
+
+/**
+ * Whether the transcript says the turn that started at `since` is over: its last assistant message stopped
+ * for good (end_turn, a stop sequence, max tokens, an API error) with no tool call or tool result after it,
+ * or it was cut short (Esc). Claude Code marks the session idle a moment before its last lines reach the
+ * transcript: idle alone used to tell the master a mid-turn sentence as the answer.
+ * @returns {boolean | null} null: no transcript to read
+ */
+export function turnOver(sessionId, since) {
+  const file = sessionId && transcriptOf(sessionId);
+  if (!file) return null;
+  let entries;
+  try {
+    entries = tail(file).filter((e) => !e.isSidechain);
+  } catch {
+    return null;
+  }
+  let over = false;
+  for (const e of entries) {
+    const at = Date.parse(e.timestamp || '') || 0;
+    if (!at || at < since - 2000) continue;
+    if (e.type === 'user' && cutShort(e.message?.content)) over = true;
+    else if (e.type === 'user' && Array.isArray(e.message?.content) && e.message.content.some((c) => c?.type === 'tool_result')) over = false;
+    else if (e.type === 'assistant' && e.message) {
+      const toolCall = Array.isArray(e.message.content) && e.message.content.some((c) => c?.type === 'tool_use');
+      over = !toolCall && (e.isApiErrorMessage || ['end_turn', 'stop_sequence', 'max_tokens'].includes(e.message.stop_reason));
+    }
+  }
+  return over;
 }
 
 /** Whether the transcript has anything of the turn that started at `since` (null: no transcript to read). */

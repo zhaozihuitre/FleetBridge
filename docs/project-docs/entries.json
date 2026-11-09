@@ -3747,6 +3747,28 @@
       "created": "2026-11-09 11:15",
       "updated": "2026-11-09 11:15",
       "notes": []
+    },
+    {
+      "id": "I-038",
+      "type": "issue",
+      "title": "0.9.58 主控的完成通知取到中途的一句话",
+      "summary": "现象：一轮还没讲完（或刚讲完），主控收到的完成通知里回答只有中途一句（如「升到 0.9.56，在开发实例上检查：」）。查证：那一轮 end_turn 的最终回答写在通知前 0.4 秒，取回答时文件里还没有它。Claude Code 先把会话状态改成 idle，最后几行稍后才写进记录（条目时间是生成时间，不是写入时间）；turns.js endedTurns 只看 idle 就判定结束，turnReply 取到的是当时文件里最后一段文字。修法：新增 turnOver()：这一轮最后一条 assistant 消息 stop_reason 为 end_turn/stop_sequence/max_tokens 或 API 错误、之后没有工具调用和工具结果，或被 Esc 打断，才算结束；idle 但记录还没到结尾时每次刷新再看，最多 30 秒后按 idle 兜底。用本会话真实记录按当时时刻截断回放验证：截断时 turnOver=false，完整时 true 且回答是最后一段。注：Claude Code 跑长工具命令时状态一直是 busy（采样 40 秒确认），长命令本身不会被误判。",
+      "detail": "",
+      "status": "resolved",
+      "files": [
+        "server/turns.js"
+      ],
+      "tags": [
+        "bug",
+        "master",
+        "turns"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 11:24",
+      "updated": "2026-11-09 11:24",
+      "notes": [],
+      "count": 1
     }
   ]
 }
