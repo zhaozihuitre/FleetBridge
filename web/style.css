@@ -85,6 +85,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .energy .left { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--cyan); text-shadow: 0 0 10px color-mix(in srgb, var(--cyan) 60%, transparent); }
 .energy .left.low { color: var(--red); text-shadow: 0 0 10px color-mix(in srgb, var(--red) 60%, transparent); }
 .energy .cd { font-family: var(--display); color: var(--text); font-weight: 500; }
+/* steady numbers (app.js dg / pct3): Orbitron has no tabular figures, so each digit sits in a cell as wide as
+   its widest digit (0.84em), and a percentage keeps room for "100%": ticking or changing never moves a thing */
+.dg { display: inline-block; width: .84em; font-style: normal; text-align: center; }
+.pct3 { display: inline-block; min-width: calc(3 * .84em + .9em); text-align: right; }
 .seg { display: flex; gap: 2px; height: 9px; }
 .seg i { flex: 1; background: var(--off); }
 .seg i.on { background: var(--c, var(--cyan)); box-shadow: 0 0 6px var(--c, var(--cyan)); }
@@ -778,6 +782,10 @@ html.web [data-win] { display: none; }
    last reading, each terminal's */
 .energy-group { position: relative; flex: 1; min-width: 0; display: flex; gap: 10px; }
 .energy-group.other { flex: 0 0 auto; }
+.energy-group.other .energy { width: 176px; } /* fixed: room for "5h 100% · 周 100%" and "截至 11/12 23:59", whatever it says now */
+/* narrow (two organizations at 1100 px): the clock gives its room to the quota (the taskbar has the time),
+   the percentages a size smaller, so "100%" and a countdown fit every box */
+@media (max-width: 1250px) { .energy-group.other .energy { width: 164px; padding: 6px 10px; } .energy-other .other-pct { font-size: 11px; } .pilot #clock { display: none; } .energy .left { font-size: 15px; } }
 .org-legend { position: absolute; top: -8px; left: 12px; z-index: 1; max-width: calc(100% - 24px); padding: 0 6px; background: var(--bg); font-family: var(--name); font-size: 11px; line-height: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; }
 .org-legend b { color: var(--oc); font-weight: 700; letter-spacing: 0.3px; }
 .org-legend i { font-style: normal; color: var(--amber); }

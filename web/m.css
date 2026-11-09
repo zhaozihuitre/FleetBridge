@@ -45,12 +45,16 @@ button { cursor: pointer; }
 /* waiting on you: a few blinks when it comes up (--ago), then steady */
 .chip.alarm { border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); animation: alarm 1.4s ease-in-out var(--ago, 0s) 3; }
 .quota { display: grid; gap: 6px; margin-top: 10px; }
-.q { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.q { display: grid; grid-template-columns: 70px minmax(0, 1fr) 150px; align-items: center; gap: 10px; }
 .q .k { font-family: var(--label); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .seg { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; height: 8px; }
 .seg i { background: var(--off); }
 .seg i.on { background: var(--c); box-shadow: 0 0 5px var(--c); }
 .q .v { font-family: var(--display); font-size: 12px; color: var(--text); text-align: right; white-space: nowrap; }
+/* steady numbers: Orbitron digits in fixed cells, room for "100%"; the column is fixed (150px fits
+   "100% 11/12 23:59 重置"), so the bars keep their length whatever the numbers say */
+.q .dg { display: inline-block; width: .84em; font-style: normal; text-align: center; }
+.q .pct3 { display: inline-block; min-width: calc(3 * .84em + .9em); text-align: right; }
 .q .v small { font-family: var(--label); font-size: 11px; color: var(--muted); margin-left: 4px; }
 /* whose quota: the organization over the rows, another organization's last reading under them */
 .q-org { font-family: var(--label); font-size: 12px; color: var(--muted); letter-spacing: .5px; }

@@ -62,7 +62,8 @@ function renderQuota() {
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
       // what's used and when it resets (with the day); a window not started yet has no reset time
       const started = l.resetsAt > 0;
-      const v = `<span class="v">${Math.round(used)}%<small>${started ? esc(L('{0} 重置', when(l.resetsAt))) : L('未开始')}</small></span>`;
+      // steady width: the digits in fixed cells, room for "100%" (the column itself is fixed in m.css)
+      const v = `<span class="v"><span class="pct3">${String(Math.round(used)).replace(/\d/g, (d) => `<i class="dg">${d}</i>`)}%</span><small>${started ? esc(L('{0} 重置', when(l.resetsAt))) : L('未开始')}</small></span>`;
       return `<div class="q" style="--c:${c}" title="${esc(l.label)}"><span class="k">${esc(shortLabel(l))}</span>${seg}${v}</div>`;
     })
     .join('');

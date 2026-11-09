@@ -52,6 +52,11 @@ let state = null;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const pad = (n) => String(n).padStart(2, '0');
 
+// Numbers drawn in Orbitron (no tabular figures): every digit in a cell as wide as the widest one, so a
+// ticking clock or countdown never changes width; a percentage keeps room for three digits ("100%").
+const dg = (s) => esc(s).replace(/\d/g, (d) => `<i class="dg">${d}</i>`);
+const pct3 = (n) => `<span class="pct3">${dg(Math.round(n) + '%')}</span>`;
+
 function dur(ms, short = false) {
   if (ms == null || ms < 0) return '--';
   const s = Math.floor(ms / 1000);
@@ -123,9 +128,9 @@ function renderEnergy() {
         const resets = started ? L('{0} 重置', when(l.resetsAt)) : L('未开始');
         return `<div class="energy box cut ${l.active ? 'active' : ''}" title="${esc(`${l.label} · ${L('已用 {0}%', Math.round(used))} · ${started ? L('还剩 {0}', dur(l.resetsAt - Date.now())) + ' · ' : ''}${resets}`)}">
           <div class="row"><span class="label"><span class="lk">${weekly ? 'RESERVE' : 'ENERGY'} · </span>${esc(l.label)}</span>${stale}
-            <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
+            <span class="left ${low ? 'low' : ''}">${pct3(used)}</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dur(l.resetsAt - Date.now()) : L('未开始')}</span><span class="resets">${esc(resets)}</span></div>
+          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dg(dur(l.resetsAt - Date.now())) : L('未开始')}</span><span class="resets">${esc(resets)}</span></div>
         </div>`;
       })
       .join('');
@@ -148,14 +153,14 @@ function orgLegend(u) {
 // Another organization's quota: its last reading (live while its old sign-in still works).
 function otherOrgBox(x) {
   const pick = (k) => x.limits.find((l) => l.key === k);
-  const part = (l, name) => (l ? `${name} ${Math.round(l.usedPct)}%` : '');
+  const part = (l, name) => (l ? `${esc(name)} ${pct3(l.usedPct)}` : '');
   const text = [part(pick('session'), L('5h')), part(pick('weekly_all'), L('周'))].filter(Boolean).join(' · ') || '--';
   const full = x.limits.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt > 0 ? ' · ' + L('{0} 重置', when(l.resetsAt)) : ''}`).join('\n');
   const asOf = x.live ? L('读取于 {0}', clock(x.fetchedAt)) : L('截至 {0}', when(x.fetchedAt));
   const tip = [L('另一个组织：') + x.org.name, full, asOf, x.live ? '' : L('现在没登录这个组织，显示的是最后一次读到的值')].filter(Boolean).join('\n');
   return `<div class="energy-group other" style="--oc:${orgColor(x.org.id)}"><span class="org-legend"><b>${esc(x.org.name)}</b></span>
     <div class="energy energy-other box cut" title="${esc(tip)}">
-      <div class="row"><span class="other-pct">${esc(text)}</span></div>
+      <div class="row"><span class="other-pct">${text}</span></div>
       <div class="row"><span class="${x.live ? '' : 'stale'}">${esc(asOf)}</span></div>
     </div></div>`;
 }
@@ -184,8 +189,8 @@ function when(ms) {
 }
 
 function tick() {
-  $('clock').textContent = new Date().toLocaleTimeString(locale, { hour12: false });
-  document.querySelectorAll('[data-reset]').forEach((el) => (el.textContent = dur(+el.dataset.reset - Date.now())));
+  $('clock').innerHTML = dg(new Date().toLocaleTimeString(locale, { hour12: false }));
+  document.querySelectorAll('[data-reset]').forEach((el) => (el.innerHTML = dg(dur(+el.dataset.reset - Date.now()))));
   document.querySelectorAll('[data-since]').forEach((el) => (el.textContent = 'T+' + dur(Date.now() - +el.dataset.since)));
 }
 
