@@ -50,6 +50,28 @@ let theme = (() => {
   }
 })();
 export const getTheme = () => theme;
+// the paper grain over the light theme's terminals (on unless turned off)
+let paper = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(FILE, 'utf8')).paper !== false;
+  } catch {
+    return true;
+  }
+})();
+export const getPaper = () => paper;
+export function setPaper(on) {
+  if (typeof on !== 'boolean' || on === paper) return false;
+  paper = on;
+  let s = {};
+  try {
+    s = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  } catch {
+    // first setting
+  }
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(FILE, JSON.stringify({ ...s, paper }, null, 2));
+  return true;
+}
 export function setTheme(next) {
   if (!THEMES.includes(next) || next === theme) return false;
   theme = next;

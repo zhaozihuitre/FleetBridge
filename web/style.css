@@ -633,6 +633,7 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .theme-menu { min-width: 190px; }
 .theme-menu button .sw { display: inline-flex; flex: none; border: 1px solid var(--line-hi); }
 .theme-menu button .sw i { width: 12px; height: 14px; }
+.theme-menu .paper-opt { border-top: 1px solid var(--line); }
 
 /* previews in the split view (fleet-open): the page fills the pane */
 .pane.preview .pv-host { padding: 0; background: var(--x-ffffff); }
@@ -655,6 +656,12 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 
 /* light theme: cards stand off the page by a firmer edge (var(--line-hi) is the palette's strong line) */
 html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="light"] .quest, html[data-theme="light"] .save, html[data-theme="light"] .folder, html[data-theme="light"] .o-row { border-top-color: var(--line-hi); border-right-color: var(--line-hi); border-bottom-color: var(--line-hi); }
+
+/* light theme: the terminals are paper, with a faint grain over them (a small tiled SVG noise, no image file;
+   it never moves or repaints with the text, and does not catch the mouse). Off: data-paper="off" (theme menu). */
+:root { --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .18 1.6 0 0 0 -.55'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E"); }
+html[data-theme="light"] :is(.term-host, .master-term) { position: relative; }
+html[data-theme="light"][data-paper="on"] :is(.term-host, .master-term)::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: var(--paper-grain) 0 0 / 180px 180px; opacity: .22; }
 
 /* terminal font size buttons in the terminals bar */
 .term-bar .font-step { display: flex; margin-left: auto; flex: none; }

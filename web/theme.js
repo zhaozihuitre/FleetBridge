@@ -36,9 +36,16 @@ export const THEMES = {
   light: {
     name: '浅色',
     glow: 'none',
-    ui: { bg: '#e7e9ec', panel: '#f3f4f6', panelDeep: '#eceef1', line: '#d3d7dd', lineHi: '#aeb6c1', text: '#48515e', soft: '#58626f', muted: '#66707b', dim: '#838c96', accent: '#2a6f96', amber: '#905e10', red: '#b9434d', green: '#3a744a', termBg: '#f8f9fb' },
-    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a light gray here
-    term: { background: '#f8f9fb', foreground: '#474f5b', cursor: '#2a6f97', cursorAccent: '#f8f9fb', selectionBackground: 'rgba(42,111,151,.18)', black: '#3a414a', red: '#bb434e', green: '#3b764c', yellow: '#8b6314', blue: '#336db6', magenta: '#8f56a6', cyan: '#287380', white: '#585e66', brightBlack: '#d9dde3', brightRed: '#2a6f96', brightGreen: '#3b6a48', brightYellow: '#7c5a1a', brightBlue: '#38649a', brightMagenta: '#7f5092', brightCyan: '#2c6872', brightWhite: '#363e47' },
+    paper: true,
+    // the phone page's screen, where a color is text or background (server/screenhtml.js): brightBlack as
+    // text is a gray ink, white / brightWhite behind text a darker paper
+    paperVars: { '--tf8': '#73695d', '--tb7': '#ddd4c3', '--tb15': '#e5ddce' },
+    // paper: the terminals are warm off-white paper with ink colors, the panels around them the same warm
+    // tone (no cool gray frame around a warm sheet). Every ink is at least 4.5:1 on the paper (WCAG AA body text).
+    ui: { bg: '#e8e2d6', panel: '#f2ede3', panelDeep: '#ece6da', line: '#d7cfc0', lineHi: '#b3a893', text: '#4a433a', soft: '#5a5248', muted: '#675e54', dim: '#857b6e', accent: '#2a6286', amber: '#875a0e', red: '#a9403a', green: '#3d6b35', termBg: '#f6f1e7' },
+    // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a darker paper here;
+    // the selection is a pale highlighter over the ink
+    term: { background: '#f6f1e7', foreground: '#3b352e', cursor: '#2a5f86', cursorAccent: '#f6f1e7', selectionBackground: 'rgba(205,160,60,.32)', black: '#2f2a25', red: '#a8322d', green: '#3d6b2f', yellow: '#805808', blue: '#2b5a8f', magenta: '#84407a', cyan: '#22696f', white: '#5a524a', brightBlack: '#e5ddce', brightRed: '#2a5f86', brightGreen: '#356029', brightYellow: '#7a5410', brightBlue: '#2d5285', brightMagenta: '#763a6e', brightCyan: '#1f5f64', brightWhite: '#2e2924' },
   },
 };
 export const THEME_KEYS = ['auto', ...Object.keys(THEMES)];
@@ -87,6 +94,18 @@ function record(rules) {
     }
     if (props.length) originals.set(rule, props);
   }
+}
+
+// the xterm theme's 16 colors in ANSI order
+const BASE = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+const ANSI = [...BASE, ...BASE.map((k) => 'bright' + k[0].toUpperCase() + k.slice(1))];
+
+/** The paper grain on the light theme's terminals: on unless turned off (kept with the theme on the server). */
+export function followPaper(on) {
+  const v = on === false ? 'off' : 'on';
+  if (document.documentElement.dataset.paper === v) return false;
+  document.documentElement.dataset.paper = v;
+  return true;
 }
 
 let applied = null;
@@ -142,6 +161,11 @@ export function applyTheme(key) {
   }
   const root = document.documentElement;
   root.dataset.theme = name;
+  // the phone page's terminal (colored by the server with --t0..--t15): a theme with paper inks sets them;
+  // the others keep the neon colors written as the fallbacks
+  ANSI.forEach((k, i) => (T.paper ? root.style.setProperty(`--t${i}`, T.term[k]) : root.style.removeProperty(`--t${i}`)));
+  const vars = T.paper ? { '--tfg': T.term.foreground, '--tbg': T.term.background, ...T.paperVars } : {};
+  for (const v of ['--tfg', '--tbg', '--tf8', '--tb7', '--tb15']) vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v);
   root.style.colorScheme = name === 'light' ? 'light' : 'dark';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', T.ui.bg);
   return name;
@@ -150,8 +174,15 @@ export function applyTheme(key) {
 // 'auto' follows the system while the page is open
 let chosen = null;
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => chosen === 'auto' && applyTheme('auto'));
-/** The theme from the server state: applied when it changed (cheap to call on every state). */
-export function followTheme(key) {
+/** The theme (and the paper grain switch, when given) from the server state: applied when it changed (cheap to call on every state). */
+export function followTheme(key, paper) {
+  if (paper !== undefined && followPaper(paper)) {
+    try {
+      localStorage.setItem('fb-paper', paper === false ? 'off' : 'on');
+    } catch {
+      // only the first paint of the next visit is affected
+    }
+  }
   const k = THEME_KEYS.includes(key) ? key : DEFAULT_THEME;
   if (k === chosen && applied) return;
   chosen = k;
@@ -165,9 +196,12 @@ export function followTheme(key) {
 
 // the last theme right away, before the first state arrives: no flash of the neon colors
 let last = null;
+let lastPaper = null;
 try {
   last = localStorage.getItem('fb-theme');
+  lastPaper = localStorage.getItem('fb-paper');
 } catch {
   // storage unavailable
 }
+followPaper(lastPaper !== 'off');
 followTheme(last || DEFAULT_THEME);

@@ -44,7 +44,7 @@ if (!p) {
   $('reload').addEventListener('click', () => ($('frame').src = p.url));
   $('external').addEventListener('click', () => fetch('/api/preview/external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id }) }));
 }
-new EventSource('/api/stream').onmessage = (e) => followTheme(JSON.parse(e.data).theme);
+new EventSource('/api/stream').onmessage = (e) => { const s = JSON.parse(e.data); followTheme(s.theme, s.paper); };
 </script>
 </body>
 </html>

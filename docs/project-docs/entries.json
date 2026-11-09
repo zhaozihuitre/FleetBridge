@@ -3465,6 +3465,33 @@
       "updated": "2026-11-07 13:25",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-069",
+      "type": "change",
+      "title": "0.9.47 浅色主题：终端改成纸面",
+      "summary": "浅色主题的终端改成暖纸色 #f6f1e7 + 墨色正文，16 色重调为墨水色（纸上均 ≥4.5:1），选中色为淡黄荧光笔；面板、页面底色、线条同一暖色调；终端上加一层很淡的 SVG 颗粒（主题菜单「纸张纹理」可关，服务端保存，所有页面和手机跟随）。手机页终端以前由服务端写死霓虹色，浅色下是荧光色，现在改用 CSS 变量跟随主题；其他主题不变。",
+      "detail": "主控、分屏、弹出终端（xterm，theme.js light.term）与手机页（server/screenhtml.js 输出 var(--tN,霓虹色)，theme.js 只在 paper 主题设置 --t0..--t15/--tfg/--tbg，以及 --tf8/--tb7/--tb15：手机页没有 xterm 的最低对比度，brightBlack 作文字用灰墨、white 作背景用深一点的纸色）。颗粒：:is(.term-host,.master-term)::after 与 .screen-wrap::after，180px 平铺的 feTurbulence data URI，普通混合、opacity .22、pointer-events none、不随滚动重绘；html[data-paper=off] 关闭。设置 paper 存在 settings（i18n.js getPaper/setPaper），state.paper，POST /api/theme {paper}。手机页终端框在浅色下去掉内阴影（不用阴影模拟纸张）。",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "server/screenhtml.js",
+        "web/style.css",
+        "web/m.css",
+        "web/app.js",
+        "server/i18n.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "theme",
+        "ui",
+        "mobile"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 09:27",
+      "updated": "2026-11-09 09:27",
+      "notes": []
     }
   ]
 }

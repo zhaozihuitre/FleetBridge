@@ -210,7 +210,7 @@ window.addEventListener('contextmenu', (e) => {
 
 new EventSource('/api/stream').onmessage = (e) => {
   state = JSON.parse(e.data);
-  followTheme(state.theme);
+  followTheme(state.theme, state.paper);
   render();
   notifyNew();
 };

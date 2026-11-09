@@ -1958,14 +1958,16 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：高对比霓虹，带发光', deepspace: '柔和灰蓝，青色柔光（推荐）', tokyo: '蓝紫夜色，柔光', warm: '米白配琥珀，减少蓝光', light: '灰白浅色，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：高对比霓虹，带发光', deepspace: '柔和灰蓝，青色柔光（推荐）', tokyo: '蓝紫夜色，柔光', warm: '米白配琥珀，减少蓝光', light: '纸色浅色，白天用' };
 function renderThemeMenu() {
   const cur = state?.theme || 'deepspace';
   $('theme-menu').innerHTML = THEME_KEYS.map((k) => {
     const t = THEMES[k] || THEMES.deepspace;
     const sw = k === 'auto' ? [THEMES.deepspace.ui.panel, THEMES.light.ui.panel, THEMES.deepspace.ui.accent] : [t.ui.panel, t.ui.text, t.ui.accent];
     return `<button role="menuitemradio" data-theme="${k}" aria-checked="${k === cur}" title="${esc(L(THEME_NOTE[k]))}"><span class="sw">${sw.map((c) => `<i style="background:${c}"></i>`).join('')}</span>${esc(k === 'auto' ? L('跟随系统') : L(t.name))}</button>`;
-  }).join('');
+  }).join('') +
+    // the paper grain over the light theme's terminals (every page and the phone follow)
+    `<button role="menuitemcheckbox" class="paper-opt" data-paper aria-checked="${state?.paper !== false}" title="${esc(L('浅色主题下终端的纸张颗粒，关掉就是纯纸色'))}"><span class="sw"><i style="background:${THEMES.light.term.background}"></i></span>${esc(L('纸张纹理'))}</button>`;
 }
 // The header panel's clip-path (its cut corners) clips everything inside it, fixed menus included:
 // the menus live on the body instead.
@@ -1982,6 +1984,14 @@ $('theme-btn').addEventListener('click', (e) => {
   toggleThemeMenu();
 });
 $('theme-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-paper]')) {
+    const on = state?.paper === false;
+    toggleThemeMenu(false);
+    followTheme(state?.theme, on);
+    if (state) state.paper = on;
+    await post('/api/theme', { paper: on });
+    return;
+  }
   const next = e.target.closest('[data-theme]')?.dataset.theme;
   toggleThemeMenu(false);
   if (!next) return;
@@ -2290,7 +2300,7 @@ function connect() {
   es.onmessage = (e) => {
     const first = !state;
     state = JSON.parse(e.data);
-    followTheme(state.theme);
+    followTheme(state.theme, state.paper);
     // deep link: /#term=<id>[,<id>...] opens those agents' terminals (split view)
     const deep = first && location.hash.match(/^#term=([0-9a-f-]{36}(?:,[0-9a-f-]{36})*)$/);
     if (first && !deep) {

@@ -1,17 +1,25 @@
 // An agent's screen as colored HTML for the phone page, read from its headless terminal copy.
-// The 16 colors mirror the xterm theme in web/terminal.js (dark-ansi Claude draws with these).
-const PALETTE = [
+// The 16 colors mirror the xterm theme in web/terminal.js (dark-ansi Claude draws with these): CSS
+// variables the phone page sets from a theme that has its own inks for it (--t0..--t15, --tfg, --tbg;
+// web/theme.js), the neon colors otherwise.
+// A color can differ as text and as background (--tf<i>, --tb<i>): on paper, brightBlack is a light panel
+// behind text but gray as text, and white a dark ink as text but a light panel behind it (the phone page has
+// no minimum contrast like xterm's).
+const NEON = [
   '#0a1120', '#ff4d6d', '#4dffa6', '#ffb020', '#4d9fff', '#c77dff', '#3df5ff', '#86b89c',
   '#24384a', '#3df5ff', '#8affc4', '#ffd166', '#82bcff', '#dcaaff', '#b8fcff', '#dcf8e8',
 ];
-const FG = '#a6e8c0';
-const BG = '#050a12';
+const PALETTE = NEON.map((c, i) => `var(--t${i},${c})`);
+const PALETTE_FG = PALETTE.map((v, i) => (i === 8 ? `var(--tf8,${v})` : v));
+const PALETTE_BG = PALETTE.map((v, i) => (i === 7 || i === 15 ? `var(--tb${i},${v})` : v));
+const FG = 'var(--tfg,#a6e8c0)';
+const BG = 'var(--tbg,#050a12)';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
 // xterm's 256-color table beyond the first 16: a 6x6x6 cube, then a gray ramp
-function color256(i) {
-  if (i < 16) return PALETTE[i];
+function color256(i, fg) {
+  if (i < 16) return (fg ? PALETTE_FG : PALETTE_BG)[i];
   if (i < 232) {
     const c = i - 16;
     const v = (x) => (x ? 55 + x * 40 : 0);
@@ -25,7 +33,7 @@ function colorOf(cell, fg) {
   if (fg ? cell.isFgDefault() : cell.isBgDefault()) return null;
   const v = fg ? cell.getFgColor() : cell.getBgColor();
   if (fg ? cell.isFgRGB() : cell.isBgRGB()) return hex(v);
-  return color256(v);
+  return color256(v, fg);
 }
 
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
