@@ -3,7 +3,8 @@ import { createTerminal, onTermFont, paneFont } from './terminal.js';
 import { ask } from './ui.js';
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
-import { stateChip } from './status.js';
+import { stateChip, stateKey } from './status.js';
+import './tip.js';
 
 translateDom();
 
@@ -15,6 +16,7 @@ onTermFont(() => t.setFontSize(paneFont() + 1));
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
 
+let lastSeen = '';
 function render(state) {
   const a = state.agents?.find((x) => x.id === id);
   const u = state.units?.find((x) => x.agentId === id);
@@ -22,6 +24,12 @@ function render(state) {
   q('.t-name').textContent = name;
   q('.t-cwd').textContent = a?.cwd || u?.cwd || '';
   q('.t-state').innerHTML = stateChip(u, { agent: a || { alive: false } });
+  // finished while this window is in front of you: seen
+  const seenKey = u && `${u.sessionId}:${u.statusSince}`;
+  if (u && seenKey !== lastSeen && stateKey(u, { agent: a }) === 'done' && document.hasFocus() && !document.hidden) {
+    lastSeen = seenKey;
+    post('/api/seen', { sessionId: u.sessionId }).catch(() => {});
+  }
   q('.t-state').className = 't-state';
   q('.t-ctx').innerHTML = ''; // rebuilt every update: load badge, then the repo tag
   if (u?.contextPct != null) {

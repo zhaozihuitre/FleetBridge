@@ -88,6 +88,9 @@ function buildUnits(sessions, gitByCwd) {
       lastText: s.lastText,
       lastPrompt: s.lastPrompt,
       lastActivity: s.lastActivity,
+      // the turn stopped on the quota / on another API error (the red light; the cards' "quota used up")
+      limit: s.limit || null,
+      apiError: s.apiError || null,
       agents: s.agents.map(({ id, type, description, running }) => ({ id, type, description, running })),
       repos: repos.map((r) => ({ ...r, claudeTouchedAt: touched[r.path] || null })),
       gitScanned: s.cwd in gitByCwd,

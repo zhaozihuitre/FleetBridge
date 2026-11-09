@@ -7,6 +7,7 @@
 <link rel="apple-touch-icon" href="/web/icon.png">
 <link href="/web/fonts/fonts.css" rel="stylesheet">
 <link rel="stylesheet" href="/web/style.css">
+<link rel="stylesheet" href="/web/lamp.css">
 <style>:root {
   --x-050a12: #050a12;
   --x-ff8fa3: #ff8fa3;
@@ -36,8 +37,9 @@ html, body { background: transparent; overflow: hidden; }
 .w-units { display: flex; flex-direction: column; gap: 3px; }
 .row { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; background: var(--panel); border: 1px solid transparent; border-left: 2px solid var(--c); color: var(--text); text-align: left; font-family: var(--body); }
 .row:hover { border-color: var(--line-hi); border-left-color: var(--c); }
-.row .dot { width: 8px; height: 8px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
-.row .dot.blink { animation: pulse 1s ease-in-out var(--ago, 0s) 4; } /* a few blinks when it comes up, then steady */
+/* the status light (lamp.css) and its short word before the line; hover either for the details (tip.js) */
+.row .lamp-at { display: flex; align-items: center; justify-content: center; width: 8px; height: 100%; }
+.row .s .lw { color: var(--c); font-weight: 700; margin-right: 5px; }
 .row .mid { min-width: 0; display: flex; flex-direction: column; }
 .row .p { font-family: var(--name); font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .p small { font-family: var(--body); font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); margin-left: 6px; } /* the project, after the name */

@@ -38,12 +38,16 @@ button { cursor: pointer; }
 .conn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); font-size: 11px; font-family: var(--label); font-weight: 600; letter-spacing: 1px; }
 .conn i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: pulse 2s ease-in-out infinite; }
 .conn.bad { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.chips-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.chips-row .chips { flex: 1; min-width: 0; margin-top: 0; }
 .chips { display: flex; gap: 6px; margin-top: 10px; }
+#lamp-legend { margin-top: 8px; }
+.card .head .lamp { margin: 0 2px; }
 .chip { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 5px 0; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--muted); clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
 .chip b { font-family: var(--display); font-size: 16px; color: var(--c); text-shadow: 0 0 10px var(--c); }
 .chip.zero b { color: var(--dim); text-shadow: none; }
 /* waiting on you: a few blinks when it comes up (--ago), then steady */
-.chip.alarm { border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); animation: alarm 1.4s ease-in-out var(--ago, 0s) 3; }
+.chip.alarm { border-color: var(--c, var(--red)); background: color-mix(in srgb, var(--c, var(--red)) 12%, transparent); animation: alarm 1.4s ease-in-out var(--ago, 0s) 3; }
 .quota { display: grid; gap: 6px; margin-top: 10px; }
 .q { display: grid; grid-template-columns: 70px minmax(0, 1fr) 150px; align-items: center; gap: 10px; }
 .q .k { font-family: var(--label); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -82,7 +86,7 @@ button { cursor: pointer; }
 main { flex: 1; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
 .card { position: relative; padding: 12px 14px 12px 16px; display: flex; flex-direction: column; gap: 9px; background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border: 1px solid var(--line); clip-path: var(--cut); }
 .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }
-.card.permit { border-color: color-mix(in srgb, var(--red) 70%, transparent); animation: alarm 1.6s ease-in-out var(--ago, 0s) 3; }
+.card.permit { border-color: color-mix(in srgb, var(--c) 70%, transparent); animation: alarm 1.6s ease-in-out var(--ago, 0s) 3; }
 .card .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tag { flex: none; padding: 1px 6px; background: var(--c); color: var(--bg); font-family: var(--display); font-size: 9px; font-weight: 700; letter-spacing: 1px; }
 .card .p { min-width: 0; font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -143,7 +147,7 @@ html[data-theme="light"] .screen-wrap { box-shadow: none; }
 .screen::-webkit-scrollbar-corner { background: var(--x-050a12); }
 
 @keyframes pulse { 50% { opacity: .35; } }
-@keyframes alarm { 50% { border-color: var(--red); background-color: color-mix(in srgb, var(--red) 14%, transparent); } }
+@keyframes alarm { 50% { border-color: var(--c, var(--red)); background-color: color-mix(in srgb, var(--c, var(--red)) 14%, transparent); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 
 /* terminal sheet: wrapped lines (default) and rules drawn as one thin line */

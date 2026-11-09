@@ -1,0 +1,57 @@
+/* Status lights (status.js lamp / lampChip): a color per state and a breathing rate per urgency, the same on every
+   page (command center, split panes, popped-out terminals, widget, phone) and in every theme: the colors are the
+   theme's own (its accent, amber, red, green, the terminal's magenta and blue), mixed where a state needs a
+   shade between them. Under "reduce motion" the lights don't breathe: color and shape only. */
+:root {
+  --lamp-busy: var(--cyan);
+  --lamp-idle: color-mix(in srgb, var(--green) 50%, var(--muted));
+  --lamp-standby: var(--muted);
+  --lamp-permit: var(--amber);
+  --lamp-question: var(--t5, #c77dff);
+  --lamp-error: var(--red);
+  --lamp-done: var(--green);
+  --lamp-warn: color-mix(in srgb, var(--red) 50%, var(--amber));
+  --lamp-git: color-mix(in srgb, var(--amber) 60%, var(--muted));
+  --lamp-sys: var(--t4, #4d9fff);
+  --lamp-boot: var(--muted);
+  --lamp-shell: var(--green);
+  --lamp-exited: var(--dim);
+}
+.lamp { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lc); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--lc) 65%, transparent); font-style: normal; vertical-align: middle; }
+.lamp.off { background: transparent; border: 1.5px solid var(--lc); box-shadow: none; }
+.lamp.static { box-shadow: none; }
+/* --ph: where in its cycle the light is (set from the clock at render, so a re-render doesn't restart it);
+   once / flash: how long ago the state began (they play once when it begins, then hold) */
+@media (prefers-reduced-motion: no-preference) {
+  .lamp.breathe { animation: lamp-breathe var(--lp) ease-in-out var(--ph, 0s) infinite; }
+  .lamp.sharp { animation: lamp-sharp var(--lp) ease-in-out var(--ph, 0s) infinite; }
+  .lamp.once { animation: lamp-once 1.8s ease-out var(--ph, 0s) 1 both; }
+  .lamp.flash { animation: lamp-flash 1.4s ease-out var(--ph, 0s) 1 both; }
+}
+.lamp.flash { opacity: .6; }
+@keyframes lamp-breathe { 0%, 100% { opacity: .3; box-shadow: 0 0 1px 0 color-mix(in srgb, var(--lc) 40%, transparent); } 50% { opacity: 1; box-shadow: 0 0 9px 2px color-mix(in srgb, var(--lc) 75%, transparent); } }
+@keyframes lamp-sharp { 0%, 100% { opacity: .22; } 35%, 55% { opacity: 1; box-shadow: 0 0 9px 3px color-mix(in srgb, var(--lc) 85%, transparent); } }
+@keyframes lamp-once { 0% { opacity: .2; } 30% { opacity: 1; box-shadow: 0 0 12px 4px color-mix(in srgb, var(--lc) 90%, transparent); } 60% { opacity: .45; } 100% { opacity: 1; } }
+@keyframes lamp-flash { 0% { opacity: .2; } 25% { opacity: 1; box-shadow: 0 0 12px 4px color-mix(in srgb, var(--lc) 90%, transparent); } 100% { opacity: .6; } }
+
+/* the tooltip (tip.js): what the light is about and for how long, in the theme's colors */
+.lamp-tip { position: fixed; z-index: 1000; max-width: min(340px, calc(100vw - 16px)); padding: 8px 10px; background: var(--panel); color: var(--text); border: 1px solid var(--lc, var(--cyan)); box-shadow: 0 0 16px color-mix(in srgb, var(--lc, var(--cyan)) 28%, transparent); font-family: var(--body); font-size: 12px; line-height: 1.55; pointer-events: none; overflow-wrap: anywhere; }
+.lamp-tip[hidden] { display: none; }
+.lamp-tip b { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--lc); }
+.lamp-tip .q { color: var(--soft); margin: 3px 0; white-space: pre-line; }
+.lamp-tip .m { color: var(--muted); font-size: 11px; }
+[data-lamp] { cursor: default; }
+[data-lamp]:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+
+/* the legend (the "?" by the command desk's light, the phone's) */
+.lamp-legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 10px max-content minmax(0, 1fr); align-items: baseline; gap: 6px 8px; }
+.lamp-legend li { display: contents; font-size: 12px; }
+.lamp-legend li .lamp { align-self: center; }
+.lamp-legend li b { color: var(--lc); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lamp-legend li span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.lamp-legend-note { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
+.lg-btn { flex: none; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--line-hi); background: transparent; color: var(--muted); font: 11px/1 sans-serif; cursor: pointer; }
+.lg-btn:hover, .lg-btn[aria-expanded=true] { color: var(--cyan); border-color: var(--cyan); }
+.lamp-legend-pop { padding: 10px 12px; background: var(--panel); border: 1px solid var(--cyan); }
+.lamp-legend-pop[hidden] { display: none; }
+.lamp-legend-pop h4 { margin: 0 0 8px; font-size: 12px; color: var(--cyan); letter-spacing: 1px; }

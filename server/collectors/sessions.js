@@ -106,6 +106,7 @@ export function collectSessions() {
       lastPrompt: t.lastPrompt || null,
       lastActivity: t.lastActivity ? Date.parse(t.lastActivity) : null,
       limit: t.limit || null,
+      apiError: t.apiError || null,
       agents: agentsOf(projectDir, s.sessionId),
       edits: t.edits || new Map(),
     });

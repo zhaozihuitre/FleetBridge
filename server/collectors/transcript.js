@@ -42,9 +42,12 @@ function apply(st, d) {
       // the quota ran out ("You've hit your 5-hour limit"…): kept until it works again
       const text = (msg.content || []).find((b) => b?.type === 'text')?.text?.trim() || '';
       if (d.isApiErrorMessage && (d.error === 'rate_limit' || LIMIT_RE.test(text))) st.limit = { text: firstLine(text), at: Date.parse(d.timestamp) || 0 };
+      // any other API error that ended the turn (overloaded, needs credits…): the red light, until it works again
+      else if (d.isApiErrorMessage && text) st.apiError = { text: firstLine(text), at: Date.parse(d.timestamp) || 0 };
       return;
     }
     st.limit = null;
+    st.apiError = null;
     const u = msg.usage;
     if (u) {
       st.contextTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
@@ -64,6 +67,7 @@ function apply(st, d) {
     const line = promptLine(msg.content);
     if (line) st.lastPrompt = line;
     st.limit = null;
+    st.apiError = null;
     st.lastActivity = d.timestamp;
   }
 }

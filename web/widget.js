@@ -2,6 +2,8 @@
 const $ = (id) => document.getElementById(id);
 import { L, locale, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
+import { lamp, lampAttrs, lampDetail, stateKey, STATES } from './status.js';
+import './tip.js';
 
 translateDom();
 const bridge = window.opsBridge; // present only inside the Electron widget window
@@ -88,17 +90,18 @@ function renderLimits() {
   }
 }
 
+// A row's light (the shared status lights), its short word and the line after it
 function unitLook(u) {
   const th = state.thresholds;
-  const now = Date.now();
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
-  if (u.permission) return { c: 'var(--red)', s: u.permission.prompt?.kind === 'question' ? L('等你回答！') : L('等你授权！'), blink: true };
-  if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? L('执行：') + u.lastPrompt : L('作战中'), blink: false, hot };
-  // stopped on the quota (the same words as the cards)
-  if (u.limit) return { c: 'var(--red)', s: L('额度到限'), blink: false, hot };
-  const standby = now - u.statusSince > th.standbyMinutes * 60_000;
-  // finished: the conclusion of its answer when there is one (the notice's summary), not just "done"
-  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: u.summary || u.lastText || (standby ? L('休眠') : L('做完了，等你指令')), blink: false, hot };
+  const key = stateKey(u, { standbyMs: th.standbyMinutes * 60_000 });
+  const d = lampDetail(key, u);
+  const s =
+    key === 'permit' || key === 'question' ? u.permission?.message || '' :
+    key === 'busy' ? u.lastPrompt || '' :
+    key === 'error' ? (u.limit ? L('额度到限') : u.apiError?.text || '') :
+    u.summary || u.lastText || '';
+  return { key, c: STATES[key].color, word: STATES[key].label(), s, since: d.since, hot };
 }
 
 function renderUnits() {
@@ -107,8 +110,8 @@ function renderUnits() {
     const look = unitLook(u);
     const ctx = u.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
     return `<button class="row" style="--c:${look.c};${u.permission?.at ? `--ago:${((u.permission.at - Date.now()) / 1000).toFixed(1)}s` : ''}" data-agent="${esc(u.agentId || '')}" data-pid="${u.pid}" title="${esc(u.cwd)}\n${u.owned ? L('点击打开它的终端') : L('点击切到它的终端窗口')}">
-      <span class="dot ${look.blink ? 'blink' : ''}"></span>
-      <span class="mid"><span class="p">${esc(u.name || u.project)}${u.name && u.project && u.name.toLowerCase() !== u.project.toLowerCase() ? `<small>${esc(u.project)}</small>` : ''}${u.owned ? `<i>${L('我方')}</i>` : ''}</span><span class="s">${esc(look.s)}</span></span>
+      <span class="lamp-at"${lampAttrs(look.key, u, null, false)}>${lamp(look.key, look.since)}</span>
+      <span class="mid"><span class="p">${esc(u.name || u.project)}${u.name && u.project && u.name.toLowerCase() !== u.project.toLowerCase() ? `<small>${esc(u.project)}</small>` : ''}${u.owned ? `<i>${L('我方')}</i>` : ''}</span><span class="s"><b class="lw"${lampAttrs(look.key, u, null, false)}>${esc(look.word)}</b>${esc(look.s)}</span></span>
       <span class="r"><span class="ctx" style="--kc:${look.hot ? 'var(--red)' : 'var(--text)'}">${ctx}</span><span>${since(Date.now() - u.statusSince)}</span></span>
     </button>`;
   });

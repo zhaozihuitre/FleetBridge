@@ -3832,6 +3832,45 @@
       "updated": "2026-11-09 16:54",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-079",
+      "type": "change",
+      "title": "0.9.61 状态呼吸灯：替换总指令台的「情绪」，灯旁有文字、悬停有说明、带图例",
+      "summary": "所有页面的终端状态改用同一套呼吸灯（颜色=状态，呼吸快慢=急迫程度），灯旁有短文字，悬停/聚焦/手机点按显示详细说明和持续时间；总指令台的情绪词换成最急状态的灯，旁边「?」打开图例；新增完成待查看、出错、警告、提醒；等授权改琥珀、等回答改紫。",
+      "detail": "状态和灯的定义都在 web/status.js（STATES：图标、颜色、文字、灯的样式和周期、说明；stateKey 判定；lampDetail 给出说明文字和起始时间；lamp / stateChip / legendHtml）。颜色在 web/lamp.css 用主题变量组合（--lamp-*），各主题自动跟随；灯的动画只在允许动效时运行，减少动态效果时是静态颜色。灯的相位不写进 HTML（页面靠比较 HTML 跳过重绘），元素出现时由 MutationObserver 按时钟补上，重绘不会让灯重新开始；只闪一次的灯按状态开始的时间算。悬停说明在 web/tip.js：跟随主题的提示框（原生 title 是系统白底），悬停、键盘聚焦、手机点按都能打开，内容是等什么授权 / 问的问题 / 错误 / 最后汇报，以及已持续多久；重绘后会找回同一个灯。新状态：完成待查看 = 一轮在你上次打开它的终端之后结束（服务端 server/seen.js 记每个会话的查看时间，存在 <data>/seen.json；第一次见到的会话算已看过；指挥中心打开终端、跳到外部终端、手机打开终端、分屏或小窗里当着你的面做完都算看过，POST /api/seen）；出错 = 额度到限、这一轮以 API 错误结束（transcript 新记 apiError）、终端以非 0 退出码自己退出（不含你关掉的）。总指令台：取最急的状态（出错 > 等授权 > 等回答 > 警告 > 完成待查看 > 提醒 > 系统消息 > 作战中 > 待命 > 休眠），边框辉光跟灯的颜色。顺带修了一个旧 bug：state.js 的 buildUnits 只抄了一部分字段，limit 从没到达页面，卡片、小窗、手机上的「额度到限」其实一直不显示。",
+      "status": "done",
+      "files": [
+        "web/status.js",
+        "web/tip.js",
+        "web/lamp.css",
+        "web/app.js",
+        "web/m.js",
+        "web/widget.js",
+        "web/term.js",
+        "web/index.html",
+        "web/m.html",
+        "web/widget.html",
+        "web/term.html",
+        "web/style.css",
+        "web/m.css",
+        "web/i18n.js",
+        "server/seen.js",
+        "server/index.js",
+        "server/state.js",
+        "server/collectors/transcript.js",
+        "server/collectors/sessions.js"
+      ],
+      "tags": [
+        "状态",
+        "呼吸灯",
+        "UI"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 17:22",
+      "updated": "2026-11-09 17:22",
+      "notes": []
     }
   ]
 }

@@ -3,6 +3,8 @@
 // shows up as a unit waiting for approval. Talks only to the phone server.
 import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
+import { lamp, lampAttrs, lampDetail, legendHtml, stateKey, STATES } from './status.js';
+import './tip.js';
 import { switchView, wantedView } from './device.js';
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
@@ -82,34 +84,28 @@ function renderQuota() {
 
 /* ---------- units: every terminal of ours (agents and plain shells) and the sessions outside ---------- */
 
-const ST = {
-  permit: () => [L('⚠ 等授权'), 'var(--red)', 0],
-  question: () => [L('? 等回答'), 'var(--red)', 0],
-  busy: () => [L('▶ 作战中'), 'var(--cyan)', 1],
-  starting: () => [L('启动中'), 'var(--cyan)', 2],
-  idle: () => [L('◆ 待命'), 'var(--amber)', 3],
-  shell: () => [L('终端'), 'var(--green)', 4],
-};
+// the shared status lights (status.js): what needs you first
+const RANK = { error: 0, permit: 0, question: 0, done: 1, busy: 2, boot: 3, idle: 4, standby: 5, shell: 6 };
 
 function rows() {
   const out = [];
   const seen = new Set();
   for (const u of state.units) {
-    const kind = u.permission ? (u.permission.prompt?.kind === 'question' ? 'question' : 'permit') : u.status === 'busy' ? 'busy' : 'idle';
+    const kind = stateKey(u, { standbyMs: (state.thresholds?.standbyMinutes || 30) * 60_000 });
     const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
     if (a) seen.add(a.id);
     // stopped on the quota, as on the command center's cards (whose: the quota at the top)
     const limit = u.limit && u.status !== 'busy' ? L('额度到限：') + u.limit.text : '';
-    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limit || u.summary || u.lastText || '';
-    out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a), waitAt: u.permission?.at || null });
+    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limit || (u.apiError ? L('API 出错：') + u.apiError.text : '') || u.summary || u.lastText || '';
+    out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a), waitAt: u.permission?.at || null, u, a });
   }
   for (const a of state.agents || []) {
     if (!a.alive || seen.has(a.id)) continue;
     const project = String(a.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
-    out.push({ id: a.id, name: a.name || project, project, kind: a.kind === 'shell' ? 'shell' : 'starting', since: a.startedAt, text: '', ours: true });
+    out.push({ id: a.id, name: a.name || project, project, kind: a.kind === 'shell' ? 'shell' : 'boot', since: a.startedAt, text: '', ours: true, a });
   }
   // ours first; within that, what needs you first
-  return out.sort((x, y) => Number(y.ours) - Number(x.ours) || ST[x.kind]()[2] - ST[y.kind]()[2] || String(x.name).localeCompare(String(y.name)));
+  return out.sort((x, y) => Number(y.ours) - Number(x.ours) || RANK[x.kind] - RANK[y.kind] || String(x.name).localeCompare(String(y.name)));
 }
 
 const EMPTY = '<svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true"><ellipse cx="32" cy="41" rx="26" ry="10" stroke="#4f7a90" stroke-width="2" opacity=".6"/><path d="M32 9 L42 39 L32 33 L22 39 Z" stroke="#4f7a90" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 42 L15 51 L11 49 L7 51 Z M53 42 L57 51 L53 49 L49 51 Z" stroke="#4f7a90" stroke-width="2" stroke-linejoin="round"/><path d="M44 14l4 4 8-8" stroke="#4dffa6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -121,7 +117,7 @@ function renderChips() {
   const all = rows();
   const n = (k) => all.filter((r) => r.kind === k).length;
   const chip = (c, label, color, alarm, at) => `<span class="chip ${c ? '' : 'zero'} ${alarm && c ? 'alarm' : ''}" style="--c:${color};${ago(at)}"><b>${c}</b>${esc(label)}</span>`;
-  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit') + n('question'), L('等你处理'), 'var(--red)', true, Math.max(0, ...all.map((r) => r.waitAt || 0)));
+  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--lamp-busy)') + chip(n('idle') + n('standby') + n('done'), L('待命'), 'var(--lamp-idle)') + chip(n('permit') + n('question') + n('error'), L('等你处理'), 'var(--lamp-permit)', true, Math.max(0, ...all.map((r) => r.waitAt || 0)));
 }
 
 function renderUnits() {
@@ -129,10 +125,13 @@ function renderUnits() {
   const html =
     rows()
       .map((r) => {
-        const [label, color] = ST[r.kind]();
+        const st = STATES[r.kind];
+        const label = `${st.icon} ${st.label()}`;
+        const color = st.color;
+        const d = lampDetail(r.kind, r.u, r.a);
         const mins = r.since ? Math.max(0, Math.round((now - r.since) / 60_000)) : null;
         const age = mins == null ? '' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h${pad(mins % 60)}`;
-        const inner = `<div class="head"><span class="dot ${r.kind === 'permit' || r.kind === 'question' ? 'blink' : ''}"></span><b class="nm">${esc(r.name)}</b><span class="st">${esc(label)}</span></div>
+        const inner = `<div class="head">${lamp(r.kind, d.since)}<b class="nm">${esc(r.name)}</b><span class="st"${lampAttrs(r.kind, r.u, r.a, false)}>${esc(label)}</span></div>
           <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${age ? `<time>${age}</time>` : ''}</div>
           ${r.text ? `<div class="sub">${esc(r.text)}</div>` : ''}`;
         return r.ours
@@ -155,7 +154,7 @@ try {
 } catch {
   // storage unavailable
 }
-const NOTICE_COLOR = { permit: 'var(--red)', question: 'var(--red)', ask: 'var(--amber)', done: 'var(--green)', limit: 'var(--red)', error: 'var(--red)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+const NOTICE_COLOR = { permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
 async function loadNotices() {
   if (noticesFor === state.noticeAt) return;
   noticesFor = state.noticeAt;
@@ -209,6 +208,14 @@ document.querySelector('.list-tabs').addEventListener('click', (e) => {
   if (b) setView(b.dataset.view);
 });
 
+// the legend: every light, what it means, how fast it breathes (the ? by the chips)
+$('lamp-legend-btn').addEventListener('click', () => {
+  const pop = $('lamp-legend');
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) pop.innerHTML = '<h4>' + esc(L('状态灯图例')) + '</h4>' + legendHtml();
+  $('lamp-legend-btn').setAttribute('aria-expanded', String(!pop.hidden));
+});
+
 function renderSheet() {
   // (a link straight to a terminal opens it before the first state is here: its name and state come with it)
   if (!screenId || !state) return;
@@ -218,10 +225,11 @@ function renderSheet() {
     $('sheet-st').style.color = 'var(--muted)';
     return;
   }
-  const [label, color] = ST[r.kind]();
+  const st = STATES[r.kind];
+  const d = lampDetail(r.kind, r.u, r.a);
   $('sheet-name').textContent = r.name;
-  $('sheet-st').textContent = `${label} · ${r.project}`;
-  $('sheet-st').style.color = color;
+  $('sheet-st').innerHTML = `<span${lampAttrs(r.kind, r.u, r.a)}>${lamp(r.kind, d.since)} ${esc(st.icon + ' ' + st.label())}</span> · ${esc(r.project)}`;
+  $('sheet-st').style.color = st.color;
 }
 
 function render() {
@@ -291,6 +299,9 @@ async function refreshScreen() {
 
 function openScreen(id, push = true) {
   screenId = id;
+  // you opened it: its finished turn is no longer "not looked at yet"
+  const seenU = state?.units?.find((u) => u.agentId === id);
+  if (seenU?.sessionId) post('/api/seen', { sessionId: seenU.sessionId }).catch(() => {});
   $('screen').dataset.last = '';
   $('screen').dataset.fresh = '1';
   $('screen').textContent = '';

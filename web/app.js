@@ -1,5 +1,6 @@
 import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.js';
-import { stateChip, stateOf, waitingKind } from './status.js';
+import { lamp, lampAttrs, lampDetail, legendHtml, stateChip, stateKey, stateOf, STATES, waitingKind } from './status.js';
+import './tip.js';
 import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
@@ -206,13 +207,70 @@ function currentLine() {
   return lines[ui.line];
 }
 
+// The command desk's light: the most urgent state across the fleet (the same lights as the terminals'),
+// then the reminders' (quota / context running out, git), a system message just in, working, idle, standby.
+// The operator's border glows in its color.
+function deskLamp() {
+  const op = state.operator;
+  const now = Date.now();
+  const standbyMs = state.thresholds.standbyMinutes * 60_000;
+  const units = state.units.map((u) => ({ u, k: stateKey(u, { standbyMs, now }) }));
+  const crashed = (state.agents || []).find((a) => stateKey(null, { agent: a }) === 'error');
+  const of = (k) => units.filter((x) => x.k === k);
+  const many = (list, k) => {
+    const d = lampDetail(k, list[0].u);
+    return { key: k, u: list[0].u, text: list.length > 1 ? L('{0} 个终端', list.length) + ' · ' + d.text : d.text, since: d.since };
+  };
+  if (of('error').length) return many(of('error'), 'error');
+  if (crashed) return { key: 'error', ...lampDetail('error', null, crashed) };
+  for (const k of ['permit', 'question']) if (of(k).length) return many(of(k), k);
+  const line = (kinds) => op.lines.find((l) => kinds.includes(l.kind));
+  const warn = line(['ALERT', 'OVERLOAD']);
+  if (warn) return { key: 'warn', text: warn.text, since: warn.at };
+  if (of('done').length) return many(of('done'), 'done');
+  const git = line(['GIT']);
+  if (git) return { key: 'git', text: git.text, since: git.at };
+  const sys = state.comms?.[0];
+  if (sys && ['SYS', 'RECHARGED'].includes(sys.kind) && now - sys.t < 20_000) return { key: 'sys', text: sys.msg, since: sys.t };
+  if (of('busy').length) return many(of('busy'), 'busy');
+  if (of('idle').length) return many(of('idle'), 'idle');
+  return { key: 'standby', text: op.lines[0]?.text || STATES.standby.what(), since: null };
+}
+
+function renderDeskLamp() {
+  const d = deskLamp();
+  const s = STATES[d.key];
+  const el = $('op-mood');
+  el.style.color = s.color;
+  el.innerHTML = `<span class="desk-lamp" data-lamp="${d.key}" data-lamp-text="${esc(d.text || s.what())}"${d.since ? ` data-lamp-since="${d.since}"` : ''} tabindex="0">${lamp(d.key, d.since)}${esc(s.label())}</span>`;
+  $('operator').style.setProperty('--glow', s.color);
+  $('operator').style.setProperty('--glow-soft', `color-mix(in srgb, ${s.color} 35%, transparent)`);
+}
+
+// the legend: every light, what it means, how fast it breathes (the ? by the desk's light)
+$('lamp-legend-btn').addEventListener('click', () => {
+  const pop = $('lamp-legend');
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) pop.innerHTML = `<h4>${esc(L('状态灯图例'))}</h4>${legendHtml()}`;
+  $('lamp-legend-btn').setAttribute('aria-expanded', String(!pop.hidden));
+});
+
+// You opened a terminal (or looked at it as it finished): its turn is no longer "done, not looked at yet".
+const seenSent = new Set();
+function markSeen(u) {
+  if (!u?.sessionId) return;
+  const k = `${u.sessionId}:${u.statusSince}`;
+  if (seenSent.has(k)) return;
+  seenSent.add(k);
+  post('/api/seen', { sessionId: u.sessionId });
+}
+
 function renderOperator() {
   const op = state.operator;
   const line = currentLine();
   const mood = line && line.kind !== op.mood && op.mood !== 'STANDBY' ? line.kind : op.mood;
   $('operator').dataset.mood = mood;
-  $('op-mood').textContent = KIND[mood]?.mood || '';
-  $('op-mood').style.color = KIND[mood]?.c;
+  renderDeskLamp();
   renderStats();
 
   // Message box: every reminder as an incoming message (most urgent first), then the commands we sent.
@@ -562,8 +620,7 @@ $('deploy-all').addEventListener('click', deployAll);
 function unitCard(u) {
   const th = state.thresholds;
   const now = Date.now();
-  const standby = u.status === 'idle' && now - u.statusSince > th.standbyMinutes * 60_000;
-  const cls = u.offline ? 'offline' : u.permission ? 'permit' : u.status === 'busy' ? 'busy' : standby ? 'idle standby' : 'idle';
+  const cls = u.offline ? 'offline' : stateKey(u, { standbyMs: th.standbyMinutes * 60_000, now });
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   const loadColor = hot ? 'var(--red)' : 'var(--cyan)';
   const running = u.agents.filter((a) => a.running);
@@ -727,7 +784,7 @@ function noticeBadge() {
   $('n-notices').classList.toggle('new', unseen > 0);
   $('n-notices').closest('.tab').title = unseen ? L('{0} 条新通知', unseen) : '';
 }
-const NOTICE_COLOR = { permit: 'var(--red)', question: 'var(--red)', ask: 'var(--amber)', done: 'var(--green)', limit: 'var(--red)', error: 'var(--red)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+const NOTICE_COLOR = { permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
 function noticesPage() {
   const now = Date.now();
   if (!noticeList.length) return emptyBlock('empty', L('还没有通知。agent 做完、等你授权或回答、额度告急时，这里会留一条，点一下回到那个终端。'));
@@ -1267,7 +1324,9 @@ function renderTermHeads() {
     const st = el.querySelector('.t-state');
     const u = state?.units.find((x) => x.agentId === id);
     const s = stateOf(u, { agent: { ...a, alive } });
-    st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color};${agoVar(u)}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
+    st.innerHTML = stateChip(u, { agent: { ...a, alive } }, !alive && a?.exitCode != null ? `（${a.exitCode}）` : '');
+    // finished while you have it open in front of you: you have seen it
+    if (s.key === 'done' && document.hasFocus() && !document.hidden) markSeen(u);
     st.className = 't-state';
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
@@ -1390,6 +1449,7 @@ function spotlight(ids) {
 }
 
 function openTerm(id) {
+  markSeen(state?.units.find((u) => u.agentId === id));
   $('term-panel').hidden = false;
   if (panes.has(id)) {
     setActivePane(id);
@@ -1772,7 +1832,10 @@ $('page').addEventListener('click', (e) => {
     return;
   }
   const f = e.target.closest('[data-focus]');
-  if (f) focus(f.dataset.focus);
+  if (f) {
+    focus(f.dataset.focus);
+    markSeen(state?.units.find((u) => String(u.pid) === f.dataset.focus));
+  }
   const s = e.target.closest('[data-snooze]');
   if (s) snoozeLine(s.dataset.snooze);
   const r = e.target.closest('[data-resume]');
@@ -2186,7 +2249,9 @@ function renderThemeMenu() {
     return `<button role="menuitemradio" data-theme="${k}" aria-checked="${k === cur}" title="${esc(L(THEME_NOTE[k]))}"><span class="sw">${sw.map((c) => `<i style="background:${c}"></i>`).join('')}</span>${esc(k === 'auto' ? L('跟随系统') : L(t.name))}</button>`;
   }).join('') +
     // the terminal texture switch (every page and the phone follow); a theme without one says so
-    textureItem();
+    textureItem() +
+    // the status lights' legend (the same as the ? by the command desk's light)
+    `<button role="menuitem" class="legend-opt"><span class="sw">${lamp('busy', 0)}${lamp('permit', 0)}${lamp('done', 0)}</span>${esc(L('状态灯图例…'))}</button>`;
 }
 function textureItem() {
   const T = THEMES[document.documentElement.dataset.theme] || THEMES.deepspace;
@@ -2211,6 +2276,12 @@ $('theme-btn').addEventListener('click', (e) => {
   toggleThemeMenu();
 });
 $('theme-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#theme-menu .legend-opt')) {
+    toggleThemeMenu(false);
+    if ($('lamp-legend').hidden) $('lamp-legend-btn').click();
+    $('lamp-legend-btn').scrollIntoView({ block: 'nearest' });
+    return;
+  }
   // only the menu's own items: the page root carries data-theme and data-paper too
   if (e.target.closest('#theme-menu .paper-opt')) {
     toggleThemeMenu(false);

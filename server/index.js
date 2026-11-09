@@ -26,6 +26,7 @@ import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
+import { markSeen, seenAt } from './seen.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
@@ -136,7 +137,8 @@ function publish() {
       const agentId = byPid.get(u.pid) || bySession.get(u.sessionId) || null;
       const prompt = prompts.get(u.sessionId) || null;
       const org = orgInfo(orgOfUnit(u));
-      return { ...u, owned: Boolean(agentId), agentId, permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
+      // seenAt: when you last opened its terminal (a turn ended after it: "done, not looked at yet")
+      return { ...u, owned: Boolean(agentId), agentId, seenAt: seenAt(u.sessionId), permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
@@ -606,6 +608,13 @@ async function handleRequest(req, res) {
     if (lightGrain !== undefined) setLightGrain(lightGrain);
     publish(); // every open page (and the phone) recolors with the next state
     return send(res, 200, { ok: true, theme: getTheme(), paper: getPaper() });
+  }
+  // you opened a session's terminal (any page): its finished turn is no longer "not looked at yet"
+  if (req.method === 'POST' && req.url === '/api/seen') {
+    const { sessionId } = await readBody(req);
+    if (!markSeen(sessionId)) return send(res, 400, { error: 'bad_session' });
+    publish();
+    return send(res, 200, { ok: true });
   }
   if (req.method === 'POST' && req.url === '/api/snooze') {
     const { key, minutes } = await readBody(req);
