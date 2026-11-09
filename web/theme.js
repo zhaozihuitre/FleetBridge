@@ -36,10 +36,11 @@ export const THEMES = {
   warm: {
     name: '暖色',
     glow: 'soft',
-    // reading by lamplight: dark walnut, parchment text, amber lamp accent; little blue light (the blues are
+    // reading by lamplight: dark walnut, parchment text, the lamp's amber for what waits on you and a teal ink
+    // for what is working (amber for both made busy and idle look the same); little blue light (the blues are
     // grayed teal); a faint grain on the dark like old paper (can be turned off)
     grain: 'dark',
-    ui: { bg: '#201c17', panel: '#29241e', panelDeep: '#241f1a', line: '#3b342b', lineHi: '#5c5143', text: '#dccbae', soft: '#c4b295', muted: '#ae9d82', dim: '#9d8d74', accent: '#e2a453', amber: '#e2a453', red: '#e48a70', green: '#a9b86e', termBg: '#1d1915' },
+    ui: { bg: '#201c17', panel: '#29241e', panelDeep: '#241f1a', line: '#3b342b', lineHi: '#5c5143', text: '#dccbae', soft: '#c4b295', muted: '#ae9d82', dim: '#9d8d74', accent: '#78b8ae', amber: '#e2a453', red: '#e48a70', green: '#a9b86e', termBg: '#1d1915' },
     term: { background: '#1d1915', foreground: '#d6c5a8', cursor: '#ebb66b', cursorAccent: '#1d1915', selectionBackground: 'rgba(226,164,83,.26)', black: '#322b23', red: '#e3846b', green: '#a8b76d', yellow: '#ddb05c', blue: '#91b2ba', magenta: '#d09aa8', cyan: '#90c0a0', white: '#bcad92', brightBlack: '#3b342b', brightRed: '#ebb66b', brightGreen: '#bac87e', brightYellow: '#edc274', brightBlue: '#a5c2c9', brightMagenta: '#ddacb8', brightCyan: '#a4cfb2', brightWhite: '#eadcc1' },
   },
   light: {

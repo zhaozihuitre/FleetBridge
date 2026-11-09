@@ -3543,6 +3543,37 @@
       "created": "2026-11-09 09:46",
       "updated": "2026-11-09 09:46",
       "notes": []
+    },
+    {
+      "id": "C-071",
+      "type": "change",
+      "title": "0.9.50 界面巡检改进",
+      "summary": "指令摘要（卡片、小窗、手机页的「执行中」、存档的最后指令）不再显示 <pasted_content> 等标签：新增 server/prompttext.js 统一清理（粘贴保留文字、斜杠命令显示 /name args、只有标签的为空），短引导语（以冒号结尾）接下一行。过了重置时间的额度窗口在服务端当作已重新开始（0%、未开始），另一组织同样处理；quotaLow 之前匹配不到 session key，已修。顶栏断点放宽（另一组织额度框挤占）：≤1640 去掉英文前缀和 PILOT 行，≤1500 去掉重置时间，未开始显示「未开始」。统一的空状态/加载状态（emptyBlock：图标 + 一句话 + 操作），存档搜索中显示加载而不是「没有找到」，活动终端空状态带「＋ 出击」。Web 访问设备列表：信任的在前、按最近使用排序、「信任」徽标、超过 6 台折叠、7 天未用变淡；修了设置密码时 /s+/ 少反斜杠的长度校验。手机页：额度上方显示组织、另一组织一行、短标签、未开始；卡片显示额度到限。小窗：去掉内部优先级字母 [S]，待命显示结论摘要，额度到限单独显示。暖色主题强调色改为青绿墨水，和待命的琥珀区分（之前两者同色，作战/待命分不出）。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/prompttext.js",
+        "server/collectors/transcript.js",
+        "server/collectors/history.js",
+        "server/index.js",
+        "web/app.js",
+        "web/m.js",
+        "web/m.css",
+        "web/style.css",
+        "web/widget.js",
+        "web/theme.js",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "ui",
+        "mobile",
+        "theme"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:02",
+      "updated": "2026-11-09 10:02",
+      "notes": []
     }
   ]
 }

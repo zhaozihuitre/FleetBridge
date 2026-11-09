@@ -44,13 +44,20 @@ button { cursor: pointer; }
 .chip.zero b { color: var(--dim); text-shadow: none; }
 .chip.alarm { border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); animation: alarm 1.4s ease-in-out infinite; }
 .quota { display: grid; gap: 6px; margin-top: 10px; }
-.q { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.q { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .q .k { font-family: var(--label); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .seg { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; height: 8px; }
 .seg i { background: var(--off); }
 .seg i.on { background: var(--c); box-shadow: 0 0 5px var(--c); }
 .q .v { font-family: var(--display); font-size: 12px; color: var(--text); text-align: right; white-space: nowrap; }
 .q .v small { font-family: var(--label); font-size: 11px; color: var(--muted); margin-left: 4px; }
+/* whose quota: the organization over the rows, another organization's last reading under them */
+.q-org { font-family: var(--label); font-size: 12px; color: var(--muted); letter-spacing: .5px; }
+.q-org b { color: var(--soft); font-weight: 600; }
+.q-org i { font-style: normal; color: var(--amber); }
+.q-other { display: flex; align-items: baseline; gap: 8px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--soft); }
+.q-other b { font-family: var(--label); font-weight: 600; color: var(--muted); }
+.q-other small { margin-left: auto; color: var(--muted); font-size: 11px; }
 .q .v.hot { color: var(--red); text-shadow: 0 0 8px color-mix(in srgb, var(--red) 60%, transparent); }
 
 /* ---------- the units list ---------- */

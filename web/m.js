@@ -18,14 +18,6 @@ document.getElementById('view-full').addEventListener('click', () => switchView(
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const pad = (n) => String(n).padStart(2, '0');
-// time left until a reset, short: "02:50" or "3天"
-const left = (ms) => {
-  if (!(ms > 0)) return '--';
-  const m = Math.floor(ms / 60_000);
-  const d = Math.floor(m / 1440);
-  return d ? L('{0}天', d) : `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-};
-setInterval(() => document.querySelectorAll('[data-reset]').forEach((el) => (el.textContent = left(+el.dataset.reset - Date.now()))), 30_000);
 const hhmm = (ms) => {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -53,19 +45,38 @@ function toast(text) {
   toast.t = setTimeout(() => $('toast').classList.remove('on'), 2200);
 }
 
+// a short name for a limit on a narrow screen: "5 小时", "本周", "Fable · 周"
+const shortLabel = (l) => {
+  const [kind, model] = String(l.key || '').split(':');
+  return kind === 'session' ? L('5 小时') : model ? `${model} · ${L('周')}` : kind === 'weekly_all' ? L('本周') : l.label;
+};
+
 function renderQuota() {
-  $('quota').innerHTML = (state.usage?.limits || [])
+  const u = state.usage;
+  const rows = (u?.limits || [])
     .map((l) => {
       const used = Math.max(0, Math.min(100, l.usedPct));
       const low = 100 - used <= state.thresholds.energyLowPct;
       const c = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
       const on = Math.round(used / 5);
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
-      // what's used and when it resets (with the date)
-      const v = `<span class="v">${Math.round(used)}%<small><span class="cd" data-reset="${l.resetsAt}">${left(l.resetsAt - Date.now())}</span> · ${esc(L('{0} 重置', when(l.resetsAt)))}</small></span>`;
-      return `<div class="q" style="--c:${c}"><span class="k">${esc(l.label)}</span>${seg}${v}</div>`;
+      // what's used and when it resets (with the day); a window not started yet has no reset time
+      const started = l.resetsAt > 0;
+      const v = `<span class="v">${Math.round(used)}%<small>${started ? esc(L('{0} 重置', when(l.resetsAt))) : L('未开始')}</small></span>`;
+      return `<div class="q" style="--c:${c}" title="${esc(l.label)}"><span class="k">${esc(shortLabel(l))}</span>${seg}${v}</div>`;
     })
     .join('');
+  // whose quota (the organization), and the other organization's last reading in one line
+  const org = u?.org ? `<div class="q-org"><b>${esc(u.org.name)}</b>${u.signedIn ? ` · <i>${esc(L('已切换到 {0}', u.signedIn.name))}</i>` : ''}</div>` : '';
+  const others = (u?.others || [])
+    .map((x) => {
+      const pick = (k) => x.limits.find((l) => l.key === k);
+      const part = (l, name) => (l ? `${name} ${Math.round(l.usedPct)}%` : '');
+      const text = [part(pick('session'), L('5 小时')), part(pick('weekly_all'), L('本周'))].filter(Boolean).join(' · ') || '--';
+      return `<div class="q-other"><b>${esc(x.org.name)}</b><span>${esc(text)}</span><small>${esc(x.live ? L('读取于 {0}', hhmm(x.fetchedAt)) : L('截至 {0}', when(x.fetchedAt)))}</small></div>`;
+    })
+    .join('');
+  $('quota').innerHTML = org + rows + others;
 }
 
 /* ---------- units: every terminal of ours (agents and plain shells) and the sessions outside ---------- */
@@ -86,7 +97,9 @@ function rows() {
     const kind = u.permission ? (u.permission.prompt?.kind === 'question' ? 'question' : 'permit') : u.status === 'busy' ? 'busy' : 'idle';
     const a = u.owned ? (state.agents || []).find((x) => x.id === u.agentId) : null;
     if (a) seen.add(a.id);
-    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : u.summary || u.lastText || '';
+    // stopped on the quota: whose quota, as on the command center's cards
+    const limit = u.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '';
+    const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limit || u.summary || u.lastText || '';
     out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a) });
   }
   for (const a of state.agents || []) {

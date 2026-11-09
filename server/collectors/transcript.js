@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import { LIMIT_RE } from '../accounts.js';
+import { promptLine } from '../prompttext.js';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const CHUNK = 1 << 20;
@@ -58,7 +59,9 @@ function apply(st, d) {
       }
     }
   } else if (d.type === 'user' && msg && typeof msg.content === 'string' && !d.isMeta) {
-    if (!msg.content.startsWith('<')) st.lastPrompt = firstLine(msg.content);
+    // null for a command's own output or a system note: not what the agent was asked
+    const line = promptLine(msg.content);
+    if (line) st.lastPrompt = line;
     st.limit = null;
     st.lastActivity = d.timestamp;
   }

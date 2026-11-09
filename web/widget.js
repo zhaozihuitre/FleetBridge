@@ -94,8 +94,11 @@ function unitLook(u) {
   const hot = u.contextPct != null && u.contextPct >= th.contextWarnPct;
   if (u.permission) return { c: 'var(--red)', s: u.permission.prompt?.kind === 'question' ? L('等你回答！') : L('等你授权！'), blink: true };
   if (u.status === 'busy') return { c: 'var(--cyan)', s: u.lastPrompt ? L('执行：') + u.lastPrompt : L('作战中'), blink: false, hot };
+  // stopped on the quota: whose (the same words as the cards)
+  if (u.limit) return { c: 'var(--red)', s: L('额度到限（{0}）', u.limit.org || L('组织未知')), blink: false, hot };
   const standby = now - u.statusSince > th.standbyMinutes * 60_000;
-  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: standby ? L('休眠') : L('做完了，等你指令'), blink: false, hot };
+  // finished: the conclusion of its answer when there is one (the notice's summary), not just "done"
+  return { c: standby ? 'var(--muted)' : 'var(--amber)', s: u.summary || u.lastText || (standby ? L('休眠') : L('做完了，等你指令')), blink: false, hot };
 }
 
 function renderUnits() {
@@ -130,7 +133,7 @@ function renderAlert() {
   a.style.setProperty('--qc', LV[q.lv]);
   a.dataset.agent = u?.agentId || '';
   a.dataset.pid = q.unit?.pid ?? '';
-  a.innerHTML = `<b>[${q.lv}] ${esc(q.title)}</b><small>${esc(q.goal)}${state.quests.length > 1 ? L(' · 另有 {0} 项', state.quests.length - 1) : ''}</small>`;
+  a.innerHTML = `<b>${esc(q.title)}</b><small>${esc(q.goal)}${state.quests.length > 1 ? L(' · 另有 {0} 项', state.quests.length - 1) : ''}</small>`;
 }
 
 function render() {

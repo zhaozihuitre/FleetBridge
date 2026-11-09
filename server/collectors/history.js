@@ -1,3 +1,4 @@
+import { promptLine } from '../prompttext.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
@@ -40,7 +41,7 @@ function summarize(file, size) {
     return {
       cwd: all.find((d) => d.cwd)?.cwd || null,
       title: last('custom-title', 'customTitle') || last('ai-title', 'aiTitle'),
-      lastPrompt: last('last-prompt', 'lastPrompt'),
+      lastPrompt: promptLine(last('last-prompt', 'lastPrompt')),
     };
   } finally {
     fs.closeSync(fd);

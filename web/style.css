@@ -467,6 +467,10 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .t-repo.warn { color: var(--amber); border-color: var(--x-5c4423); }
 .empty { font-family: var(--body); font-size: 13px; color: var(--muted); padding: 10px; background: var(--panel-deep); }
 .blank { height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--body); color: var(--muted); border: 1px dashed var(--line); }
+.blank-in { max-width: 440px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; line-height: 1.7; }
+.blank-in p { margin: 0; }
+.blank-in svg { color: var(--line-hi); }
+.blank .spin { width: 22px; height: 22px; border: 2px solid var(--line); border-top-color: var(--cyan); border-radius: 50%; animation: spin .9s linear infinite; }
 
 .quests { height: 100%; display: flex; flex-direction: column; gap: 10px; }
 /* the Agents page: our live terminals */
@@ -667,12 +671,15 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
 
 /* Narrower windows (laptops, a tablet in landscape, half a screen): the top bar and the tab row
    drop their extras before anything gets cut (the full texts stay in the tooltips) */
-@media (max-width: 1400px) {
+/* (wider than before: the other organization's quota box shares the bar since 0.9.41) */
+@media (max-width: 1640px) {
   .energy .lk { display: none; }
   .pilot small { display: none; }
 }
-@media (max-width: 1250px) {
+@media (max-width: 1500px) {
   .energy .resets { display: none; }
+}
+@media (max-width: 1250px) {
   .search { flex-basis: 120px; }
   /* the two deploy buttons show their icon only (⚡ / ＋); the title says what they do */
   .tabs #deploy-all, .tabs #deploy-open { width: 40px; padding: 0 0 0 12px; overflow: hidden; white-space: nowrap; text-overflow: clip; }
@@ -704,9 +711,16 @@ html.web [data-win] { display: none; }
 /* web access dialog: the generated password, the signed-in devices */
 .ph-gen { font-family: var(--display); font-size: 15px; letter-spacing: 2px; color: var(--amber); padding: 2px 8px; border: 1px dashed var(--line-hi); }
 .ph-devs { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; font-size: 13px; color: var(--soft); }
-.ph-devs-h { color: var(--muted); }
-.ph-dev { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border: 1px solid var(--line); }
-.ph-dev small { color: var(--muted); margin-right: auto; }
+.ph-devs-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 2px; }
+.ph-devs-h b { color: var(--text); font-weight: 600; }
+.ph-devs-h small { color: var(--muted); font-size: 12px; }
+.ph-dev { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border: 1px solid var(--line); }
+.ph-dev .dev-name { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+.ph-dev small { color: var(--muted); margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-dev.idle { opacity: .6; }
+.dev-badge { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--green) 55%, transparent); color: var(--green); font-size: 11px; line-height: 17px; }
+.ph-dev-none { padding: 8px; color: var(--muted); border: 1px dashed var(--line); }
+.ph-devs-more { align-self: flex-start; margin-top: 2px; }
 .ph-urls small { color: var(--muted); }
 
 /* A state change flashes once (app.js flashChanged): a short wash of the card's own color */

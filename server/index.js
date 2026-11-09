@@ -113,14 +113,18 @@ function publish() {
   }
   const merged = withStatusline(usage, STATUSLINE_USAGE);
   const orgNow = currentOrg();
+  // a window whose reset time has passed (the last reading is older than it) started over: nothing used
+  // yet and no reset time, rather than the old percentage with a reset in the past
+  const rolled = (l) => (l.resetsAt > 0 && l.resetsAt <= Date.now() ? { ...l, usedPct: 0, resetsAt: 0, active: false } : l);
+  const others = otherOrgs(merged?.account?.orgId).map((x) => ({ ...x, limits: x.limits.map(rolled) }));
   const view = merged && {
     ...merged,
-    limits: merged.limits?.map((l) => ({ ...l, label: limitLabel(l.key) })),
+    limits: merged.limits?.map((l) => ({ ...rolled(l), label: limitLabel(l.key) })),
     // whose quota this is: the organization the reading was made under (the API's profile)
     org: orgInfo(merged.account?.orgId) || (merged.account?.org ? { name: merged.account.org, email: merged.account.email } : null),
     // signed in now, if not the one read yet (a /login since the last reading)
     signedIn: orgNow && orgNow !== merged.account?.orgId ? orgInfo(orgNow) : null,
-    others: otherOrgs(merged.account?.orgId),
+    others,
   };
   const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
@@ -203,9 +207,10 @@ function publish() {
 
 // the five-hour quota nearly used up: summaries by rules only (the model would spend what is left)
 function quotaLow() {
-  const five = usage?.limits?.find((l) => /five|5h/i.test(l.key || '')) || usage?.fiveHour;
+  const five = usage?.limits?.find((l) => l.key === 'session' || /five|5h/i.test(l.key || '')) || usage?.fiveHour;
   const used = five?.usedPct ?? five?.used ?? null;
-  return used != null && used >= 90;
+  const over = five?.resetsAt > 0 && five.resetsAt <= Date.now(); // that window has started over since
+  return used != null && used >= 90 && !over;
 }
 
 async function refreshUsage(force = false) {

@@ -125,7 +125,7 @@ function renderEnergy() {
           <div class="row"><span class="label"><span class="lk">${weekly ? 'RESERVE' : 'ENERGY'} · </span>${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${Math.round(used)}%</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dur(l.resetsAt - Date.now()) : '--:--'}</span><span class="resets">${esc(resets)}</span></div>
+          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dur(l.resetsAt - Date.now()) : L('未开始')}</span><span class="resets">${esc(resets)}</span></div>
         </div>`;
       })
       .join('');
@@ -727,6 +727,14 @@ function mark(text, q) {
   return i < 0 ? esc(text) : `${esc(text.slice(0, i))}<mark>${esc(text.slice(i, i + q.length))}</mark>${esc(text.slice(i + q.length))}`;
 }
 
+// An empty or still-loading area: a quiet mark, one sentence that says why and what to do, and maybe the
+// action itself; the same look on every tab ('loading' spins while it waits).
+const EMPTY_MARK = '<svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="currentColor" stroke-width="1.4"/><path d="M12 17h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+function emptyBlock(kind, text, action = '') {
+  const mark = kind === 'loading' ? '<span class="spin" aria-hidden="true"></span>' : EMPTY_MARK;
+  return `<div class="blank ${kind}" role="status"><div class="blank-in">${mark}<p>${esc(kind === 'loading' ? L('搜索中…') : text)}</p>${action}</div></div>`;
+}
+
 function archiveRow(h) {
   const now = Date.now();
   const action = h.owned
@@ -835,7 +843,7 @@ function renderPage() {
           ? `<span class="mono">SEARCH</span><span>${ui.search.results ? L('「{0}」：{1} 个会话', esc(ui.search.q), list.length) : L('搜索中…')}</span>`
           : `<span class="mono">SAVE DATA</span><span>${ui.tab === 'units' ? L('没有活动的会话 · ') : ''}${esc(sel?.cwd || '')}${L(' · {0} 个', list.length)}</span>`
       }</div>
-      ${items.map(archiveRow).join('') || `<div class="blank">${L('没有找到会话')}</div>`}</div></div>`;
+      ${items.map(archiveRow).join('') || emptyBlock(ui.search && ui.tab === 'archive' && !ui.search.results ? 'loading' : 'empty', ui.search && ui.tab === 'archive' ? L('没有找到会话。换个关键词，或清除搜索看全部存档。') : L('这个文件夹里没有会话'))}</div></div>`;
     $('page').innerHTML = html;
     document.querySelector('.folders').scrollTop = scroll; // keep the folder list where it was across live refreshes
   }
@@ -843,7 +851,7 @@ function renderPage() {
   else if (ui.tab === 'agents')
     html = items.length
       ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
-      : `<div class="blank">${L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。')}</div>`;
+      : emptyBlock('empty', L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。'), `<button class="btn" data-empty-deploy>${L('＋ 出击')}</button>`);
   else if (ui.tab === 'orders') html = ordersPage();
   if (kind !== 'archive') {
     const keep = kind === 'orders' ? document.querySelector('.orders')?.scrollTop || 0 : 0;
@@ -1574,6 +1582,8 @@ $('refresh').addEventListener('click', async () => {
   toast(L('已刷新'));
 });
 $('page').addEventListener('click', (e) => {
+  // an empty state's own action (no terminals yet: deploy one)
+  if (e.target.closest('[data-empty-deploy]')) return $('deploy-open').click();
   // Orders tab: take one order, or a whole queue, off
   const uq = e.target.closest('[data-unqueue]');
   if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
@@ -1676,11 +1686,29 @@ async function renderPhone(info) {
   // the generated password is shown until you set your own (it is only on this computer)
   $('ph-gen').hidden = !info.generated;
   $('ph-gen').textContent = info.generated ? L('当前密码：{0}', info.generated) : '';
-  const devs = info.devices || [];
-  $('ph-devs').hidden = !info.enabled;
-  $('ph-devs').innerHTML = `<div class="ph-devs-h">${L('已登录的设备：{0} 台（每台 {1} 天内不用再输密码，信任的设备 {2} 天）', devs.length, info.sessionDays ?? 30, info.trustDays ?? 90)}</div>` +
-    devs.map((d) => `<div class="ph-dev"><span>${esc(d.device)}</span><small>${d.trusted ? L('已信任（{0} 天，可批准新设备）', info.trustDays ?? 90) + ' · ' : ''}${esc(d.ip || '')} · ${L('最近使用 {0}', ago(Date.now() - d.seen))}</small><button type="button" class="o-x" data-revoke="${esc(d.id)}" title="${L('让这台设备退出登录')}">✕</button></div>`).join('');
+  renderDevices();
   if (info.error) toast(info.error);
+}
+
+// Signed-in devices: trusted ones first, then the most recently used; past the first few the rest fold away,
+// and one not used for a week is dimmed (it signs itself out when its days are up).
+const DEV_SHOWN = 6;
+let devsOpen = false;
+function renderDevices() {
+  const info = phoneInfo;
+  const devs = [...(info.devices || [])].sort((a, b) => b.trusted - a.trusted || b.seen - a.seen);
+  $('ph-devs').hidden = !info.enabled;
+  const row = (d) => {
+    const idle = Date.now() - d.seen > 7 * 86400e3;
+    const badge = d.trusted ? `<span class="dev-badge" title="${esc(L('已信任（{0} 天，可批准新设备）', info.trustDays ?? 90))}">${L('信任')}</span>` : '';
+    return `<div class="ph-dev${idle ? ' idle' : ''}"><span class="dev-name">${esc(d.device)}${badge}</span><small>${L('最近使用 {0}', ago(Date.now() - d.seen))} · ${esc(d.ip || '')}</small><button type="button" class="o-x" data-revoke="${esc(d.id)}" title="${L('让这台设备退出登录')}" aria-label="${L('让这台设备退出登录')}">✕</button></div>`;
+  };
+  const shown = devsOpen ? devs : devs.slice(0, DEV_SHOWN);
+  const more = devs.length - shown.length;
+  $('ph-devs').innerHTML =
+    `<div class="ph-devs-h"><b>${L('已登录的设备 · {0} 台', devs.length)}</b><small>${L('{0} 天内不用再输密码；信任的设备 {1} 天，并可批准新设备', info.sessionDays ?? 30, info.trustDays ?? 90)}</small></div>` +
+    (devs.length ? shown.map(row).join('') : `<div class="ph-dev-none">${L('还没有设备登录。用平板或手机扫上面的码试试。')}</div>`) +
+    (more > 0 ? `<button type="button" class="btn ghost ph-devs-more" data-devs-more>${L('显示其余 {0} 台', more)}</button>` : devsOpen && devs.length > DEV_SHOWN ? `<button type="button" class="btn ghost ph-devs-more" data-devs-more>${L('收起')}</button>` : '');
 }
 
 function renderPush(info) {
@@ -1733,7 +1761,7 @@ $('ph-toggle').addEventListener('click', async () => {
 });
 $('ph-pin-save').addEventListener('click', async () => {
   const password = $('ph-pin').value;
-  if (password.replace(/s+/g, '').length < (phoneInfo?.passwordMin || 8)) return toast(L('密码至少 {0} 个字符', phoneInfo?.passwordMin || 8));
+  if (password.replace(/\s+/g, '').length < (phoneInfo?.passwordMin || 8)) return toast(L('密码至少 {0} 个字符', phoneInfo?.passwordMin || 8));
   const info = await post('/api/mobile', { password });
   renderPhone(info);
   if (!info.error) {
@@ -1762,6 +1790,10 @@ $('ph-pin-gen').addEventListener('click', async () => {
   toast(L('已生成新密码，所有设备需要重新登录'));
 });
 $('ph-devs').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-devs-more]')) {
+    devsOpen = !devsOpen;
+    return renderDevices();
+  }
   const b = e.target.closest('[data-revoke]');
   if (b) renderPhone(await post('/api/mobile', { revoke: b.dataset.revoke }));
 });
@@ -1958,7 +1990,7 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光，少蓝光', light: '纸面：暖纸色，墨水色文字，白天用' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '纸面：暖纸色，墨水色文字，白天用' };
 // the texture each theme has (web/texture.css), named in the menu for the theme in use
 const TEXTURE_NAME = { paper: '纸张纹理', dark: '纸张颗粒', scan: '扫描线' };
 function renderThemeMenu() {
