@@ -336,9 +336,20 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .ph-urls li b { color: var(--text); font-weight: 500; }
 .phone .deploy-row { flex-wrap: wrap; }
 .phone { max-height: calc(100vh - 32px); overflow-y: auto; }
-.ph-push { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ph-push { display: flex; flex-direction: column; gap: 10px; }
 .ph-push h3 { margin: 0; font-size: 15px; }
 .ph-push h3 .mono { color: var(--amber); letter-spacing: 2px; margin-right: 8px; }
+/* the dialog's pages (Web access / devices / push / summaries): tabs on top, each page one job; the same height
+   so switching does not make the dialog jump */
+.ph-tabs { display: flex; gap: 2px; margin: 2px 0 4px; border-bottom: 1px solid var(--line); }
+.ph-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: transparent; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font: inherit; font-size: 14px; }
+.ph-tabs button:hover { color: var(--text); }
+.ph-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--cyan); font-weight: 600; }
+.ph-tab-n:not(:empty) { padding: 0 6px; background: var(--line); color: var(--soft); font-family: var(--display); font-size: 11px; }
+.ph-page { min-height: 380px; display: flex; flex-direction: column; gap: 10px; }
+.ph-page[hidden] { display: none; }
+.ph-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); cursor: pointer; }
+.ph-foot { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
 .ph-steps { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.7; color: var(--soft); }
 .ph-topic { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; color: var(--amber); word-break: break-all; user-select: all; }
 .ph-topic:empty { display: none; }
@@ -430,7 +441,9 @@ body.op-dragging iframe { pointer-events: none; } /* a preview under the pointer
 .unit.standby { --c: var(--muted); }
 .unit.offline { --c: var(--muted); }
 .unit.offline h3 { color: var(--soft); }
-.unit.permit { --c: var(--red); border-color: var(--x-5c1f2c); animation: permit 1.2s ease-in-out infinite; }
+/* waiting on you: a few blinks when it comes up, then a steady red edge (--ago: when it came up, so a re-render
+   does not start the blinking over) */
+.unit.permit { --c: var(--red); border-color: color-mix(in srgb, var(--red) 70%, transparent); animation: permit 1.2s ease-in-out var(--ago, 0s) 4; }
 @keyframes permit { 50% { border-color: var(--red); } }
 .unit::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }
 .unit .top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: var(--c); }
@@ -576,6 +589,22 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .o-row .o-who b { color: var(--text); font-weight: 600; }
 .o-src { display: flex; }
 .o-day { margin: 6px 0 0; padding: 2px 0; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+/* the recent notices: one row each (time, kind, whose, the conclusion, what it needs of you, the result); a click
+   goes back to its terminal. A colored edge per kind, like the orders log */
+.notices { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; font-family: var(--body); }
+.n-row { display: grid; grid-template-columns: 48px 118px minmax(0, 1fr) 14px; gap: 12px; align-items: start; padding: 9px 12px; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--nc); color: var(--soft); font: inherit; font-size: 13px; line-height: 1.55; transition: background .15s, border-color .15s; }
+.n-row:hover { background: var(--panel-deep); border-color: var(--line-hi); border-left-color: var(--nc); }
+.n-row.gone { opacity: .72; }
+.n-time { padding-top: 1px; font-family: var(--display); font-size: 12px; color: var(--muted); }
+.n-kind { color: var(--nc); font-weight: 600; line-height: 1.45; }
+.n-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.n-who { font-size: 12px; color: var(--muted); }
+.n-org { margin-left: 4px; padding: 0 5px; border: 1px solid var(--line); font-style: normal; font-size: 11px; }
+.n-title { color: var(--text); font-weight: 600; }
+.n-needs { color: var(--amber); }
+.n-result { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.n-go { align-self: center; font-size: 18px; color: var(--muted); }
+.tab .n.new { background: var(--amber); color: var(--bg); }
 .o-row .o-text { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
 .o-via { padding: 0 5px; white-space: nowrap; border: 1px solid var(--cyan); color: var(--cyan); font-size: 11px; }
 /* four tabs + search + three buttons: make room so no tab badge gets cut */
@@ -695,7 +724,7 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
 .st-chip { display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; height: 20px; border: 1px solid currentColor; color: var(--sc); font-family: var(--body); font-size: 12px; font-weight: 700; letter-spacing: .5px; line-height: 1; white-space: nowrap; vertical-align: middle; }
 .st-chip i { font-style: normal; font-size: 11px; }
 .st-permit, .st-question { background: color-mix(in srgb, var(--red) 10%, transparent); }
-.st-permit i, .st-question i { animation: pulse 1s ease-in-out infinite; }
+.st-permit i, .st-question i { animation: pulse 1s ease-in-out var(--ago, 0s) 4; }
 .quest .type .st-chip { height: 18px; font-size: 11px; letter-spacing: 0; }
 .pane .term-who .t-state .st-chip { height: 18px; font-size: 11px; padding: 0 5px; }
 .quest .side .ran { font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -720,7 +749,8 @@ html.web [data-win] { display: none; }
 .ph-dev.idle { opacity: .6; }
 .dev-badge { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--green) 55%, transparent); color: var(--green); font-size: 11px; line-height: 17px; }
 .ph-dev-none { padding: 8px; color: var(--muted); border: 1px dashed var(--line); }
-.ph-devs-more { align-self: flex-start; margin-top: 2px; }
+.ph-devs-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.ph-devs-acts:empty { display: none; }
 .ph-urls small { color: var(--muted); }
 
 /* A state change flashes once (app.js flashChanged): a short wash of the card's own color */

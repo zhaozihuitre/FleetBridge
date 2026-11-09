@@ -19,8 +19,8 @@ import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
 import { mobileInfo, pendingDevices, setMobile, startMobile, stopMobile, webSetupNeeded, webUrl } from './mobile.js';
 import { pushInfo, pushNotices, setPush, testPush } from './push.js';
-import { lineText, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
-import { lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
+import { lineText, noticeHistory, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
+import { kindIcon, kindWord, lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
 import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
@@ -180,6 +180,7 @@ function publish() {
   updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
   state.notify = notifySettings();
+  state.noticeAt = noticeHistory()[0]?.at || 0; // the lists of recent notices fetch again when this moves
   state.webPending = pendingDevices(); // devices waiting for this computer's OK
   state.webSetup = webSetupNeeded(); // no password yet: the command center asks for one
   // the lists say the same: a question is "needs an answer", a finished turn shows its summary
@@ -589,6 +590,11 @@ async function handleRequest(req, res) {
     setLang(lang);
     publish(); // reminders and operator lines are rebuilt in the new language
     return send(res, 200, { ok: true, lang: getLang() });
+  }
+  // the recent notices (the lists on the command center and the phone), newest first
+  if (req.method === 'GET' && req.url.startsWith('/api/notices')) {
+    const n = Math.min(100, Number(new URL(req.url, 'http://localhost').searchParams.get('limit')) || 50);
+    return send(res, 200, { notices: noticeHistory().slice(0, n).map((x) => ({ ...x, icon: kindIcon(x.kind), word: kindWord(x.kind) })) });
   }
   if (req.method === 'POST' && req.url === '/api/theme') {
     const { theme, paper } = await readBody(req);

@@ -1,4 +1,6 @@
-import { config } from './config.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { config, DATA_DIR } from './config.js';
 import { L } from './i18n.js';
 import { currentOrg, LIMIT_RE, orgAt, orgInfo } from './accounts.js';
 import { clipSentence, kindIcon, kindWord, lastTurn, notifySettings, summarize } from './summary.js';
@@ -29,8 +31,40 @@ function add(n) {
   if (told.has(n.key)) return;
   told.add(n.key);
   if (told.size > 2000) told.delete(told.values().next().value);
-  notices.push({ ...n, at: Date.now() });
+  const at = Date.now();
+  notices.push({ ...n, at });
+  remember({ ...n, at });
 }
+
+// The recent notices list (command center and phone): the last HISTORY_MAX notices, kept in the data folder
+// so a restart or an update does not lose them. Only what a list shows is kept (no prompt texts).
+const HISTORY_MAX = 100;
+const HISTORY_FILE = path.join(DATA_DIR, 'notice-history.json');
+let history = (() => {
+  try {
+    const list = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+    return Array.isArray(list) ? list.slice(-HISTORY_MAX) : [];
+  } catch {
+    return [];
+  }
+})();
+let saveTimer = null;
+function remember(n) {
+  const keep = ['key', 'kind', 'at', 'agentId', 'sessionId', 'name', 'project', 'owned', 'org', 'title', 'result', 'needs'];
+  history.push(Object.fromEntries(keep.filter((k) => n[k] != null && n[k] !== '').map((k) => [k, n[k]])));
+  history = history.slice(-HISTORY_MAX);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(HISTORY_FILE, JSON.stringify(history));
+    } catch {
+      // the list stays in memory; the next notice tries again
+    }
+  }, 1000);
+}
+/** The recent notices, newest first, for the lists. */
+export const noticeHistory = () => [...history].reverse();
 
 /** For the master's turns that never ran (index.js): the same channels as the others. */
 export function noticeNeverRan({ agentId, sessionId, name, project, text, since }) {

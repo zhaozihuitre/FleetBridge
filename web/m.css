@@ -42,7 +42,8 @@ button { cursor: pointer; }
 .chip { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 5px 0; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--muted); clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
 .chip b { font-family: var(--display); font-size: 16px; color: var(--c); text-shadow: 0 0 10px var(--c); }
 .chip.zero b { color: var(--dim); text-shadow: none; }
-.chip.alarm { border-color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); animation: alarm 1.4s ease-in-out infinite; }
+/* waiting on you: a few blinks when it comes up (--ago), then steady */
+.chip.alarm { border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); animation: alarm 1.4s ease-in-out var(--ago, 0s) 3; }
 .quota { display: grid; gap: 6px; margin-top: 10px; }
 .q { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .q .k { font-family: var(--label); font-weight: 600; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -61,12 +62,23 @@ button { cursor: pointer; }
 .q .v.hot { color: var(--red); text-shadow: 0 0 8px color-mix(in srgb, var(--red) 60%, transparent); }
 
 /* ---------- the units list ---------- */
-.list-title { margin: 0; padding: 12px 16px 4px; display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); }
-.list-title .en { color: var(--cyan); }
+/* the list: units or the recent notices */
+.list-tabs { display: flex; gap: 4px; padding: 10px 12px 2px; }
+.list-tabs button { flex: none; display: inline-flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 6px 12px; background: transparent; border: 0; border-bottom: 2px solid transparent; font-size: 15px; font-weight: 700; color: var(--muted); }
+.list-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--cyan); }
+.list-tabs .en { color: var(--cyan); }
+.list-tabs button[aria-selected="false"] .en { color: var(--dim); }
+.nt-new { align-self: center; min-width: 18px; padding: 0 5px; background: var(--amber); color: var(--bg); font-family: var(--display); font-size: 11px; font-style: normal; line-height: 18px; text-align: center; }
+.card.notice .nk { flex: none; font-size: 12px; font-weight: 700; color: var(--c); }
+.card.notice .head .nm { font-size: 13px; font-weight: 600; color: var(--muted); }
+.card.notice time { margin-left: auto; flex: none; font-size: 11px; color: var(--muted); }
+.nt-title { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.45; }
+.nt-needs { font-size: 13px; color: var(--amber); line-height: 1.5; }
+.card.notice.gone { opacity: .72; }
 main { flex: 1; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
 .card { position: relative; padding: 12px 14px 12px 16px; display: flex; flex-direction: column; gap: 9px; background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border: 1px solid var(--line); clip-path: var(--cut); }
 .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }
-.card.permit { border-color: color-mix(in srgb, var(--red) 55%, transparent); animation: alarm 1.6s ease-in-out infinite; }
+.card.permit { border-color: color-mix(in srgb, var(--red) 70%, transparent); animation: alarm 1.6s ease-in-out var(--ago, 0s) 3; }
 .card .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tag { flex: none; padding: 1px 6px; background: var(--c); color: var(--bg); font-family: var(--display); font-size: 9px; font-weight: 700; letter-spacing: 1px; }
 .card .p { min-width: 0; font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -75,7 +87,7 @@ main { flex: 1; padding: 8px 12px calc(24px + env(safe-area-inset-bottom)); disp
 .card .sub { font-size: 13px; color: var(--soft); line-height: 1.55; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .card pre { margin: 0; max-height: 200px; overflow: auto; padding: 9px 10px; background: var(--x-050a12); border: 1px solid var(--line); border-left: 2px solid var(--line-hi); font: 12px/1.55 var(--mono); color: var(--soft); white-space: pre-wrap; word-break: break-all; }
 .dot { flex: none; width: 9px; height: 9px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 8px var(--c); }
-.dot.blink { animation: pulse 1s ease-in-out infinite; }
+.dot.blink { animation: pulse 1s ease-in-out var(--ago, 0s) 4; }
 .ours { flex: none; padding: 0 5px; background: var(--green); color: var(--bg); font-size: 10px; font-weight: 700; }
 .st { flex: none; font-family: var(--label); font-weight: 600; font-size: 12px; color: var(--c); letter-spacing: .5px; }
 .ctxbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-family: var(--label); font-size: 11px; color: var(--muted); }

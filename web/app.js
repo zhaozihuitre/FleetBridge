@@ -45,7 +45,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
-const TABS = ['units', 'agents', 'orders', 'archive'];
+const TABS = ['units', 'agents', 'orders', 'notices', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -174,6 +174,9 @@ function orgTag(u) {
 }
 
 // The quota ran out in this terminal's last turn: whose.
+// how long a dialog has waited, as a negative animation delay: its few blinks run once from when it came up
+const agoVar = (u) => (u?.permission?.at ? `--ago:${((u.permission.at - Date.now()) / 1000).toFixed(1)}s` : '');
+const agoStyle = (u) => (u?.permission?.at ? ` style="${agoVar(u)}"` : '');
 const limitText = (u) => (u?.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '');
 
 // A time with its day: "today 16:20", "tomorrow 09:00", or "11/9 14:00".
@@ -573,7 +576,7 @@ function unitCard(u) {
     ? `<button class="mini" data-term="${esc(u.agentId)}" title="${L('打开它的终端，直接下指令')}">${L('▶ 终端')}</button>`
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
-  <article class="unit ${cls}" data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
+  <article class="unit ${cls}"${agoStyle(u)} data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
     <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}${orgTag(u)}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
@@ -687,6 +690,79 @@ function ordersPage() {
     <section><div class="archive-head"><span class="mono">LOG</span><span>${L('指令记录 · 最近 {0} 条', log.length)}</span></div>${rows}</section></div>`;
 }
 
+/* ---------- recent notices: what was told (toasts, pushes), to read again and jump to its terminal ---------- */
+
+// kept by the server (the last 100, across restarts); fetched again when a new one comes (state.noticeAt)
+let noticeList = [];
+let noticeFetchedFor = -1;
+const NOTICE_SEEN_KEY = 'fb-notices-seen';
+let noticeSeen = 0;
+try {
+  noticeSeen = Number(localStorage.getItem(NOTICE_SEEN_KEY)) || 0;
+} catch {
+  // storage unavailable: every notice counts as new until the tab is opened
+}
+async function loadNotices() {
+  if (!state || noticeFetchedFor === state.noticeAt) return;
+  noticeFetchedFor = state.noticeAt;
+  const r = await fetch('/api/notices?limit=100', { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+  if (!r) return void (noticeFetchedFor = -1);
+  noticeList = r.notices || [];
+  if (ui.tab === 'notices') renderPage();
+  else noticeBadge();
+}
+// the tab's count: notices since the tab was last opened in this browser (all of them when none is new)
+function noticeBadge() {
+  if (ui.tab === 'notices' && noticeList[0] && noticeList[0].at > noticeSeen) {
+    noticeSeen = noticeList[0].at;
+    try {
+      localStorage.setItem(NOTICE_SEEN_KEY, String(noticeSeen));
+    } catch {
+      // only this page remembers
+    }
+  }
+  const unseen = noticeList.filter((n) => n.at > noticeSeen).length;
+  $('n-notices').textContent = unseen || noticeList.length;
+  $('n-notices').classList.toggle('new', unseen > 0);
+  $('n-notices').closest('.tab').title = unseen ? L('{0} 条新通知', unseen) : '';
+}
+const NOTICE_COLOR = { permit: 'var(--red)', question: 'var(--red)', ask: 'var(--amber)', done: 'var(--green)', limit: 'var(--red)', error: 'var(--red)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+function noticesPage() {
+  const now = Date.now();
+  if (!noticeList.length) return emptyBlock('empty', L('还没有通知。agent 做完、等你授权或回答、额度告急时，这里会留一条，点一下回到那个终端。'));
+  let day = '';
+  const rows = noticeList
+    .map((n) => {
+      const d = dayLabel(n.at, now);
+      const sep = d !== day ? `<div class="o-day">${esc(d)}</div>` : '';
+      day = d;
+      const live = noticeTarget(n);
+      const who = [n.name, n.project && n.project !== n.name ? n.project : ''].filter(Boolean).join(' · ');
+      return `${sep}<button type="button" class="n-row${live ? '' : ' gone'}" style="--nc:${NOTICE_COLOR[n.kind] || 'var(--cyan)'}" data-notice="${esc(n.key)}" title="${esc(live ? L('回到这个终端') : L('这个终端已经结束了'))}">
+        <span class="n-time">${clock(n.at)}</span>
+        <span class="n-kind">${esc(`${n.icon || ''} ${n.word || n.kind}`.trim())}</span>
+        <span class="n-main"><span class="n-who">${esc(who)}${n.org ? ` <i class="n-org">${esc(n.org)}</i>` : ''}</span><b class="n-title">${esc(n.title || '')}</b>${n.needs ? `<span class="n-needs">${esc(L('需要你：') + n.needs)}</span>` : ''}${n.result && n.result !== n.title ? `<span class="n-result">${esc(n.result)}</span>` : ''}</span>
+        <span class="n-go" aria-hidden="true">${live ? '›' : ''}</span></button>`;
+    })
+    .join('');
+  return `<div class="notices"><div class="archive-head"><span class="mono">NOTICES</span><span>${L('最近 {0} 条 · 点一条回到它的终端', noticeList.length)}</span></div>${rows}</div>`;
+}
+// where a notice leads: our terminal while it runs, or an outside session's window while it is open
+function noticeTarget(n) {
+  const agent = n.agentId && (state.agents || []).find((a) => a.id === n.agentId && a.alive);
+  if (agent) return { agent: agent.id };
+  const u = n.sessionId && state.units.find((x) => x.sessionId === n.sessionId);
+  if (u?.agentId) return { agent: u.agentId };
+  if (u?.pid) return { pid: u.pid };
+  return null;
+}
+function goNotice(n) {
+  const t = n && noticeTarget(n);
+  if (!t) return toast(L('这个终端已经结束了，可以在存档里接着用'));
+  if (t.agent) return openTerm(t.agent);
+  return post('/api/focus', { pid: t.pid });
+}
+
 /** 今天 / 昨天 / 11-04: the day a time falls on, for the dividers in the orders log. */
 function dayLabel(ms, now = Date.now()) {
   const start = (t) => new Date(new Date(t).toDateString()).getTime();
@@ -781,7 +857,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
-  if (ui.tab === 'orders') return { kind: 'orders', list: [] }; // one scrolling page, no paging
+  if (ui.tab === 'orders' || ui.tab === 'notices') return { kind: ui.tab, list: [] }; // one scrolling page, no paging
   return { kind: ui.tab, list: { units: state.units, agents: liveAgents() }[ui.tab] };
 }
 
@@ -853,11 +929,13 @@ function renderPage() {
       ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : emptyBlock('empty', L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。'), `<button class="btn" data-empty-deploy>${L('＋ 出击')}</button>`);
   else if (ui.tab === 'orders') html = ordersPage();
+  else if (ui.tab === 'notices') html = noticesPage();
   if (kind !== 'archive') {
-    const keep = kind === 'orders' ? document.querySelector('.orders')?.scrollTop || 0 : 0;
+    const scroller = { orders: '.orders', notices: '.notices' }[kind];
+    const keep = scroller ? document.querySelector(scroller)?.scrollTop || 0 : 0;
     const repoScroll = new Map([...document.querySelectorAll('.unit[data-unit] .repos')].map((r) => [r.closest('.unit').dataset.unit, r.scrollTop]));
     $('page').innerHTML = html;
-    if (keep) document.querySelector('.orders').scrollTop = keep; // live refreshes keep the scroll position
+    if (keep) document.querySelector(scroller).scrollTop = keep; // live refreshes keep the scroll position
     for (const r of document.querySelectorAll('.unit[data-unit] .repos')) {
       r.scrollTop = repoScroll.get(r.closest('.unit').dataset.unit) || 0;
       markRepoScroll(r);
@@ -873,6 +951,8 @@ function renderPage() {
   $('n-agents').textContent = liveAgents().length;
   $('n-archive').textContent = (state.history || []).length;
   $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0);
+  noticeBadge();
+  loadNotices();
   const busy = state.units.filter((u) => u.status === 'busy').length;
   $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
   // one page: no pager; many pages: a window of 7 dots around the current one, and the count
@@ -1186,7 +1266,7 @@ function renderTermHeads() {
     const st = el.querySelector('.t-state');
     const u = state?.units.find((x) => x.agentId === id);
     const s = stateOf(u, { agent: { ...a, alive } });
-    st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
+    st.innerHTML = `<span class="st-chip st-${s.key}" style="--sc:${s.color};${agoVar(u)}"><i aria-hidden="true">${s.icon}</i>${esc(s.label)}${!alive && a?.exitCode != null ? `（${a.exitCode}）` : ''}</span>`;
     st.className = 't-state';
     el.querySelector('.t-org').innerHTML = orgTag(u);
     el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
@@ -1584,6 +1664,9 @@ $('refresh').addEventListener('click', async () => {
 $('page').addEventListener('click', (e) => {
   // an empty state's own action (no terminals yet: deploy one)
   if (e.target.closest('[data-empty-deploy]')) return $('deploy-open').click();
+  // a notice: back to its terminal
+  const nb = e.target.closest('[data-notice]');
+  if (nb) return goNotice(noticeList.find((x) => x.key === nb.dataset.notice));
   // Orders tab: take one order, or a whole queue, off
   const uq = e.target.closest('[data-unqueue]');
   if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
@@ -1669,6 +1752,15 @@ window.addEventListener('keydown', (e) => {
 /* ---------- web access: other devices (tablets, phones, computers) on the network, signed in ---------- */
 
 let phoneInfo = null;
+// the dialog's pages: Web access / devices / push / summaries
+function phoneTab(t) {
+  for (const b of document.querySelectorAll('#phone [data-ph-tab]')) b.setAttribute('aria-selected', String(b.dataset.phTab === t));
+  for (const p of document.querySelectorAll('#phone [data-ph-page]')) p.hidden = p.dataset.phPage !== t;
+}
+document.querySelector('#phone .ph-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ph-tab]');
+  if (b) phoneTab(b.dataset.phTab);
+});
 async function renderPhone(info) {
   phoneInfo = info;
   $('ph-toggle').textContent = info.enabled ? L('关闭 Web 访问') : L('开启 Web 访问');
@@ -1697,7 +1789,8 @@ let devsOpen = false;
 function renderDevices() {
   const info = phoneInfo;
   const devs = [...(info.devices || [])].sort((a, b) => b.trusted - a.trusted || b.seen - a.seen);
-  $('ph-devs').hidden = !info.enabled;
+  $('ph-devs-n').textContent = devs.length ? String(devs.length) : '';
+  if (!info.enabled) return void ($('ph-devs').innerHTML = `<div class="ph-dev-none">${L('Web 访问关着：没有设备能登录。在「Web 访问」页打开。')}</div>`);
   const row = (d) => {
     const idle = Date.now() - d.seen > 7 * 86400e3;
     const badge = d.trusted ? `<span class="dev-badge" title="${esc(L('已信任（{0} 天，可批准新设备）', info.trustDays ?? 90))}">${L('信任')}</span>` : '';
@@ -1708,7 +1801,34 @@ function renderDevices() {
   $('ph-devs').innerHTML =
     `<div class="ph-devs-h"><b>${L('已登录的设备 · {0} 台', devs.length)}</b><small>${L('{0} 天内不用再输密码；信任的设备 {1} 天，并可批准新设备', info.sessionDays ?? 30, info.trustDays ?? 90)}</small></div>` +
     (devs.length ? shown.map(row).join('') : `<div class="ph-dev-none">${L('还没有设备登录。用平板或手机扫上面的码试试。')}</div>`) +
-    (more > 0 ? `<button type="button" class="btn ghost ph-devs-more" data-devs-more>${L('显示其余 {0} 台', more)}</button>` : devsOpen && devs.length > DEV_SHOWN ? `<button type="button" class="btn ghost ph-devs-more" data-devs-more>${L('收起')}</button>` : '');
+    `<div class="ph-devs-acts">${more > 0 ? `<button type="button" class="btn ghost" data-devs-more>${L('显示其余 {0} 台', more)}</button>` : devsOpen && devs.length > DEV_SHOWN ? `<button type="button" class="btn ghost" data-devs-more>${L('收起')}</button>` : ''}` +
+    (devs.some(idleDevice) ? `<button type="button" class="btn ghost danger" data-devs-prune>${L('退出 7 天未用的设备')}</button>` : '') +
+    '</div>';
+}
+const idleDevice = (d) => Date.now() - d.seen > 7 * 86400e3;
+
+// Sign out the devices not used for a week: says which first; trusted ones stay unless ticked
+async function pruneDevices() {
+  const idle = (phoneInfo?.devices || []).filter(idleDevice);
+  const plain = idle.filter((d) => !d.trusted);
+  const trusted = idle.filter((d) => d.trusted);
+  const line = (d) => `${d.device}${d.trusted ? L('（信任）') : ''} · ${d.ip || ''} · ${L('最近使用 {0}', ago(Date.now() - d.seen))}`;
+  if (!plain.length && !trusted.length) return;
+  const ok = await ask({
+    title: L('退出 7 天未用的设备？'),
+    message: plain.length ? L('下面 {0} 台设备会退出登录，再用时要重新输入密码并在电脑上允许。', plain.length) : L('7 天未用的只有信任的设备，默认不退出。'),
+    detail: plain.map(line),
+    check: trusted.length ? L('同时退出 {0} 台 7 天未用的信任设备：{1}', trusted.length, trusted.map((d) => d.device).join('、')) : '',
+    ok: L('退出登录'),
+    danger: true,
+  });
+  if (!ok) return;
+  const out = [...plain, ...(ask.checked ? trusted : [])];
+  if (!out.length) return;
+  let info = phoneInfo;
+  for (const d of out) info = await post('/api/mobile', { revoke: d.id });
+  renderPhone(info);
+  toast(L('已退出 {0} 台设备', out.length));
 }
 
 function renderPush(info) {
@@ -1779,6 +1899,7 @@ let setupAsked = false;
 async function askWebSetup() {
   if (!LOCAL || setupAsked || !state.webSetup || document.querySelector('dialog[open]')) return;
   setupAsked = true;
+  phoneTab('web');
   $('phone').showModal();
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
@@ -1794,6 +1915,7 @@ $('ph-devs').addEventListener('click', async (e) => {
     devsOpen = !devsOpen;
     return renderDevices();
   }
+  if (e.target.closest('[data-devs-prune]')) return pruneDevices();
   const b = e.target.closest('[data-revoke]');
   if (b) renderPhone(await post('/api/mobile', { revoke: b.dataset.revoke }));
 });
@@ -2222,8 +2344,8 @@ window.addEventListener('hashchange', () => {
 function uiView() {
   const { kind, list } = currentList();
   const size = pageSize(kind);
-  const pages = kind === 'orders' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
-  const shown = kind === 'orders' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
+  const pages = kind === 'orders' || kind === 'notices' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
+  const shown = kind === 'orders' || kind === 'notices' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
   const label = (x) => x.name || x.title || x.project || x.cwd || x.id;
   return {
     tab: ui.tab,

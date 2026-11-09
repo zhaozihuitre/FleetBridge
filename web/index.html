@@ -93,6 +93,7 @@
 <button class="tab" role="tab" data-tab="units"><span class="en">UNITS</span><span class="cn">部队</span><span class="n" id="n-units">0</span></button>
 <button class="tab" role="tab" data-tab="agents"><span class="en">AGENTS</span><span class="cn">活动终端</span><span class="n" id="n-agents">0</span></button>
 <button class="tab" role="tab" data-tab="orders"><span class="en">ORDERS</span><span class="cn">指令</span><span class="n" id="n-orders">0</span></button>
+<button class="tab" role="tab" data-tab="notices"><span class="en">NOTICES</span><span class="cn">通知</span><span class="n" id="n-notices">0</span></button>
 <button class="tab" role="tab" data-tab="archive"><span class="en">ARCHIVE</span><span class="cn">存档</span><span class="n" id="n-archive">0</span></button>
 <span class="key">E</span>
 <span class="summary" id="summary"></span>
@@ -129,21 +130,31 @@
 <div class="toast" id="toast" role="status"></div>
 <dialog class="deploy phone" id="phone">
 <form method="dialog" class="ph-body">
-<h2><span class="mono">WEB</span> Web 访问 · 平板、手机、其他电脑用浏览器操作</h2>
+<h2><span class="mono">WEB</span> Web 访问与通知</h2>
+<div class="ph-tabs" role="tablist"><button type="button" role="tab" data-ph-tab="web" aria-selected="true">Web 访问</button><button type="button" role="tab" data-ph-tab="devices" aria-selected="false">设备<span class="ph-tab-n" id="ph-devs-n"></span></button><button type="button" role="tab" data-ph-tab="push" aria-selected="false">推送</button><button type="button" role="tab" data-ph-tab="notify" aria-selected="false">通知总结</button></div>
+<section class="ph-page" data-ph-page="web">
 <div class="ph-setup" id="ph-setup" hidden><b>先设置访问口令</b><p>设好以后，同一局域网（或 Tailscale）里的平板、手机、其他电脑才能用浏览器打开舰桥；在这之前不对局域网开放。新设备第一次登录还要在这台电脑上点「允许」。在不信任的网络（公司、公共 Wi-Fi）上，建议用 Tailscale 访问。</p><button type="button" class="btn ghost" id="ph-later">以后再说</button></div>
-<p class="ph-note">同一局域网（或 Tailscale）里的设备用浏览器打开下面的地址：平板和电脑是和这里一样的指挥中心，手机是精简的手机页（/m）。平板、手机、电脑用同一个地址（或扫下面的二维码），打开后按设备自动进完整版或手机版，两边都可以手动切换。登录要输入访问口令，<b>新设备第一次登录还要在这台电脑上点「允许」</b>；二维码只是地址，不能免密登录。只接受局域网和 Tailscale 内的访问。</p>
+<p class="ph-note">同一局域网或 Tailscale 里的设备用浏览器打开下面的地址：平板和电脑进完整版，手机进手机页。登录要输入访问口令，<b>新设备第一次还要在这台电脑上点「允许」</b>。</p>
 <div class="ph-main"><div class="ph-qr" id="ph-qr"></div><div class="ph-side"><p class="ph-tip" id="ph-tip"></p><ul class="ph-urls" id="ph-urls"></ul></div></div>
 <div class="ph-pin" id="ph-pin-box" hidden><label for="ph-pin">访问密码</label><code class="ph-gen" id="ph-gen" hidden></code><input id="ph-pin" type="password" minlength="8" autocomplete="new-password" placeholder="设置新密码（至少 8 个字符）"><button type="button" class="btn ghost" id="ph-pin-save">设置密码</button><button type="button" class="btn ghost" id="ph-pin-gen" title="生成一个新的 8 位数字密码，所有设备都要重新登录">随机生成</button></div>
+<p class="ph-note">首次开启时 Windows 可能询问防火墙，请允许「专用网络」。在公司或公共 Wi-Fi 上建议用 Tailscale（加密）。</p>
+<div class="deploy-row"><button type="button" class="btn" id="ph-toggle">关闭 Web 访问</button></div>
+</section>
+<section class="ph-page" data-ph-page="devices" hidden>
 <div class="ph-devs" id="ph-devs"></div>
-<p class="ph-note">首次开启时 Windows 可能询问防火墙，请允许「专用网络」。连续输错密码 5 次会暂时锁定（5 分钟起，逐次加长）。在不信任的网络（公司、公共 Wi-Fi）上，建议用 Tailscale 访问：它是加密的。</p>
-<div class="ph-push">
-<h3><span class="mono">PUSH</span> 推送通知 · 不看屏幕也知道该做什么</h3>
-<p class="ph-note">用 ntfy（安卓免费 App，Google Play / F-Droid）：有事时手机通知栏会弹出提示，锁屏也能收到，点通知打开手机页。通知默认只写「哪个终端、什么事」，不带命令、代码或回答内容（消息经过 ntfy 的服务器）；可以在下面的「通知内容」里选择带上回答的总结。</p>
+<div class="deploy-row"><button type="button" class="btn ghost danger" id="ph-logout">让所有设备退出登录</button></div>
+</section>
+<section class="ph-page ph-push" data-ph-page="push" hidden>
+<p class="ph-note">用 ntfy（安卓免费 App）：有事时手机通知栏弹出提示，锁屏也能收到，点通知回到对应终端。消息经过 ntfy 的服务器。</p>
 <div class="ph-main"><div class="ph-qr" id="pu-qr"></div><div class="ph-side"><p class="ph-tip" id="pu-tip"></p><ol class="ph-steps" id="pu-steps"><li>手机安装 ntfy App</li><li>用手机扫左边的码（或在 App 里点 ＋，频道名填下面这串）</li><li>点「发送测试通知」确认能收到</li></ol><code class="ph-topic" id="pu-topic"></code></div></div>
 <div class="deploy-row"><button type="button" class="btn ghost" id="pu-test">发送测试通知</button><button type="button" class="btn ghost" id="pu-regen">换一个频道</button><button type="button" class="btn" id="pu-toggle">开启推送</button></div>
-<fieldset class="nt-opts"><legend>通知内容</legend><label><input type="checkbox" id="nt-model"> 做完时用 Haiku 总结回答（我方终端；失败或超过 15 秒用规则截取）</label><label><input type="checkbox" id="nt-ext"> 外部会话也用 Haiku 总结（会占用额度）</label><label><input type="checkbox" id="pu-content"> 手机推送带上结论和「需要你」（默认；会经过 ntfy 服务器。关掉则只发分类和项目名）</label></fieldset>
-</div>
-<div class="deploy-row"><button type="button" class="btn ghost" id="ph-logout">让所有设备退出登录</button><button type="button" class="btn" id="ph-toggle">关闭 Web 访问</button><button type="submit" class="btn ghost">关闭</button></div>
+<label class="ph-opt"><input type="checkbox" id="pu-content"> 推送带上结论和「需要你」（关掉则只发分类和项目名）</label>
+</section>
+<section class="ph-page" data-ph-page="notify" hidden>
+<p class="ph-note">一轮做完时，通知（桌面、手机、「通知」页）里的结论和「需要你」怎么得来。</p>
+<fieldset class="nt-opts"><legend>总结方式</legend><label><input type="checkbox" id="nt-model"> 我方终端用 Haiku 总结回答（失败或超过 15 秒改用规则截取）</label><label><input type="checkbox" id="nt-ext"> 外部会话也用 Haiku 总结（会占用额度）</label></fieldset>
+</section>
+<div class="deploy-row ph-foot"><button type="submit" class="btn ghost">关闭</button></div>
 </form>
 </dialog>
 <dialog class="review" id="review" aria-labelledby="rv-title">

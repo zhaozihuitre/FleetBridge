@@ -100,7 +100,7 @@ function rows() {
     // stopped on the quota: whose quota, as on the command center's cards
     const limit = u.limit && u.status !== 'busy' ? L('额度到限（{0}）：', u.limit.org || L('组织未知')) + u.limit.text : '';
     const text = u.permission ? u.permission.message || '' : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limit || u.summary || u.lastText || '';
-    out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a) });
+    out.push({ id: a?.id || null, name: a?.name || u.name || u.project, project: u.project, kind, since: u.statusSince, text, ours: Boolean(a), waitAt: u.permission?.at || null });
   }
   for (const a of state.agents || []) {
     if (!a.alive || seen.has(a.id)) continue;
@@ -113,11 +113,14 @@ function rows() {
 
 const EMPTY = '<svg width="40" height="40" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M17 2l13 7.5v15L17 32 4 24.5v-15z" stroke="#4f7a90" stroke-width="1.4"/><path d="M11 17l4 4 8-8" stroke="#4dffa6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// how long a dialog has waited, as a negative animation delay: its few blinks run once from when it came up
+const ago = (at) => (at ? `--ago:${((at - Date.now()) / 1000).toFixed(1)}s` : '');
+
 function renderChips() {
   const all = rows();
   const n = (k) => all.filter((r) => r.kind === k).length;
-  const chip = (c, label, color, alarm) => `<span class="chip ${c ? '' : 'zero'} ${alarm && c ? 'alarm' : ''}" style="--c:${color}"><b>${c}</b>${esc(label)}</span>`;
-  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit') + n('question'), L('等你处理'), 'var(--red)', true);
+  const chip = (c, label, color, alarm, at) => `<span class="chip ${c ? '' : 'zero'} ${alarm && c ? 'alarm' : ''}" style="--c:${color};${ago(at)}"><b>${c}</b>${esc(label)}</span>`;
+  $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--cyan)') + chip(n('idle'), L('待命'), 'var(--amber)') + chip(n('permit') + n('question'), L('等你处理'), 'var(--red)', true, Math.max(0, ...all.map((r) => r.waitAt || 0)));
 }
 
 function renderUnits() {
@@ -132,12 +135,78 @@ function renderUnits() {
           <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${age ? `<time>${age}</time>` : ''}</div>
           ${r.text ? `<div class="sub">${esc(r.text)}</div>` : ''}`;
         return r.ours
-          ? `<button type="button" class="card ${r.kind === 'permit' || r.kind === 'question' ? 'permit' : ''}" style="--c:${color}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
-          : `<div class="card ext" style="--c:${color}" title="${esc(L('不是舰桥启动的会话，只能查看状态'))}">${inner}</div>`;
+          ? `<button type="button" class="card ${r.kind === 'permit' || r.kind === 'question' ? 'permit' : ''}" style="--c:${color};${ago(r.waitAt)}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
+          : `<div class="card ext" style="--c:${color};${ago(r.waitAt)}" title="${esc(L('不是舰桥启动的会话，只能查看状态'))}">${inner}</div>`;
       })
       .join('') || `<div class="empty">${EMPTY}${L('没有运行中的会话')}</div>`;
+  if (view !== 'units') return;
   if (renderUnits.last !== html) $('list').innerHTML = renderUnits.last = html;
 }
+
+/* ---------- recent notices: what was told, to read again; a tap opens its terminal ---------- */
+
+let view = 'units'; // the list shows the units or the recent notices
+let notices = [];
+let noticesFor = -1;
+let noticeSeen = 0;
+try {
+  noticeSeen = Number(localStorage.getItem('fb-notices-seen')) || 0;
+} catch {
+  // storage unavailable
+}
+const NOTICE_COLOR = { permit: 'var(--red)', question: 'var(--red)', ask: 'var(--amber)', done: 'var(--green)', limit: 'var(--red)', error: 'var(--red)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+async function loadNotices() {
+  if (noticesFor === state.noticeAt) return;
+  noticesFor = state.noticeAt;
+  const r = await fetch('/api/notices?limit=50', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  if (!r) return void (noticesFor = -1);
+  notices = r.notices || [];
+  renderNotices();
+}
+// which of our terminals a notice opens (outside sessions only on the computer)
+const noticeAgent = (n) => {
+  const a = n.agentId && (state.agents || []).find((x) => x.id === n.agentId && x.alive);
+  return a?.id || state.units.find((u) => u.sessionId === n.sessionId && u.owned)?.agentId || null;
+};
+function renderNotices() {
+  if (view === 'notices' && notices[0] && notices[0].at > noticeSeen) {
+    noticeSeen = notices[0].at;
+    try {
+      localStorage.setItem('fb-notices-seen', String(noticeSeen));
+    } catch {
+      // only this page remembers
+    }
+  }
+  const unseen = notices.filter((n) => n.at > noticeSeen).length;
+  $('nt-new').hidden = !unseen;
+  $('nt-new').textContent = unseen || '';
+  if (view !== 'notices') return;
+  const html =
+    notices
+      .map((n) => {
+        const id = noticeAgent(n);
+        const who = [n.name, n.project && n.project !== n.name ? n.project : ''].filter(Boolean).join(' · ');
+        const inner = `<div class="head"><span class="nk">${esc(`${n.icon || ''} ${n.word || ''}`.trim())}</span><b class="nm">${esc(who)}</b><time>${esc(when(n.at))}</time></div>
+          <div class="nt-title">${esc(n.title || '')}</div>
+          ${n.needs ? `<div class="nt-needs">${esc(L('需要你：') + n.needs)}</div>` : ''}${n.result && n.result !== n.title ? `<div class="sub">${esc(n.result)}</div>` : ''}`;
+        return id
+          ? `<button type="button" class="card notice" style="--c:${NOTICE_COLOR[n.kind] || 'var(--cyan)'}" data-open="${esc(id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`
+          : `<div class="card notice gone" style="--c:${NOTICE_COLOR[n.kind] || 'var(--cyan)'}">${inner}</div>`;
+      })
+      .join('') || `<div class="empty">${EMPTY}${L('还没有通知')}</div>`;
+  if (renderNotices.last !== html) $('list').innerHTML = renderNotices.last = html;
+}
+function setView(v) {
+  view = v;
+  renderUnits.last = renderNotices.last = null;
+  for (const b of document.querySelectorAll('.list-tabs [data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === v));
+  if (v === 'units') renderUnits();
+  else renderNotices();
+}
+document.querySelector('.list-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (b) setView(b.dataset.view);
+});
 
 function renderSheet() {
   // (a link straight to a terminal opens it before the first state is here: its name and state come with it)
@@ -159,6 +228,8 @@ function render() {
   renderQuota();
   renderChips();
   renderUnits();
+  loadNotices();
+  renderNotices();
   renderSheet();
   renderPending();
 }

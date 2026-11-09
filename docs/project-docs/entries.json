@@ -3617,6 +3617,37 @@
       "created": "2026-11-09 10:08",
       "updated": "2026-11-09 10:08",
       "notes": []
+    },
+    {
+      "id": "C-074",
+      "type": "change",
+      "title": "0.9.53 最近通知、设备清理、设置分页、闪烁收敛",
+      "summary": "1) 最近通知：server/notices.js 每条通知同时记入历史（最近 100 条，<data>/notice-history.json，只存列表要显示的字段，1 秒防抖写盘），GET /api/notices（带 icon/word），state.noticeAt 变化时页面重新拉取。指挥中心新增「通知」标签页（时间、类型、终端·项目、组织、结论、需要你、结果两行；按天分隔；未读数存在本机 localStorage），手机页「部队 / 通知」切换；点击回到对应终端（我方终端打开分屏/手机屏幕，外部会话把窗口切到前台，已结束的提示去存档）。2) 设备页「退出 7 天未用的设备」：确认框列出要退出的设备，信任设备默认不退（勾选才退）。3) Web 访问设置拆成 Web 访问 / 设备 / 推送 / 通知总结 4 页，说明缩短，各页同高不跳动。4) 等授权/等回答的闪烁：出现时闪 3~4 次后停住，用负的 animation-delay（--ago，按 permission.at 算）保证重绘不会重新开始，停住后保留红色边框和状态标识。",
+      "detail": "",
+      "status": "done",
+      "files": [
+        "server/notices.js",
+        "server/index.js",
+        "web/app.js",
+        "web/index.html",
+        "web/m.js",
+        "web/m.html",
+        "web/m.css",
+        "web/style.css",
+        "web/widget.js",
+        "web/widget.html",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "ui",
+        "mobile",
+        "notices"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 10:22",
+      "updated": "2026-11-09 10:22",
+      "notes": []
     }
   ]
 }
