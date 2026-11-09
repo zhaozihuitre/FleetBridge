@@ -3,6 +3,7 @@ import { lamp, lampAttrs, lampDetail, stateChip, stateKey, stateOf, STATES, wait
 import './tip.js';
 import { openLegend, toggleLegend } from './legend.js';
 import { createRadar, ping } from './radar.js';
+import { kindName, localVoices, speakNow, VOICE_KINDS, voiceSupported } from './voice.js';
 import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
@@ -1392,11 +1393,26 @@ function ctxBadge(u) {
     <i style="width:${Math.min(100, pct)}%"></i></span><span class="ctx-num" style="color:${color}">${pct}% · ${kTokens(u.contextTokens)}</span>`;
 }
 
+// The terminal in front of you (this window focused, the split open, that pane active): told to the server so
+// its spoken notices are skipped (voice.js); checked on focus changes and every 2 s, sent only when it changes
+let viewingSent;
+function reportViewing() {
+  const id = document.hasFocus() && !document.hidden && !$('term-panel').hidden && ui.term && panes.has(ui.term) ? ui.term : null;
+  if (id === viewingSent) return;
+  viewingSent = id;
+  post('/api/viewing', { agentId: id });
+}
+addEventListener('focus', reportViewing);
+addEventListener('blur', reportViewing);
+document.addEventListener('visibilitychange', reportViewing);
+setInterval(reportViewing, 2000);
+
 function setActivePane(id) {
   const changed = ui.term !== id;
   ui.term = id;
   for (const [pid, { el }] of panes) el.classList.toggle('active', pid === id);
   if (changed) layoutPanes(); // the dynamic split follows the active pane
+  reportViewing();
 }
 
 // Dynamic split: the active pane fills the main area (3/4 wide, full height) and the others
@@ -2012,6 +2028,45 @@ function renderNotify(n) {
   $('nt-ext').checked = Boolean(n.modelExternal);
   $('nt-ext').disabled = !n.model;
 }
+// The "语音播报" page: the voice settings (server/voice.js), the voices this machine has (local ones only), a
+// sample read out with them ("试听")
+let voice = null;
+function renderVoice(v) {
+  voice = v;
+  $('vo-on').checked = v.on;
+  $('vo-kinds').innerHTML = `<legend>${esc(L('读哪些'))}</legend>` + VOICE_KINDS.map((k) => `<label><input type="checkbox" data-vk="${k}" ${v.kinds[k] ? 'checked' : ''}> ${esc(kindName(k))}</label>`).join('');
+  $('vo-volume').value = v.volume;
+  $('vo-rate').value = v.rate;
+  $('vo-volume-n').textContent = Math.round(v.volume * 100) + '%';
+  $('vo-rate-n').textContent = v.rate.toFixed(2) + '×';
+  $('vo-chime').checked = v.chime;
+  $('vo-quiet').checked = v.quiet.on;
+  $('vo-from').value = v.quiet.from;
+  $('vo-to').value = v.quiet.to;
+  const vs = localVoices();
+  $('vo-voices').innerHTML = [`<label><input type="radio" name="vo-voice" value="" ${v.voice ? '' : 'checked'}> ${esc(L('跟随语言（系统默认）'))}</label>`, ...vs.map((x) => `<label><input type="radio" name="vo-voice" value="${esc(x.name)}" ${v.voice === x.name ? 'checked' : ''}> ${esc(x.name.replace(/^Microsoft /, ''))} <small>${esc(x.lang)}</small></label>`)].join('');
+  $('vo-none').hidden = voiceSupported() && vs.length > 0;
+  for (const el of $('vo-body').querySelectorAll('input')) el.disabled = !v.on;
+}
+const setVoice = async (p) => renderVoice(await post('/api/voice', p));
+$('vo-on').addEventListener('change', (e) => setVoice({ on: e.target.checked }));
+$('vo-kinds').addEventListener('change', (e) => e.target.dataset.vk && setVoice({ kinds: { [e.target.dataset.vk]: e.target.checked } }));
+$('vo-volume').addEventListener('input', (e) => ($('vo-volume-n').textContent = Math.round(e.target.value * 100) + '%'));
+$('vo-rate').addEventListener('input', (e) => ($('vo-rate-n').textContent = Number(e.target.value).toFixed(2) + '×'));
+$('vo-volume').addEventListener('change', (e) => setVoice({ volume: Number(e.target.value) }));
+$('vo-rate').addEventListener('change', (e) => setVoice({ rate: Number(e.target.value) }));
+$('vo-chime').addEventListener('change', (e) => setVoice({ chime: e.target.checked }));
+$('vo-quiet').addEventListener('change', (e) => setVoice({ quiet: { on: e.target.checked } }));
+$('vo-from').addEventListener('change', (e) => e.target.value && setVoice({ quiet: { from: e.target.value } }));
+$('vo-to').addEventListener('change', (e) => e.target.value && setVoice({ quiet: { to: e.target.value } }));
+$('vo-voices').addEventListener('change', (e) => e.target.name === 'vo-voice' && setVoice({ voice: e.target.value }));
+// voices load late in some browsers: list them again when they arrive
+if (voiceSupported()) speechSynthesis.addEventListener?.('voiceschanged', () => voice && renderVoice(voice));
+$('vo-test').addEventListener('click', () => {
+  if (!voice) return;
+  const name = state?.units?.[0]?.name || state?.units?.[0]?.project || 'monitor';
+  speakNow(L('{0} 等你授权：Bash npm install', name), { ...voice, on: true });
+});
 $('nt-model').addEventListener('change', async (e) => renderNotify(await post('/api/notify', { model: e.target.checked })));
 $('nt-ext').addEventListener('change', async (e) => renderNotify(await post('/api/notify', { modelExternal: e.target.checked })));
 $('pu-content').addEventListener('change', async (e) => renderPush(await post('/api/push', { content: e.target.checked })));
@@ -2029,6 +2084,7 @@ $('phone-btn').addEventListener('click', async () => {
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
   renderNotify(await fetch('/api/notify').then((r) => r.json()));
+  renderVoice(await fetch('/api/voice').then((r) => r.json()));
 });
 $('pu-toggle').addEventListener('click', async () => {
   renderPush(await post('/api/push', { enabled: $('pu-toggle').textContent === L('开启推送') }));

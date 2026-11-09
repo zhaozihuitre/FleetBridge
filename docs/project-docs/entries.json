@@ -3975,6 +3975,37 @@
       "created": "2026-11-09 22:18",
       "updated": "2026-11-09 22:18",
       "notes": []
+    },
+    {
+      "id": "C-083",
+      "type": "change",
+      "title": "0.9.66 语音播报：等授权、等回答、完成、出错时用本地语音读出",
+      "summary": "电脑上由小窗用 Windows 本地语音（Web Speech / SAPI，不走外部服务）读出通知，例如「monitor 等你授权：Bash npm install」「mobileapp 完成了：<结论>」；设置在「Web 访问与通知」对话框新增的「语音播报」页：总开关、按类型开关、音量、语速、语音选择、免打扰时段、提示音、试听；同时到来的合并成一句，同一终端一分半内不重复，你正在看的终端不读；手机页右上角 🔈 单独开启。",
+      "detail": "web/voice.js：sentenceOf 把通知（server/notices.js 产生的，和桌面通知同一份）变成一两句话（去掉表情、标记，路径只留最后一段，约 40 字）；createAnnouncer：开关、类型、免打扰、正在看的终端、同一终端同类 90 秒内不重复，1.5 秒内到来的按类型合并（「3 个终端完成了：a、b、c」），按急迫程度排序，先响提示音（Web Audio 两个音）再朗读；只用 localService 的语音。小窗是电脑上唯一朗读的页面（避免多个窗口重复读）。正在看：指挥中心窗口在前台、分屏打开、该终端为活动面板，或弹出的终端窗口在前台，页面每 2 秒/焦点变化时告诉服务器（POST /api/viewing），state.viewing。设置存在 <data>/voice.json（server/voice.js，GET/POST /api/voice，state.voice），默认开、警告类默认关。手机：localStorage fb-voice-phone，点 🔈 打开时读一句确认（也解锁浏览器朗读），类型/音量/免打扰沿用电脑的设置，屏幕上正打开的终端不读。顺带修了设置对话框里复选框行被 .deploy label 竖排居中的问题（通知总结页也受影响）。",
+      "status": "done",
+      "files": [
+        "web/voice.js",
+        "server/voice.js",
+        "server/index.js",
+        "web/widget.js",
+        "web/app.js",
+        "web/term.js",
+        "web/m.js",
+        "web/m.html",
+        "web/m.css",
+        "web/index.html",
+        "web/style.css",
+        "web/i18n.js"
+      ],
+      "tags": [
+        "语音",
+        "通知"
+      ],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-09 22:26",
+      "updated": "2026-11-09 22:26",
+      "notes": []
     }
   ]
 }

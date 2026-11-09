@@ -27,6 +27,7 @@ import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { markSeen, seenAt } from './seen.js';
+import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
@@ -145,6 +146,9 @@ function publish() {
     offline: offlineCards(sessions),
     agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null })), // the master has its own column
     agentSupport: agentSupport(),
+    // spoken notices: the settings, and the terminal you are looking at (not read out)
+    voice: voiceSettings(),
+    viewing: viewingNow(),
     master: masterInfo(),
     today,
     orders: recentOrders(),
@@ -610,6 +614,18 @@ async function handleRequest(req, res) {
     return send(res, 200, { ok: true, theme: getTheme(), paper: getPaper() });
   }
   // you opened a session's terminal (any page): its finished turn is no longer "not looked at yet"
+  // spoken notices: the settings (GET / POST a partial change), the terminal in front of you
+  if (req.url === '/api/voice') {
+    const v = req.method === 'POST' ? setVoiceSettings(await readBody(req)) : voiceSettings();
+    if (req.method === 'POST') publish();
+    return send(res, 200, v);
+  }
+  if (req.method === 'POST' && req.url === '/api/viewing') {
+    const { agentId } = await readBody(req);
+    setViewing(agentId);
+    publish();
+    return send(res, 200, { ok: true });
+  }
   if (req.method === 'POST' && req.url === '/api/seen') {
     const { sessionId } = await readBody(req);
     if (!markSeen(sessionId)) return send(res, 400, { error: 'bad_session' });

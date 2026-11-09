@@ -6,6 +6,7 @@ import { followTheme } from './theme.js';
 import { lamp, lampAttrs, lampDetail, stateKey, STATES } from './status.js';
 import './tip.js';
 import { toggleLegend } from './legend.js';
+import { createAnnouncer, speakNow } from './voice.js';
 import { switchView, wantedView } from './device.js';
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
@@ -212,6 +213,46 @@ document.querySelector('.list-tabs').addEventListener('click', (e) => {
 // the legend: every light, what it means, how fast it breathes (the ? by the chips)
 $('lamp-legend-btn').addEventListener('click', () => toggleLegend($('lamp-legend-btn')));
 
+// Spoken notices on this phone (voice.js, the phone's own voice): off unless turned on here (the 🔈 at the top;
+// a tap is also what lets the browser speak at all); the kinds, volume and quiet hours are the computer's settings;
+// not the terminal open on this screen
+let phoneVoice = false;
+try {
+  phoneVoice = localStorage.getItem('fb-voice-phone') === 'on';
+} catch {
+  // storage unavailable: off
+}
+const phoneTold = new Set();
+let phonePrimed = false;
+const phoneAnnouncer = createAnnouncer({
+  settings: () => state?.voice && { ...state.voice, on: phoneVoice },
+  viewing: (n) => !document.hidden && Boolean(screenId && n.agentId === screenId),
+});
+function speakNew() {
+  for (const n of state.notices || []) {
+    if (phoneTold.has(n.key)) continue;
+    phoneTold.add(n.key);
+    if (phonePrimed) phoneAnnouncer.add(n);
+  }
+  phonePrimed = true;
+}
+function renderVoiceBtn() {
+  $('voice-btn').textContent = phoneVoice ? '🔊' : '🔈';
+  $('voice-btn').setAttribute('aria-pressed', String(phoneVoice));
+  $('voice-btn').title = phoneVoice ? L('正在朗读通知（点一下关闭）') : L('在这台手机上朗读通知');
+}
+$('voice-btn').addEventListener('click', () => {
+  phoneVoice = !phoneVoice;
+  try {
+    localStorage.setItem('fb-voice-phone', phoneVoice ? 'on' : 'off');
+  } catch {
+    // this visit only
+  }
+  renderVoiceBtn();
+  if (phoneVoice && state?.voice) speakNow(L('通知朗读已打开'), { ...state.voice, on: true });
+});
+renderVoiceBtn();
+
 function renderSheet() {
   // (a link straight to a terminal opens it before the first state is here: its name and state come with it)
   if (!screenId || !state) return;
@@ -230,6 +271,7 @@ function renderSheet() {
 
 function render() {
   if (!state) return;
+  speakNew();
   renderQuota();
   renderChips();
   renderUnits();

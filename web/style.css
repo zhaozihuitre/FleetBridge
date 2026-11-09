@@ -747,7 +747,17 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
 /* notice options in the phone / push dialog */
 .nt-opts { margin: 12px 0 0; padding: 8px 12px 10px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--soft); }
 .nt-opts legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
-.nt-opts label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.nt-opts label { display: flex; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; } /* (.deploy label stacks its children: not these) */
+.phone .ph-opt { flex-direction: row; }
+/* the 语音播报 page */
+.ph-voice .vo-main { margin-top: 10px; font-weight: 700; color: var(--text); }
+.vo-range input[type=range] { flex: 1; accent-color: var(--cyan); }
+.vo-range span { min-width: 48px; text-align: right; font-family: var(--display); font-size: 11px; color: var(--muted); }
+.vo-voices { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.vo-voices small { color: var(--muted); font-size: 11px; }
+.vo-time { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+.vo-time input { background: var(--x-050a12); color: var(--text); border: 1px solid var(--line-hi); padding: 3px 6px; font: inherit; font-size: 13px; }
+#vo-body:has(input:disabled) { opacity: .55; }
 .nt-opts input:disabled + * , .nt-opts label:has(input:disabled) { opacity: .5; }
 
 /* Opened from another device (web access): no window buttons; the phone button signs this device out */

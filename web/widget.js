@@ -4,6 +4,7 @@ import { L, locale, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
 import { lamp, lampAttrs, lampDetail, stateKey, STATES } from './status.js';
 import './tip.js';
+import { createAnnouncer } from './voice.js';
 
 translateDom();
 const bridge = window.opsBridge; // present only inside the Electron widget window
@@ -160,11 +161,19 @@ function fitHeight() {
 const told = new Set(); // notice keys already shown (or there when the widget started)
 let primed = false;
 
+// spoken notices (voice.js): the widget is the one page always running in the app, so the computer speaks here
+// and only here; not the terminal you are looking at (state.viewing, from the command center / its window)
+const announcer = createAnnouncer({
+  settings: () => state?.voice,
+  viewing: (n) => Boolean(n.agentId && state?.viewing?.agentId === n.agentId),
+});
+
 function notifyNew() {
   for (const n of state.notices || []) {
     if (told.has(n.key)) continue;
     told.add(n.key);
     if (primed && !muted && n.toast) bridge?.notify(n.toast.title, n.toast.body, n.agentId || (n.sessionId ? 's:' + n.sessionId : ''));
+    if (primed && bridge) announcer.add(n);
   }
   primed = true; // the first state only records what was already there
 }

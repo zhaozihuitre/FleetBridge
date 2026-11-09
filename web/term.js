@@ -17,6 +17,18 @@ onTermFont(() => t.setFontSize(paneFont() + 1));
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
 
 let lastSeen = '';
+// the terminal in front of you, for the spoken notices (voice.js): this window focused
+let viewingSent;
+function reportViewing() {
+  const v = document.hasFocus() && !document.hidden ? id : null;
+  if (v === viewingSent) return;
+  viewingSent = v;
+  post('/api/viewing', { agentId: v }).catch(() => {});
+}
+addEventListener('focus', reportViewing);
+addEventListener('blur', reportViewing);
+document.addEventListener('visibilitychange', reportViewing);
+setInterval(reportViewing, 2000);
 function render(state) {
   const a = state.agents?.find((x) => x.id === id);
   const u = state.units?.find((x) => x.agentId === id);
