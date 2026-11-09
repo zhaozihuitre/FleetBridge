@@ -88,13 +88,13 @@ html[data-fx=bridge].fx-phone .fx-layer {
 html[data-fx=bridge].fx-main :is(.box, .unit, .operator, .tab) { background-color: var(--fx-glass); }
 html[data-fx=bridge].fx-phone .card { background: var(--fx-glass); }
 html[data-fx=bridge].fx-main :is(.unit, .operator), html[data-fx=bridge].fx-phone .card { box-shadow: 0 0 22px rgba(124, 196, 255, .09); }
-/* the radar: a slow sweep in the command desk's corner */
-html[data-fx=bridge].fx-main .operator::after {
-  content: ''; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; pointer-events: none; opacity: .5;
-  background: conic-gradient(from 0deg, rgba(124, 196, 255, .28), transparent 22%), repeating-radial-gradient(circle, transparent 0 24px, rgba(124, 196, 255, .18) 24px 25px);
-}
-@media (prefers-reduced-motion: no-preference) { html[data-fx=bridge].fx-main .operator::after { animation: fx-br-radar 10s linear infinite; } }
-@keyframes fx-br-radar { to { transform: rotate(360deg); } }
+/* the radar (radar.js, app.js renderRadar): on the command desk, next to the four numbers (then two by two) */
+.op-radar { display: none; }
+html[data-fx=bridge].fx-main .op-top { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px; align-items: center; }
+html[data-fx=bridge].fx-main .op-radar { display: block; width: 200px; height: 200px; }
+html[data-fx=bridge].fx-main .op-stats { grid-template-columns: 1fr 1fr; }
+/* the sweep passing a terminal: its card lights up for a moment */
+html[data-fx=bridge].fx-main .unit.radar-hit { border-color: color-mix(in srgb, var(--c, #7cc4ff) 70%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--c, #7cc4ff) 35%, transparent), inset 0 0 24px color-mix(in srgb, var(--c, #7cc4ff) 12%, transparent); }
 /* a state change: a beam of light across the card (instead of the plain flash) */
 html[data-fx=bridge].fx-main .unit.flash::after {
   background: linear-gradient(100deg, transparent 30%, rgba(124, 196, 255, .4) 48%, rgba(255, 255, 255, .35) 50%, rgba(124, 196, 255, .4) 52%, transparent 70%);

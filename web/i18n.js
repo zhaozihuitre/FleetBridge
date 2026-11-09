@@ -159,6 +159,9 @@ const EN = {
   '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光': 'Flagship · Hologram HUD: glass panels, corner brackets, a cyan glow, a slow scan line behind',
   '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁': 'Flagship · Cyberpunk: magenta / cyan neon edges, a horizon grid, a glitch on the title now and then',
   '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过': 'Flagship · Deep-space bridge: a slowly drifting starfield, a radar on the command desk, a beam of light on a state change',
+  // radar
+  '雷达扫描音效': 'Radar ping',
+  '扫描线扫过终端光点时轻轻「嘀」一声（紧急的两声）；只在这台设备上': 'A soft ping as the sweep crosses a terminal (two for urgent ones); this device only',
 };
 
 const JA = {
@@ -303,6 +306,9 @@ const JA = {
   '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光': 'フラッグシップ · ホログラム HUD：ガラスのパネル、角のブラケット、シアンの光、背景にゆっくり走るスキャンライン',
   '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁': 'フラッグシップ · サイバーパンク：マゼンタ / シアンのネオン縁取り、地平線グリッド、タイトルにときどきグリッチ',
   '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过': 'フラッグシップ · 深宇宙ブリッジ：ゆっくり流れる星空、司令デスクのレーダー、状態が変わると光のビーム',
+  // radar
+  '雷达扫描音效': 'レーダーの探知音',
+  '扫描线扫过终端光点时轻轻「嘀」一声（紧急的两声）；只在这台设备上': 'スキャンが端末の光点を通るたびに小さな音（緊急は2回）。この端末のみ',
 };
 
 const DICT = { en: EN, ja: JA };

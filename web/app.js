@@ -2,6 +2,7 @@ import { createTerminal, onTermFont, paneFont, stepTermFont } from './terminal.j
 import { lamp, lampAttrs, lampDetail, stateChip, stateKey, stateOf, STATES, waitingKind } from './status.js';
 import './tip.js';
 import { openLegend, toggleLegend } from './legend.js';
+import { createRadar, ping } from './radar.js';
 import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
@@ -238,6 +239,48 @@ function deskLamp() {
   return { key: 'standby', text: op.lines[0]?.text || STATES.standby.what(), since: null };
 }
 
+// The radar (deep-space bridge theme): every terminal a blip in its light's color, the urgent ones first when
+// there are many; the sweep passing one lights its card for a moment (and pings, if this device turned that on)
+let radar = null;
+const RADAR_MAX = 16;
+const radarSound = () => {
+  try {
+    return localStorage.getItem('fb-radar-sound') === 'on';
+  } catch {
+    return false;
+  }
+};
+function renderRadar() {
+  const on = document.documentElement.dataset.fx === 'bridge';
+  if (!on) {
+    radar?.stop();
+    return;
+  }
+  if (!radar)
+    radar = createRadar($('op-radar'), {
+      accent: 'var(--cyan)',
+      onHit: (b) => {
+        const card = document.querySelector(`.unit[data-unit="${CSS.escape(b.id)}"]`);
+        if (card) {
+          card.classList.add('radar-hit');
+          setTimeout(() => card.classList.remove('radar-hit'), 650);
+        }
+        if (radarSound() && !document.hidden) ping(b.urgent);
+      },
+    });
+  radar.start();
+  const standbyMs = state.thresholds.standbyMinutes * 60_000;
+  const urgent = new Set(['permit', 'question', 'error']);
+  const blips = state.units
+    .map((u) => {
+      const k = stateKey(u, { standbyMs });
+      return { id: u.key, name: u.name || u.project, state: k, color: STATES[k].color };
+    })
+    .sort((x, y) => Number(urgent.has(y.state)) - Number(urgent.has(x.state)))
+    .slice(0, RADAR_MAX);
+  radar.setBlips(blips);
+}
+
 function renderDeskLamp() {
   const d = deskLamp();
   const s = STATES[d.key];
@@ -267,6 +310,7 @@ function renderOperator() {
   const mood = line && line.kind !== op.mood && op.mood !== 'STANDBY' ? line.kind : op.mood;
   $('operator').dataset.mood = mood;
   renderDeskLamp();
+  renderRadar();
   renderStats();
 
   // Message box: every reminder as an incoming message (most urgent first), then the commands we sent.
@@ -2246,6 +2290,7 @@ function renderThemeMenu() {
   }).join('') +
     // the terminal texture switch (every page and the phone follow); a theme without one says so
     textureItem() +
+    (document.documentElement.dataset.fx === 'bridge' ? `<button role="menuitemcheckbox" class="radar-snd" aria-checked="${radarSound()}" title="${esc(L('扫描线扫过终端光点时轻轻「嘀」一声（紧急的两声）；只在这台设备上'))}"><span class="sw"><i style="background:var(--cyan)"></i></span>${esc(L('雷达扫描音效'))}</button>` : '') +
     // the status lights' legend (the same as the ? by the command desk's light)
     `<button role="menuitem" class="legend-opt"><span class="sw">${lamp('busy', 0)}${lamp('permit', 0)}${lamp('done', 0)}</span>${esc(L('状态灯图例…'))}</button>`;
 }
@@ -2272,6 +2317,16 @@ $('theme-btn').addEventListener('click', (e) => {
   toggleThemeMenu();
 });
 $('theme-menu').addEventListener('click', async (e) => {
+  if (e.target.closest('#theme-menu .radar-snd')) {
+    try {
+      localStorage.setItem('fb-radar-sound', radarSound() ? 'off' : 'on');
+    } catch {
+      // this page only
+    }
+    if (radarSound()) ping(false); // what it sounds like
+    renderThemeMenu();
+    return;
+  }
   if (e.target.closest('#theme-menu .legend-opt')) {
     toggleThemeMenu(false);
     // the same panel, by the desk's ? (by the theme button if that one isn't on screen)
