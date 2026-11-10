@@ -303,6 +303,7 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
     if (!a) return false;
     // a person (the phone page, the input box) at this terminal: it is being answered, not waiting
     if (via !== 'master' && ['text', 'key', 'answer'].includes(action)) a.keyAt = Date.now();
+    if (['text', 'key', 'answer'].includes(action)) a.answeredAt = Date.now(); // by anyone, the master too: a question asked again after this is a new one
     if (action === 'text' && typeof text === 'string' && text.trim()) {
       const ok = sendText(a, text);
       if (ok && a.kind !== 'shell' && a.kind !== 'master') {
@@ -691,7 +692,7 @@ export function agentSocket(req, socket, head) {
         // input is empty again, so notices may follow right away.
         const keys = msg.data.replace(/\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO]/g, '');
         if (keys) agent.typedAt = /\r/.test(keys) ? 0 : Date.now();
-        if (keys) agent.keyAt = Date.now(); // any key, Enter too: someone is at this terminal (answering a question)
+        if (keys) agent.keyAt = agent.answeredAt = Date.now(); // any key, Enter too: someone is at this terminal (answering a question)
         if (keys && agent.sizeOwner !== ws) applySize(agent, ws); // typing here: the size follows this screen
         // Enter on an idle agent with nothing to answer: an order typed straight into its terminal
         // (an Enter that answers a dialog or a question doesn't change who gave the turn)

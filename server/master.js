@@ -240,9 +240,15 @@ export function trackMaster() {
 export const masterWanted = () => Boolean(load().on);
 
 // Questions our agents wait on (permission dialogs, AskUserQuestion, plan approval) are typed into
-// the master as a message, so it hears about them without polling. Once per question: what was
-// sent is remembered per agent and forgotten when the question goes away (answered).
-const notified = new Map(); // agentId -> key of the question last sent
+// the master as a message, so it hears about them without polling. Once per question: what was sent
+// is remembered per agent (sameAsk below, not the screen's text as such: a narrower pane wraps it
+// differently, a redraw half done reads without its words or its last choice) and forgotten once it is
+// answered (keys in that terminal, fleet_answer) or has been gone for a while (not a parse that
+// missed it for a moment).
+const notified = new Map(); // agentId -> { ask: what was read, at, goneAt }
+const firstSeen = new Map(); // agentId -> { at, best }: a question not sent yet, and its fullest reading
+const GONE_FORGET = 20_000;
+const INCOMPLETE_WAIT = 8_000; // a reading without its words or with one choice waits this long for a full one
 const TYPING_PAUSE = 8_000; // after the last real keystroke (inputEmpty() guards text still in the input)
 
 // What makes a question the same question: its words and its fixed choices. Not what changes on the
@@ -266,6 +272,70 @@ export function askKey(x) {
   return `${p.kind}|${text}|${fixed.map((o) => `${o.key}.${o.label.replace(/\s+/g, ' ').trim()}`).join('|')}`;
 }
 
+// The same question read twice: the words with no whitespace at all (wrapping only moves line ends and
+// spaces), one containing the other (a cut-off reading); with no words read, the choices' labels.
+const squash = (s) => String(s || '').replace(/\s+/g, '');
+function askParts(x) {
+  const p = x.prompt;
+  const text = squash(
+    p.text
+      .split('\n')
+      .filter((l) => !HINT.test(l))
+      .join('')
+      .replace(/[☐☑☒✔✓✗□■●○◉◯❯›▸←→]/g, ''),
+  );
+  const labels = p.options.filter((o) => o.key !== freeKeys.get(x.agentId) && !FREE.test(o.label.trim())).map((o) => squash(o.label)).filter(Boolean);
+  return { kind: p.kind, text, labels };
+}
+export function sameAsk(a, b) {
+  const x = askParts(a);
+  const y = askParts(b);
+  if (x.kind !== y.kind) return false;
+  if (x.text && y.text) return x.text.includes(y.text) || y.text.includes(x.text);
+  // no words on one side: the same if their choices overlap (a reading may miss the last one)
+  return x.labels.some((l) => y.labels.some((m) => l.includes(m) || m.includes(l)));
+}
+// a full reading: its words, and more than one choice
+const complete = (x) => Boolean(askParts(x).text) && x.prompt.options.length > 1;
+// the fuller of two readings of one question
+const score = (x) => complete(x) * 1e6 + x.prompt.options.length * 1000 + squash(x.prompt.text).length;
+const fuller = (a, b) => (!a || score(b) > score(a) ? b : a);
+
+// The question's words as sentences: the terminal's line breaks joined up again (a word cut at the
+// pane's edge back in one piece, a wrapped line joined with a space, CJK with none), a list item, a
+// line after a full stop or after a blank line kept on its own (" ⏎ ").
+const WIDE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const wide = (s) => [...s].reduce((n, c) => n + (WIDE.test(c) ? 2 : 1), 0);
+const CJK = /[\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+export function unwrap(text) {
+  const raw = String(text || '').split('\n').map((l) => l.replace(/\s+$/, ''));
+  const maxW = Math.max(0, ...raw.map(wide));
+  const out = [];
+  let prev = ''; // the previous line as on the screen (its width tells a wrap from a line end)
+  let gap = true;
+  for (const r of raw) {
+    const l = r.trim();
+    if (!l) {
+      gap = true;
+      continue;
+    }
+    const last = out[out.length - 1];
+    const item = /^(\d+[.)、]|[-•*·▪◦]|[A-Za-z][.)])\s/.test(l);
+    const ended = /[。！？!?:：;；.]$/.test(last || '') && wide(prev) < maxW - 2; // a short line ending a sentence: a real line end
+    if (gap || item || ended) out.push(l);
+    else {
+      const a = last.slice(-1);
+      // a word cut at the pane's edge: only a word longer than the line is cut (any other wraps whole)
+      const word = (last.match(/[\w@.\-/]+$/) || [''])[0] + (l.match(/^[\w@.\-/]+/) || [''])[0];
+      const cut = /[\w@.\-/]/.test(a) && /[\w@.\-/]/.test(l[0]) && wide(prev) >= maxW && word.length > maxW / 2;
+      out[out.length - 1] = last + (cut || CJK.test(a) || CJK.test(l[0]) ? '' : ' ') + l;
+    }
+    prev = r;
+    gap = false;
+  }
+  return out.join(' ⏎ ');
+}
+
 // Someone is answering in the terminal itself (keys typed into it lately, or text in the free-text
 // choice): no "waiting for an answer" notice now; if the question is still there when they stop, it is.
 const ANSWERING_PAUSE = 30_000;
@@ -280,7 +350,7 @@ export function answering(x) {
 function notice(x) {
   const kind = x.prompt.kind === 'permission' ? L('授权', 'a permission', '承認') : L('回答', 'an answer', '回答');
   const opts = x.prompt.options.map((o) => `${o.key}. ${o.label}`).join(' / ');
-  const text = x.prompt.text.split('\n').map((l) => l.trim()).filter(Boolean).join(' ⏎ ').slice(0, 1200);
+  const text = unwrap(x.prompt.text).slice(0, 1200);
   return L(
     `【舰桥通知】${x.name}（${x.agentId.slice(0, 8)}）在等${kind}：${text || '（见选项）'} ｜ 选项：${opts}`,
     `[Fleet notice] ${x.name} (${x.agentId.slice(0, 8)}) is waiting for ${kind}: ${text || '(see options)'} | Options: ${opts}`,
@@ -402,15 +472,42 @@ export function masterTurnDone(x) {
  * @param {{agentId: string, name: string, project: string, prompt: {kind: string, text: string, options: {key: string, label: string}[]}}[]} asks
  */
 export function notifyMaster(asks) {
+  // one question per agent (its session can be found twice: by its process and by its id)
+  asks = [...new Map(asks.map((x) => [x.agentId, x])).values()];
   const waiting = new Set(asks.map((x) => x.agentId));
-  for (const id of notified.keys()) if (!waiting.has(id)) notified.delete(id); // answered: a new question is new again
-  for (const id of freeKeys.keys()) if (!waiting.has(id)) freeKeys.delete(id);
+  const now0 = Date.now();
+  for (const [id, n] of notified) {
+    if (waiting.has(id)) {
+      n.goneAt = 0;
+      continue;
+    }
+    n.goneAt ||= now0;
+    // answered: a new question is new again; otherwise only after a while (not a redraw that hid it)
+    if ((getAgent(id)?.answeredAt || 0) > n.at || now0 - n.goneAt > GONE_FORGET) notified.delete(id);
+  }
+  for (const id of firstSeen.keys()) if (!waiting.has(id)) firstSeen.delete(id);
+  for (const id of freeKeys.keys()) if (!waiting.has(id) && !notified.has(id)) freeKeys.delete(id);
+  for (const x of asks) {
+    askKey(x); // notes its free-text choice
+    // the fullest reading of each question not sent yet
+    const f = firstSeen.get(x.agentId);
+    if (!f || !sameAsk(f.best, x)) firstSeen.set(x.agentId, { at: now0, best: x });
+    else f.best = fuller(f.best, x);
+  }
   // ended turns wait for the master at most an hour
   while (finished.length && Date.now() - finished[0].at > 3_600_000) finished.shift();
   saveFinished();
   const m = masterAgent();
   if (!m?.alive) return; // nothing sent: they go out once the master is up
-  const fresh = asks.filter((x) => notified.get(x.agentId) !== askKey(x) && !answering(x));
+  const fresh = asks
+    .filter((x) => {
+      const n = notified.get(x.agentId);
+      if (n && sameAsk(n.ask, x)) return false; // told already, however it reads now
+      if (answering(x)) return false;
+      const f = firstSeen.get(x.agentId);
+      return complete(f.best) || now0 - f.at > INCOMPLETE_WAIT; // a partial reading waits a little for the full one
+    })
+    .map((x) => firstSeen.get(x.agentId).best);
   if (!fresh.length && !finished.length) return;
   // never type into the middle of what the user is writing to the master: wait for an empty input
   if (Date.now() - (m.typedAt || 0) < TYPING_PAUSE || !inputEmpty(m)) return;
@@ -432,5 +529,5 @@ export function notifyMaster(asks) {
   }
   saveFinished();
   rememberTold(done);
-  for (const x of fresh) notified.set(x.agentId, askKey(x));
+  for (const x of fresh) notified.set(x.agentId, { ask: x, at: Date.now(), goneAt: 0 });
 }
