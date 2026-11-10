@@ -40,7 +40,7 @@ export const L = (zh, en, ja) => (lang === 'en' ? en : lang === 'ja' ? ja ?? en 
 export const locale = () => ({ en: 'en-US', ja: 'ja-JP' })[lang] || 'zh-CN';
 
 // The color theme (web/theme.js), kept beside the language: every page and the phone follow it.
-export const THEMES = ['auto', 'neon', 'deepspace', 'tokyo', 'warm', 'light', 'holo', 'cyber', 'bridge'];
+export const THEMES = ['auto', 'neon', 'deepspace', 'tokyo', 'warm', 'light', 'read', 'holo', 'cyber', 'bridge'];
 let theme = (() => {
   try {
     const t = JSON.parse(fs.readFileSync(FILE, 'utf8')).theme;

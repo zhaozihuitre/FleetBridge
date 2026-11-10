@@ -201,6 +201,10 @@ const EN = {
   '免打扰': 'Quiet hours',
   '这段时间不读': 'Nothing read out between',
   '▶ 试听': '▶ Listen',
+  // the reading theme
+  '阅读': 'Reading',
+  '阅读：像 Kindle 的灰白书页，墨色文字、衬线标题、细线无阴影，纸张颗粒可关': 'Reading: a gray-white page like a Kindle, ink text, serif titles, hairlines and no shadows; the paper grain can be turned off',
+  '面板上一层极淡的纸张颗粒（终端上不加）；关掉就是纯色': 'A very faint paper grain on the panels (never on the terminals); off: plain color',
 };
 
 const JA = {
@@ -387,6 +391,10 @@ const JA = {
   '免打扰': 'おやすみ時間',
   '这段时间不读': 'この時間は読み上げない',
   '▶ 试听': '▶ 試聴',
+  // the reading theme
+  '阅读': 'リーディング',
+  '阅读：像 Kindle 的灰白书页，墨色文字、衬线标题、细线无阴影，纸张颗粒可关': 'リーディング：Kindle のような灰白のページ、墨色の文字、セリフ体の見出し、細い罫線で影なし。紙の粒子はオフにできます',
+  '面板上一层极淡的纸张颗粒（终端上不加）；关掉就是纯色': 'パネルにごく薄い紙の粒子（ターミナルにはかけません）。オフで無地',
 };
 
 const DICT = { en: EN, ja: JA };

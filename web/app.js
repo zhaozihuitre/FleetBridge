@@ -1062,7 +1062,7 @@ function renderPage() {
     (lo > 0 ? '<b>…</b>' : '') +
     shown.map((i) => `<i class="${i === ui.page ? 'on' : ''}"></i>`).join('') +
     (lo + 7 < total ? '<b>…</b>' : '') +
-    `<span>${pad(ui.page + 1)} / ${pad(total)}</span>`;
+    `<span data-folio="${ui.page + 1} / ${total}">${pad(ui.page + 1)} / ${pad(total)}</span>`;
   $('prev').disabled = ui.page === 0;
   $('next').disabled = ui.page >= total - 1;
 }
@@ -2334,9 +2334,9 @@ document.addEventListener('click', () => !$('lang-menu').hidden && toggleLangMen
 
 /* ---------- themes ---------- */
 
-const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '灰白：中性灰阶，墨色文字，白天用', holo: '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光', cyber: '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁', bridge: '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过' };
+const THEME_NOTE = { auto: '跟随系统：深色时用深空，浅色时用浅色', neon: '原版：赛博 HUD，高对比霓虹，带发光和扫描线', deepspace: '夜间观测站：石板蓝灰，冰蓝强调（推荐）', tokyo: '夜城：深靛蓝，蓝紫强调', warm: '灯下夜读：胡桃木底，琥珀灯光配青绿墨水，少蓝光', light: '灰白：中性灰阶，墨色文字，白天用', read: '阅读：像 Kindle 的灰白书页，墨色文字、衬线标题、细线无阴影，纸张颗粒可关', holo: '旗舰 · 全息 HUD：玻璃面板、边角括号、青蓝辉光，背景一道缓慢的扫描光', cyber: '旗舰 · 赛博朋克：洋红 / 青霓虹描边、地平线网格，标题偶尔故障闪烁', bridge: '旗舰 · 深空舰桥：缓慢漂移的星空、总指令台的雷达，状态变化时光束扫过' };
 // the texture each theme has (web/texture.css), named in the menu for the theme in use
-const TEXTURE_NAME = { paper: '颗粒纹理', dark: '纸张颗粒', scan: '扫描线' };
+const TEXTURE_NAME = { paper: '颗粒纹理', dark: '纸张颗粒', scan: '扫描线', read: '纸张颗粒' };
 function renderThemeMenu() {
   const cur = state?.theme || 'deepspace';
   $('theme-menu').innerHTML = THEME_KEYS.map((k) => {
@@ -2355,7 +2355,7 @@ function textureItem() {
   const light = T === THEMES.light;
   const on = light ? state?.lightGrain === true : state?.paper !== false;
   const name = T.grain ? L(TEXTURE_NAME[T.grain]) : L('终端纹理');
-  const note = T.grain ? L('终端上一层很淡的纹理，跟主题风格走；关掉就是纯色') : L('这个主题没有纹理（只有浅色、暖色、霓虹有）');
+  const note = T.grain === 'read' ? L('面板上一层极淡的纸张颗粒（终端上不加）；关掉就是纯色') : T.grain ? L('终端上一层很淡的纹理，跟主题风格走；关掉就是纯色') : L('这个主题没有纹理（只有浅色、暖色、霓虹有）');
   return `<button role="menuitemcheckbox" class="paper-opt" aria-checked="${on}" ${T.grain ? '' : 'disabled'} title="${esc(note)}"><span class="sw"><i style="background:${T.term.background}"></i></span>${esc(name)}</button>`;
 }
 // The header panel's clip-path (its cut corners) clips everything inside it, fixed menus included:

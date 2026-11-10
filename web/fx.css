@@ -1,4 +1,4 @@
-/* The flagship themes' effects (holo / cyber / bridge, <html data-fx>, set by theme.js; the background layer is
+/* The flagship themes' effects (holo / cyber / bridge) and the reading theme's typesetting (read), <html data-fx>, set by theme.js; the background layer is
    made by fx.js). This sheet is written for those themes and is not recolored by theme.js (literal colors are
    meant). The terminals keep their solid backgrounds: no glass, no layer, no overlay over terminal text.
    Everything that moves runs only with motion allowed, and pauses while the page is hidden (.fx-paused).
@@ -102,3 +102,102 @@ html[data-fx=bridge].fx-main .unit.flash::after {
 }
 @keyframes fx-br-beam { from { background-position: 120% 0; opacity: 1; } to { background-position: -40% 0; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { html[data-fx=bridge].fx-main .unit.flash::after { animation: none; opacity: 0; } }
+
+/* ---- ④ read: an e-reader's page (no layer effects, only typesetting) ----
+   Serif titles and names with old-style figures, the body text and the terminals as they were; hairlines, no
+   shadows, no cut corners; the tabs as a running head with small capitals, the pager as a folio ("— 3 / 19 —");
+   the status lights as ink dots that only fade a little; a very faint paper grain on the panels (never on a
+   terminal), off with the texture switch. Every ink is AA or better on the paper (web/theme.js). */
+html[data-fx=read] {
+  --serif: 'Source Serif 4', 'Noto Serif SC', 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia, 'Songti SC', SimSun, serif;
+  --display: var(--serif);
+  --name: var(--serif);
+  --label: 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  /* the grain: neutral gray specks, at most a few percent */
+  --rd-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .32 0 0 0 0 .35 0 0 0 .2 -.07'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html[data-fx=read] body { font-variant-numeric: oldstyle-nums proportional-nums; letter-spacing: .01em; }
+html[data-fx=read] .fx-layer { background: var(--bg); }
+html[data-fx=read][data-texture=on] .fx-layer, html[data-fx=read][data-texture=on].fx-widget .w { background-image: var(--rd-grain); }
+/* paper: the panels, never a terminal (.term-host, .master-term, .screen-wrap keep their solid page) */
+html[data-fx=read][data-texture=on] :is(.box, .unit, .operator, .tab, .pane .term-head, .stat-box, .card, .chip, .top) { background-image: var(--rd-grain); }
+/* no cut corners, no glow, no pulsing borders */
+html[data-fx=read] body :not(svg, svg *) { clip-path: none; }
+html[data-fx=read] :is(.unit, .card, .chip, .pane, .screen-wrap, .w) { box-shadow: none; animation: none; }
+/* running head: the title in serif capitals, the clock in old-style figures */
+html[data-fx=read] .brand b { font-family: var(--serif); font-weight: 600; letter-spacing: .12em; color: var(--text); }
+html[data-fx=read] .pilot b { font-family: var(--serif); font-weight: 500; font-size: 20px; font-variant-numeric: lining-nums tabular-nums; } /* a clock reads better in lining figures */
+html[data-fx=read] :is(.pilot b, .energy .left, .energy .cd, .energy-other .other-pct, .unit .top .timer, .stat-box b) { letter-spacing: 0; }
+html[data-fx=read] :is(.energy .left, .energy .cd, .energy-other .other-pct) { font-family: var(--serif); font-weight: 600; }
+html[data-fx=read] .seg { height: 3px; gap: 0; }
+html[data-fx=read] .seg i { background: var(--line); box-shadow: none; }
+html[data-fx=read] .seg i.on { background: color-mix(in srgb, var(--c, var(--soft)) 55%, var(--text)); }
+/* small capitals: the English half of the block names, read like a chapter's heading */
+html[data-fx=read] :is(.tab .en, .operator .tag, .list-tabs .en, .op-feed-head .mono) { font-family: var(--serif); font-variant: small-caps; text-transform: lowercase; letter-spacing: .16em; font-weight: 600; }
+html[data-fx=read] .operator .tag { font-size: 13px; color: var(--muted); }
+/* the tabs: a running head, the open one underlined in ink */
+html[data-fx=read] .tab { background: transparent; border-bottom-width: 2px; }
+html[data-fx=read] .tab .cn { font-family: var(--serif); font-size: 15px; }
+html[data-fx=read] .tab .en { font-size: 12px; color: var(--muted); }
+html[data-fx=read] :is(.tab .n, .tab[aria-selected=true] .n) { background: transparent; color: var(--muted); font-family: var(--serif); font-size: 12px; padding: 0 2px; }
+html[data-fx=read] .tab[aria-selected=true] { background: transparent; border-bottom-color: var(--text); }
+html[data-fx=read] .tab .n.new { color: var(--amber); font-weight: 700; }
+/* the command desk: the book's left page */
+html[data-fx=read] .operator { background: var(--panel); }
+html[data-fx=read] .stat-box { border-left: 1px solid var(--line); }
+html[data-fx=read] .stat-box b { font-family: var(--serif); font-weight: 600; font-size: 22px; color: color-mix(in srgb, var(--sc) 45%, var(--text)); }
+html[data-fx=read] .stat-box.zero b { color: var(--dim); }
+/* the units: pages in a grid of hairlines; only what waits on you (or broke) gets a thin ink line on top */
+html[data-fx=read] .units { gap: 0; }
+html[data-fx=read] .unit { margin: 0 -1px -1px 0; border-color: var(--line); }
+html[data-fx=read] .unit::before { display: none; }
+html[data-fx=read] .unit:is(.permit, .question, .error) { box-shadow: inset 0 2px 0 var(--c); }
+html[data-fx=read] .unit .top { letter-spacing: .02em; }
+html[data-fx=read] .unit .top .timer { font-family: var(--serif); font-size: 13px; }
+html[data-fx=read] .unit h3 { font-weight: 600; font-size: 25px; letter-spacing: .01em; }
+html[data-fx=read] .unit .loc { color: var(--muted); opacity: 1; }
+html[data-fx=read] .unit .last { line-height: 1.75; }
+html[data-fx=read] .unit .last::before { content: none; }
+html[data-fx=read] :is(.unit .ours, .row .p i) { background: transparent; color: var(--green); border: 1px solid currentColor; }
+/* the moment a state changes: the ink line written across the page's top, once */
+html[data-fx=read] .unit.flash::after { inset: 0 0 auto 0; height: 2px; background: var(--c, var(--cyan)); transform-origin: left; animation: fx-rd-write .7s ease-out forwards; }
+@keyframes fx-rd-write { from { transform: scaleX(0); opacity: 1; } 70% { opacity: 1; } to { transform: scaleX(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { html[data-fx=read] .unit.flash::after { animation: none; opacity: 0; } }
+/* the pager: a folio between two words, no dots */
+html[data-fx=read] .pager { gap: 30px; }
+html[data-fx=read] .pager button { min-width: 0; height: 36px; padding: 0 6px; background: transparent; border: 0; color: var(--soft); font-family: var(--serif); font-size: 14px; }
+html[data-fx=read] .pager button:disabled { color: var(--dim); opacity: .6; }
+html[data-fx=read] .pager button:not(:disabled):hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+html[data-fx=read] :is(.pager kbd, .dots i, .dots b) { display: none; }
+html[data-fx=read] .dots span { margin: 0; font-size: 0; }
+html[data-fx=read] .dots span::before { content: '— ' attr(data-folio) ' —'; font: 14px var(--serif); letter-spacing: .14em; color: var(--muted); }
+/* terminals: a hairline frame, the active one in ink */
+html[data-fx=read] .pane { border-color: var(--line); }
+html[data-fx=read] .pane.active { border-color: var(--line-hi); }
+html[data-fx=read] :is(.term-who b, .w-head .logo, .row .p) { font-family: var(--serif); letter-spacing: .02em; }
+html[data-fx=read] .st-chip { letter-spacing: 0; }
+/* ink dots: no halo; breathing is the ink fading a little, slowly; what waits on you has a thin ring */
+html[data-fx=read] .lamp { box-shadow: none; }
+html[data-fx=read] :is(.lamp.sharp, .lamp.flash) { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 2.5px var(--lc); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-fx=read] .lamp.breathe { animation: fx-rd-ink calc(var(--lp) * 1.5) ease-in-out var(--ph, 0s) infinite; }
+  html[data-fx=read] .lamp.sharp { animation: fx-rd-ink 2.2s ease-in-out var(--ph, 0s) infinite; }
+  html[data-fx=read] :is(.lamp.once, .lamp.flash) { animation: fx-rd-once 1.6s ease-out var(--ph, 0s) 1 both; }
+}
+@keyframes fx-rd-ink { 0%, 100% { opacity: 1; } 50% { opacity: .42; } }
+@keyframes fx-rd-once { 0% { opacity: .2; } 100% { opacity: 1; } }
+/* the phone: the same pages */
+html[data-fx=read].fx-phone .card { background: var(--panel); border-color: var(--line); }
+html[data-fx=read].fx-phone .card::before { display: none; }
+html[data-fx=read].fx-phone .card.permit { box-shadow: inset 0 2px 0 var(--c); }
+html[data-fx=read].fx-phone :is(.card .nm, .card .p) { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: .01em; }
+html[data-fx=read].fx-phone :is(.card .meta .pj, .card time) { font-family: var(--serif); letter-spacing: 0; }
+html[data-fx=read].fx-phone .chip { background: var(--panel); }
+html[data-fx=read].fx-phone .chip b { font-family: var(--serif); font-size: 19px; font-weight: 600; color: color-mix(in srgb, var(--c) 45%, var(--text)); }
+html[data-fx=read].fx-phone .list-tabs button[aria-selected=true] { border-bottom-color: var(--text); }
+html[data-fx=read].fx-phone .list-tabs .en { color: var(--muted); }
+html[data-fx=read].fx-phone .top { background-color: var(--panel); border-bottom: 1px solid var(--line); }
+/* the widget */
+html[data-fx=read].fx-widget .w { background-color: var(--panel); border-color: var(--line-hi); }
+html[data-fx=read].fx-widget .w-head .logo { color: var(--text); font-size: 13px; font-weight: 600; letter-spacing: .1em; }
+html[data-fx=read].fx-widget .row { border-left-width: 1px; }

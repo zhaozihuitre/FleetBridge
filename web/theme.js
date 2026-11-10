@@ -49,6 +49,7 @@ export const THEMES = {
     name: '浅色',
     glow: 'none',
     grain: 'paper',
+    scheme: 'light',
     // the phone page's screen, where a color is text or background (server/screenhtml.js): brightBlack as
     // text is a gray ink, white / brightWhite behind text a darker gray
     paperVars: { '--tf8': '#5c6068', '--tb7': '#dcdfe4', '--tb15': '#e3e5e9' },
@@ -58,6 +59,19 @@ export const THEMES = {
     // brightBlack is the panel color Claude Code (dark-ansi) puts behind highlighted text: a light gray here;
     // the selection is a pale wash of the blue ink
     term: { background: '#f6f7f8', foreground: '#2b2d31', cursor: '#2a5f8f', cursorAccent: '#f6f7f8', selectionBackground: 'rgba(42,95,143,.18)', black: '#1f2125', red: '#b0302f', green: '#2e6a31', yellow: '#765300', blue: '#2459a6', magenta: '#873f8d', cyan: '#1b6a77', white: '#50545b', brightBlack: '#e3e5e9', brightRed: '#2a5f8f', brightGreen: '#285f2b', brightYellow: '#6b4b00', brightBlue: '#1f4f94', brightMagenta: '#77357e', brightCyan: '#165d68', brightWhite: '#1f2125' },
+  },
+  read: {
+    name: '阅读',
+    glow: 'none',
+    fx: 'read',
+    scheme: 'light',
+    // an e-reader's page (Kindle gray-white, the faintest cool): ink text, a quiet ink blue and ink green, serif titles
+    // and old-style figures, hairlines and no shadows, a very faint paper grain on the panels (never on the
+    // terminals; the texture switch turns it off). The page's book typesetting is in web/fx.css.
+    grain: 'read',
+    paperVars: { '--tf8': '#5a5f66', '--tb7': '#dde1e5', '--tb15': '#e4e7ea' },
+    ui: { bg: '#e8eaec', panel: '#f6f7f8', panelDeep: '#eff1f3', line: '#d6dade', lineHi: '#a9b0b8', text: '#25282c', soft: '#3b3f45', muted: '#555a61', dim: '#5d626a', accent: '#2c5072', amber: '#7a5810', red: '#9b3833', green: '#2d5c48', termBg: '#f8f9fa' },
+    term: { background: '#f8f9fa', foreground: '#25282c', cursor: '#2c5072', cursorAccent: '#f8f9fa', selectionBackground: 'rgba(44,80,114,.16)', black: '#1d2024', red: '#9b3833', green: '#2d5c48', yellow: '#6f5009', blue: '#2c5072', magenta: '#68457c', cyan: '#245a63', white: '#50555c', brightBlack: '#e4e7ea', brightRed: '#2c5072', brightGreen: '#264f3d', brightYellow: '#624606', brightBlue: '#244565', brightMagenta: '#5b3b6d', brightCyan: '#1e4e56', brightWhite: '#1d2024' },
   },
   holo: {
     name: '全息 HUD',
@@ -217,7 +231,7 @@ export function applyTheme(key) {
   const dark = !T.paperVars ? { '--tf0': T.ui.dim, '--tf8': T.ui.dim } : {};
   const vars = { '--tfg': T.term.foreground, '--tbg': T.term.background, ...dark, ...T.paperVars };
   for (const v of ['--tfg', '--tbg', '--tf0', '--tf8', '--tb7', '--tb15']) vars[v] ? root.style.setProperty(v, vars[v]) : root.style.removeProperty(v);
-  root.style.colorScheme = name === 'light' ? 'light' : 'dark';
+  root.style.colorScheme = T.scheme || 'dark';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', T.ui.bg);
   return name;
 }

@@ -4025,6 +4025,27 @@
       "updated": "2026-11-10 13:34",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-084",
+      "type": "change",
+      "title": "新增「阅读」主题（E-ink / Kindle 灰白）",
+      "summary": "主题菜单新增「阅读」（0.9.68），浅色保留：Kindle 式中性灰白、墨色文字、墨蓝/墨绿强调；衬线标题与旧式数字、小型大写的区块名、页码式翻页条「— 1 / 12 —」、细线无阴影无切角、墨点呼吸灯、面板上极淡纸张颗粒（终端不加，可关）；覆盖指挥中心、分屏、弹出终端、小窗、手机页",
+      "detail": "配色在 web/theme.js（read，scheme: light，所有墨色 ≥ 5.1:1，终端 ≥ 6.6:1）；排版在 web/fx.css 的 html[data-fx=read] 段（不经过按角色换色）。纸张颗粒沿用主题菜单的纹理开关（state.paper），只加在面板（.unit/.operator/.card 等）上。翻页条数字来自 .dots span 的 data-folio。colorScheme 改由主题的 scheme 字段决定。状态变化改成顶线「写出来」0.7 秒；减少动态效果时 0 个动画。",
+      "status": "done",
+      "files": [
+        "web/theme.js",
+        "web/fx.css",
+        "web/app.js",
+        "web/i18n.js",
+        "server/i18n.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-10 16:20",
+      "updated": "2026-11-10 16:20",
+      "notes": []
     }
   ]
 }
