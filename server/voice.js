@@ -6,10 +6,10 @@ import { DATA_DIR } from './config.js';
 // on): the settings, kept in <data>/voice.json, and which terminal you are looking at right now (a page in front
 // with that terminal focused says so), which is not read out.
 const FILE = path.join(DATA_DIR, 'voice.json');
-const KINDS = ['permit', 'question', 'done', 'error', 'warn'];
+const KINDS = ['permit', 'question', 'done', 'error', 'warn', 'sys'];
 const DEFAULTS = {
   on: true,
-  kinds: { permit: true, question: true, done: true, error: true, warn: false },
+  kinds: { permit: true, question: true, done: true, error: true, warn: false, sys: false }, // sys: memory short / CPU busy
   volume: 0.8, // 0..1
   rate: 1, // 0.6..1.6
   voice: '', // a voice's name ('' = the system's voice for the language)

@@ -122,6 +122,30 @@ function renderChips() {
   $('chips').innerHTML = chip(n('busy'), L('作战中'), 'var(--lamp-busy)') + chip(n('idle') + n('standby') + n('done'), L('待命'), 'var(--lamp-idle)') + chip(n('permit') + n('question') + n('error'), L('等你处理'), 'var(--lamp-permit)', true, Math.max(0, ...all.map((r) => r.waitAt || 0)));
 }
 
+// the computer's load: one line under the counts, and what takes the memory when it runs short
+const SYS_PAGE = Math.random().toString(36).slice(2, 10);
+let sysSaid = 0;
+function renderSys() {
+  const s = state.sys;
+  const el = $('psys');
+  if (!s) return void (el.hidden = true);
+  const GB = 1024 ** 3;
+  const long = (b) => (b >= GB ? (b / GB).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB');
+  const warn = s.warn?.mem || s.warn?.cpu;
+  const top = s.warn?.top;
+  const used = Math.round(((s.total - s.avail) / s.total) * 100);
+  el.hidden = false;
+  el.classList.toggle('warn', Boolean(warn));
+  el.innerHTML =
+    `<div class="ps-row">${warn ? lamp('warn', 0) : ''}<span>CPU <b>${s.cpu}%</b></span><span class="ps-bar"><i style="width:${used}%"></i></span><span>${esc(L('可用'))} <b>${long(s.avail)}</b></span></div>` +
+    (warn ? `<div class="ps-warn">${esc(s.warn.mem ? L('电脑内存吃紧：只剩 {0}', long(s.avail)) : L('电脑 CPU 满载 1 分钟（{0}%）', s.cpu))}${top ? '<br>' + esc(L('{0} 的 {1} 占 {2}', top.unit, top.label, long(top.mem))) : ''}</div>` : '');
+  // the server samples less when nobody looks: say this page shows the line (every 15 s while visible)
+  if (!document.hidden && Date.now() - sysSaid > 15_000) {
+    sysSaid = Date.now();
+    fetch('/api/sys/want', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'm-' + SYS_PAGE, level: 'folded' }) }).catch(() => {});
+  }
+}
+
 function renderUnits() {
   const now = Date.now();
   const html =
@@ -156,7 +180,7 @@ try {
 } catch {
   // storage unavailable
 }
-const NOTICE_COLOR = { permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+const NOTICE_COLOR = { sysload: 'var(--lamp-warn)', permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
 async function loadNotices() {
   if (noticesFor === state.noticeAt) return;
   noticesFor = state.noticeAt;
@@ -274,6 +298,7 @@ function render() {
   speakNew();
   renderQuota();
   renderChips();
+  renderSys();
   renderUnits();
   loadNotices();
   renderNotices();

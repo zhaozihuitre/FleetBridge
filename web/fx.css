@@ -201,3 +201,10 @@ html[data-fx=read].fx-phone .top { background-color: var(--panel); border-bottom
 html[data-fx=read].fx-widget .w { background-color: var(--panel); border-color: var(--line-hi); }
 html[data-fx=read].fx-widget .w-head .logo { color: var(--text); font-size: 13px; font-weight: 600; letter-spacing: .1em; }
 html[data-fx=read].fx-widget .row { border-left-width: 1px; }
+/* system load (web/sysload.js) in the flagship / reading themes */
+html[data-fx=bridge].fx-main .sys-block { background-color: var(--fx-glass); }
+html[data-fx=read] :is(.sys-g .gh b, .sys-rank b, .sys-block.folded b, .sys-chip b, .sd-rank .r, .sd-ch .chh b) { font-family: var(--serif); font-weight: 600; }
+html[data-fx=read] :is(.sys-rank .bar, .sd-rank .bar) { height: 3px; }
+html[data-fx=read] .sys-block .tag { font-family: var(--serif); font-variant: small-caps; text-transform: lowercase; letter-spacing: .16em; font-weight: 600; }
+html[data-fx=read][data-texture=on] :is(.sys-block, .sys-drawer, .sys-chip) { background-image: var(--rd-grain); }
+html[data-fx=read] .sd-head b { font-family: var(--serif); }

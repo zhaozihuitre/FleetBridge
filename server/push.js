@@ -73,8 +73,8 @@ export function testPush(click) {
 }
 
 // what each kind of notice is worth on a phone: things that need you ring loudest
-const PRIORITY = { permit: 5, question: 5, error: 4, limit: 4, interrupted: 4, never_ran: 4, alert: 4, ask: 4, done: 3, overload: 3 };
-const TAGS = { permit: 'rotating_light', question: 'question', error: 'x', limit: 'no_entry', interrupted: 'pause_button', never_ran: 'no_entry_sign', alert: 'warning', ask: 'yellow_circle', done: 'white_check_mark', overload: 'warning' };
+const PRIORITY = { permit: 5, question: 5, error: 4, limit: 4, interrupted: 4, never_ran: 4, alert: 4, sysload: 4, ask: 4, done: 3, overload: 3 };
+const TAGS = { permit: 'rotating_light', question: 'question', error: 'x', limit: 'no_entry', interrupted: 'pause_button', never_ran: 'no_entry_sign', alert: 'warning', sysload: 'desktop_computer', ask: 'yellow_circle', done: 'white_check_mark', overload: 'warning' };
 const sent = new Set();
 
 /**

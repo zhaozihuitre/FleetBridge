@@ -4046,6 +4046,32 @@
       "created": "2026-11-10 16:20",
       "updated": "2026-11-10 16:20",
       "notes": []
+    },
+    {
+      "id": "C-085",
+      "type": "change",
+      "title": "系统负荷监控（CPU / 内存，雷达旁）",
+      "summary": "总指令台加「系统负荷」块（0.9.69）：深空舰桥在雷达下方，其他主题在统计格下方；CPU / 内存仪表 + 10 分钟趋势 + 占内存最多的终端；可折叠成一行（窗口矮于 760px 自动折叠），总指令台收起时标签行出现胶囊；抽屉里按终端列出进程树，舰桥启动的终端下的子进程可结束（二次确认，Claude Code 本体和舰桥自身进程不可）；内存吃紧 / CPU 满载时警告灯 + 通知 + 推送（语音「系统负荷」默认关）；手机页一行负荷 + 预警卡片",
+      "detail": "server/sysload.js：整机用 os.cpus()/os.freemem() 每 3 秒（没人看时 15 秒）；进程树用临时 PowerShell 查一次 Win32_Process（约 0.4 秒，查完即退），抽屉开 5 秒 / 展开 10 秒 / 折叠 30 秒 / 没人看不查；页面 POST /api/sys/want 报告看到的程度。预警：可用 < 1.5 GB 或 < 10%（回到 2 GB 且 13% 以上才清除），CPU ≥ 90% 持续 1 分钟；每次吃紧只通知一次（notices.js noticeSystem，kind sysload）。结束进程 POST /api/sys/kill：用新查的进程树再核对一遍（属于该终端、不是终端本身、不是 claude / electron / Fleet Bridge / fleet-mcp / ptyhost / 系统进程），taskkill /T /F。",
+      "status": "done",
+      "files": [
+        "server/sysload.js",
+        "server/index.js",
+        "server/notices.js",
+        "web/sysload.js",
+        "web/app.js",
+        "web/m.js",
+        "web/style.css",
+        "web/fx.css",
+        "web/voice.js",
+        "server/voice.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-10 16:43",
+      "updated": "2026-11-10 16:43",
+      "notes": []
     }
   ]
 }

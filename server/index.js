@@ -19,7 +19,8 @@ import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
 import { mobileInfo, pendingDevices, setMobile, startMobile, stopMobile, webSetupNeeded, webUrl } from './mobile.js';
 import { pushInfo, pushNotices, setPush, testPush } from './push.js';
-import { lineText, noticeHistory, noticeNeverRan, recentNotices, toastText, updateNotices } from './notices.js';
+import { lineText, noticeHistory, noticeNeverRan, noticeSystem, recentNotices, toastText, updateNotices } from './notices.js';
+import { startSysload, sysKill, sysState, sysUnits, sysWant } from './sysload.js';
 import { kindIcon, kindWord, lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
 import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
@@ -188,6 +189,9 @@ function publish() {
   // notices (desktop toasts via the widget, phone push, the lists): decided once, each with its summary
   updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
+  // system load (server/sysload.js): the machine, and each terminal's process tree
+  sysUnits(state.units);
+  state.sys = sysState();
   state.notify = notifySettings();
   state.noticeAt = noticeHistory()[0]?.at || 0; // the lists of recent notices fetch again when this moves
   state.webPending = pendingDevices(); // devices waiting for this computer's OK
@@ -621,6 +625,18 @@ async function handleRequest(req, res) {
     if (req.method === 'POST') publish();
     return send(res, 200, v);
   }
+  // system load: what a page shows (the sampling follows), and ending a process under one of our terminals
+  if (req.method === 'POST' && req.url === '/api/sys/want') {
+    const { page, level } = await readBody(req);
+    sysWant(page || 'page', level);
+    return send(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && req.url === '/api/sys/kill') {
+    const { pid, agentId } = await readBody(req);
+    const r = await sysKill(pid, agentId);
+    publish();
+    return send(res, r.ok ? 200 : 400, r);
+  }
   if (req.method === 'POST' && req.url === '/api/viewing') {
     const { agentId } = await readBody(req);
     setViewing(agentId);
@@ -803,6 +819,7 @@ export async function start({ onListening } = {}) {
   }
   // the first usage and git scans fill the cards when they're done; the page works meanwhile
   Promise.all([refreshUsage(), refreshGit()]).catch((e) => console.error('first refresh failed', e.message));
+  startSysload({ onWarn: (w) => (noticeSystem(w), publish()), onChange: () => publish() });
   timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
   await startMobile({ action: (b) => agentAction(b), web: webRequest, socket: (req, socket, head) => agentSocket(req, socket, head), changed: () => publish(), screen: (id) => {
     const a = getAgent(id);

@@ -344,6 +344,7 @@ export const kindWord = (kind) =>
     limit: L('额度到限', 'Quota used up', '利用枠上限'),
     overload: L('负载过高', 'Context high', 'コンテキスト逼迫'),
     alert: L('额度告急', 'Quota low', '利用枠わずか'),
+    sysload: L('系统负荷', 'System load', 'システム負荷'),
   })[kind] || kind;
 
-export const kindIcon = (kind) => ({ done: '✅', ask: '🟡', permit: '🔐', question: '❓', interrupted: '⏸', never_ran: '🚫', limit: '⛔', error: '❗', overload: '⚠', alert: '⚠' })[kind] || '•';
+export const kindIcon = (kind) => ({ done: '✅', ask: '🟡', permit: '🔐', question: '❓', interrupted: '⏸', never_ran: '🚫', limit: '⛔', error: '❗', overload: '⚠', alert: '⚠', sysload: '🖥' })[kind] || '•';

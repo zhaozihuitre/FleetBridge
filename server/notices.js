@@ -15,6 +15,7 @@ import { clipSentence, kindIcon, kindWord, lastTurn, notifySettings, summarize }
 //   interrupted / error     a turn stopped by you (Esc, a tool use turned down) or by an API error
 //   never_ran               an order of the master's that never ran (from the master's turns)
 //   overload / alert        context nearly full (hourly per session), quota low
+//   sysload                 memory short / CPU busy for a minute (server/sysload.js), once per shortage
 // Nothing that was already pending when the server started is told (no burst after an update).
 
 const READY_AFTER = 20_000; // without word from the transcript: idle this long before a turn counts as done
@@ -69,6 +70,18 @@ export const noticeHistory = () => [...history].reverse();
 /** For the master's turns that never ran (index.js): the same channels as the others. */
 export function noticeNeverRan({ agentId, sessionId, name, project, text, since }) {
   add({ key: `never:${agentId}:${since}`, kind: 'never_ran', agentId, sessionId, name, project, title: L('指令没有执行：{0}', 'The order did not run: {0}', '指示が実行されませんでした：{0}').replace('{0}', clipSentence(text, 30)), result: L('会话记录里没有这条指令的任何动作，多半是指令前弹出的对话框被取消了。', 'Nothing of it is in the transcript: most likely a dialog before it was cancelled.', '会話記録に動きがありません。直前のダイアログがキャンセルされた可能性があります。'), needs: L('看一下屏幕，需要的话重新派。', 'Check the screen and send it again if needed.', '画面を確認し、必要なら再送してください。') });
+}
+
+/** Memory running short or the CPU busy for a minute (server/sysload.js): once per shortage, naming what takes it. */
+export function noticeSystem({ kind, avail, total, cpu, top }) {
+  const gb = (b) => (b / 1024 ** 3).toFixed(1) + ' GB';
+  const mb = (b) => (b >= 1024 ** 3 ? gb(b) : Math.round(b / 1024 ** 2) + ' MB');
+  const title =
+    kind === 'mem'
+      ? L('内存只剩 {0}', 'Only {0} of memory left', 'メモリ残り {0}').replace('{0}', gb(avail))
+      : L('CPU 已经满载 1 分钟（{0}%）', 'CPU fully busy for a minute ({0}%)', 'CPU が 1 分間フル稼働（{0}%）').replace('{0}', cpu);
+  const result = top ? L('{0} 的 {1} 占 {2}', "{0}'s {1} takes {2}", '{0} の {1} が {2} 使用').replace('{0}', top.unit).replace('{1}', top.label).replace('{2}', mb(top.mem)) : '';
+  add({ key: `sys:${kind}:${Date.now()}`, kind: 'sysload', name: L('电脑', 'This computer', 'このパソコン'), title, result, needs: L('在总指令台的「系统负荷」里看是谁占的。', 'See who takes it in the command desk\'s "System load".', '総指令台の「システム負荷」で確認。') });
 }
 
 /**

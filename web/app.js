@@ -8,6 +8,7 @@ import { hasTouch, switchView, wantedView } from './device.js';
 import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
+import { initSys, renderSys, sysWarnSince, sysWarnText } from './sysload.js';
 
 const $ = (id) => document.getElementById(id);
 // Opened on this computer, or from another device over web access (a tablet, a phone, another PC):
@@ -228,6 +229,8 @@ function deskLamp() {
   if (crashed) return { key: 'error', ...lampDetail('error', null, crashed) };
   for (const k of ['permit', 'question']) if (of(k).length) return many(of(k), k);
   const line = (kinds) => op.lines.find((l) => kinds.includes(l.kind));
+  const sysWarn = sysWarnText();
+  if (sysWarn) return { key: 'warn', text: sysWarn, since: sysWarnSince() };
   const warn = line(['ALERT', 'OVERLOAD']);
   if (warn) return { key: 'warn', text: warn.text, since: warn.at };
   if (of('done').length) return many(of('done'), 'done');
@@ -825,7 +828,7 @@ function noticeBadge() {
   $('n-notices').classList.toggle('new', unseen > 0);
   $('n-notices').closest('.tab').title = unseen ? L('{0} 条新通知', unseen) : '';
 }
-const NOTICE_COLOR = { permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
+const NOTICE_COLOR = { sysload: 'var(--lamp-warn)', permit: 'var(--lamp-permit)', question: 'var(--lamp-question)', ask: 'var(--lamp-question)', done: 'var(--lamp-done)', limit: 'var(--lamp-error)', error: 'var(--lamp-error)', never_ran: 'var(--red)', interrupted: 'var(--amber)', overload: 'var(--amber)', alert: 'var(--amber)' };
 function noticesPage() {
   const now = Date.now();
   if (!noticeList.length) return emptyBlock('empty', L('还没有通知。agent 做完、等你授权或回答、额度告急时，这里会留一条，点一下回到那个终端。'));
@@ -1075,6 +1078,7 @@ function render() {
   renderConsole();
   renderPage();
   renderTermHeads();
+  renderSys(state);
   askNewDevices();
   askWebSetup();
   $('deploy-open').disabled = !state.agentSupport?.ok;
@@ -1235,6 +1239,7 @@ async function post(url, body) {
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   return res.json();
 }
+initSys({ post, toast });
 
 async function focus(pid) {
   // our own agents live in the terminal panel, not in an outside window

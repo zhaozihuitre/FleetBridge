@@ -7,9 +7,9 @@
 import { L, lang } from './i18n.js';
 
 // the notice kinds by the switch that covers them
-const KIND = { permit: 'permit', question: 'question', done: 'done', ask: 'done', error: 'error', limit: 'error', never_ran: 'error', interrupted: 'error', overload: 'warn', alert: 'warn' };
-export const VOICE_KINDS = ['permit', 'question', 'done', 'error', 'warn'];
-export const kindName = (k) => ({ permit: L('等授权'), question: L('等回答'), done: L('完成'), error: L('出错 / 额度到限'), warn: L('警告（额度、上下文快满）') })[k];
+const KIND = { permit: 'permit', question: 'question', done: 'done', ask: 'done', error: 'error', limit: 'error', never_ran: 'error', interrupted: 'error', overload: 'warn', alert: 'warn', sysload: 'sys' };
+export const VOICE_KINDS = ['permit', 'question', 'done', 'error', 'warn', 'sys'];
+export const kindName = (k) => ({ permit: L('等授权'), question: L('等回答'), done: L('完成'), error: L('出错 / 额度到限'), warn: L('警告（额度、上下文快满）'), sys: L('系统负荷（内存吃紧、CPU 满载）') })[k];
 
 const LANG = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP' }[lang] || 'zh-CN';
 const synth = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
