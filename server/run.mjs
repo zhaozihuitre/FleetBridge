@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import util from 'node:util';
 import * as server from './index.js';
+import { DATA_DIR, ROOT } from './config.js';
+import { healShutdownRollback } from './selfheal.js';
 
 const send = (m) => process.send?.(m);
 
@@ -62,6 +64,18 @@ try {
   console.log(`server ${server.appVersion} starting (pid ${process.pid})`);
   await server.start({ onListening: () => send({ type: 'ready', url: server.url, version: server.appVersion }) });
   console.log('server started');
+  // a newer version set aside by the last Windows shutdown (an old shell's misjudgment) comes back
+  setTimeout(() => {
+    try {
+      const back = healShutdownRollback({ dataDir: DATA_DIR, root: ROOT });
+      if (back) {
+        console.log(`version ${back} was set aside by the last shutdown, not a real failure: back to it`);
+        send({ type: 'reload' });
+      }
+    } catch (e) {
+      console.error('shutdown rollback check failed:', e.message);
+    }
+  }, 5_000);
 } catch (e) {
   console.error('server failed to start:', e.stack || e.message);
   send({ type: 'failed', error: e.code === 'EADDRINUSE' ? 'EADDRINUSE' : e.message });
