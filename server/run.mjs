@@ -37,8 +37,26 @@ for (const level of ['log', 'warn', 'error']) {
     }
   };
 }
+// An error inside the terminal emulator (@xterm/headless parses each agent's output on its own timers)
+// concerns one agent's copy of its screen, not the server: that screen is rebuilt and the server goes
+// on. Anything else is fatal as before (the shell restarts the server; the terminals live on in the host).
+let emulatorErrors = [];
 process.on('uncaughtException', (e) => {
-  write('fatal', [e.stack || e.message]);
+  const stack = String(e?.stack || e?.message || e);
+  const now = Date.now();
+  emulatorErrors = emulatorErrors.filter((t) => now - t < 60_000);
+  if (/[\\/]@xterm[\\/]headless[\\/]/.test(stack) && emulatorErrors.length < 20) {
+    emulatorErrors.push(now);
+    let n = 0;
+    try {
+      n = server.recoverScreens();
+    } catch (err) {
+      write('error', ['screen recovery failed:', err?.stack || err]);
+    }
+    write('error', [`terminal emulator error, ${n} screen(s) rebuilt, server kept running: ${stack}`]);
+    return;
+  }
+  write('fatal', [stack]);
   process.exit(1);
 });
 process.on('unhandledRejection', (e) => write('error', ['unhandled rejection:', e?.stack || e]));

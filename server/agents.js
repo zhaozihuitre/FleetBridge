@@ -16,6 +16,49 @@ const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened term
 // A headless copy of each agent's screen, so the server can read what is on it (e.g. the command
 // a permission prompt asks about) without any terminal panel being open.
 const { Terminal: Headless } = require('@xterm/headless');
+// Some scrollback, never 0: with none, @xterm/headless 6.0 can lose a row when a resize reflows
+// wrapped lines (the buffer one line shorter than the screen), and the next line feed into that row
+// throws from its write timer, where nothing can catch it: the whole server went down (3 times).
+const newScreen = (cols, rows) => new Headless({ cols, rows, scrollback: 200, allowProposedApi: true });
+
+/** A screen whose buffer lacks a row it shows (that bug, or any other): writing to it may throw. */
+function screenBroken(screen) {
+  try {
+    const b = screen?.buffer.active;
+    if (!b) return false;
+    for (let y = 0; y < screen.rows; y++) if (!b.getLine(b.baseY + y)) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/** A fresh screen for an agent, of the same size, from the output it has kept. */
+function rebuildScreen(agent) {
+  const old = agent.screen;
+  const screen = newScreen(old?.cols || 120, old?.rows || 32);
+  agent.screen = screen;
+  try {
+    old?.dispose();
+  } catch {
+    // already half gone
+  }
+  screen.write(agent.buffer || '');
+}
+
+/**
+ * After an error from the terminal emulator (it comes from its own timer, so no caller sees it): every
+ * agent screen that has gone bad is rebuilt from its kept output. The terminals themselves never stop.
+ */
+export function recoverScreens() {
+  let n = 0;
+  for (const agent of agents.values()) {
+    if (!screenBroken(agent.screen)) continue;
+    rebuildScreen(agent);
+    n++;
+  }
+  return n;
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // The terminals live in the PTY host (server/ptyhost.cjs), a process of their own that outlives this
@@ -231,7 +274,7 @@ export async function attachHost() {
       const m = t.meta || {};
       const cols = m.cols || 120;
       const rows = m.rows || 32;
-      const screen = new Headless({ cols, rows, scrollback: 0, allowProposedApi: true });
+      const screen = newScreen(cols, rows);
       screen.write(t.buf || '');
       const agent = { id: t.id, sessionId: m.sessionId ?? null, kind: m.kind === 'claude' ? undefined : m.kind, pid: m.pid || null, name: m.name || null, cwd: m.cwd, alive: t.alive, exitCode: t.exitCode, startedAt: m.startedAt || Date.now(), term: host.handle(t.id), screen, buffer: t.buf || '', clients: new Set(), lastOutputAt: Date.now(), reattached: true };
       agents.set(t.id, agent);
@@ -318,7 +361,7 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
 
   const startedAt = Date.now();
   const term = host.spawn(sessionId, CLAUDE, args, { cwd, env: agentEnv(), meta: { kind: kind || 'claude', sessionId, name: name || null, cwd, startedAt } });
-  const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
+  const screen = newScreen(120, 32);
   const agent = { id: sessionId, sessionId, kind, pid: null, name: name || null, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   wire(agent);
   agents.set(sessionId, agent);
@@ -354,7 +397,7 @@ export function spawnShell({ cwd }) {
   const name = /pwsh/i.test(exe) ? 'PowerShell 7' : /powershell/i.test(exe) ? 'PowerShell' : path.basename(exe);
   const startedAt = Date.now();
   const term = host.spawn(id, exe, args, { cwd, env: termEnv(), meta: { kind: 'shell', sessionId: null, name, cwd, startedAt } });
-  const screen = new Headless({ cols: 120, rows: 32, scrollback: 0, allowProposedApi: true });
+  const screen = newScreen(120, 32);
   const agent = { id, sessionId: null, kind: 'shell', pid: null, name, cwd, alive: true, exitCode: null, startedAt, term, screen, buffer: '', clients: new Set(), lastOutputAt: Date.now() };
   wire(agent);
   agents.set(id, agent);
@@ -643,9 +686,19 @@ export function resizeAgent(agent, cols, rows) {
   const r = Math.max(5, Math.min(200, rows | 0));
   try {
     agent.term.resize(c, r);
-    agent.screen.resize(c, r);
   } catch {
     // the process may be exiting
+  }
+  try {
+    agent.screen.resize(c, r);
+    if (screenBroken(agent.screen)) rebuildScreen(agent);
+  } catch {
+    rebuildScreen(agent); // the emulator's own resize failed: start its screen over at the new size
+    try {
+      agent.screen.resize(c, r);
+    } catch {
+      // keeps the old size
+    }
   }
 }
 

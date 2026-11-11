@@ -4091,6 +4091,26 @@
       "updated": "2026-11-11 15:43",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-043",
+      "type": "issue",
+      "title": "服务崩溃：Cannot set properties of undefined (setting 'isWrapped')",
+      "summary": "@xterm/headless 6.0 在 scrollback 为 0 时，改尺寸的重排会让缓冲区比屏幕少一行，换行写到那一行时在它自己的定时器里抛错，整个服务崩溃（11-05、11-06、11-11 各一次）。改为 scrollback 200、改尺寸后检查并重建坏掉的屏幕副本、模拟终端的异常不再让服务退出",
+      "detail": "现象：server.log 里三次 fatal TypeError: Cannot set properties of undefined (setting 'isWrapped')，栈在 xterm-headless.js 的 lineFeed，来自它的写入定时器（_innerWrite → parse → lineFeed），外壳随后重启服务。根因：服务给每个终端保留一份无界面的屏幕副本（server/agents.js，@xterm/headless 6.0），创建时 scrollback: 0。这种设置下，终端尺寸变化时对折行内容的重排会让缓冲区的行数比屏幕少一行（复现：216x80 光标在 73 行 → 改为 122x28 → 输出一行折行的长行 → 28x34 → 211x43，缓冲区 42 行、屏幕 43 行，光标在第 42 行时换行就抛这个错）。备用屏（alt screen）在改尺寸时也有同样的少行情况，scrollback 管不到。异常发生在 xterm 的定时器里，没有调用方能接住，于是成了未捕获异常、进程退出。修复：1) 屏幕副本统一用 newScreen()，scrollback 200（读屏都按 viewportY，不受影响）；2) resizeAgent 改尺寸后检查屏幕每一行都在，不在就用保留的输出重建这份副本（终端本身不受影响）；3) run.mjs 的未捕获异常处理：栈来自 @xterm/headless 的，调用 recoverScreens() 重建坏掉的屏幕并继续运行（1 分钟内超过 20 次才按致命处理）；其他异常照旧退出。测试：确定性复现（scrollback 0 崩溃、200 正常）；带保护的模糊测试 18648 轮，0 次少行、0 次抛错；真实 agents.js 上 recoverScreens 和备用屏改尺寸的重建都通过；开发实例的 run.mjs 遇到模拟的 xterm 异常继续运行，其他异常照旧退出（代码 1）。",
+      "status": "resolved",
+      "files": [
+        "server/agents.js",
+        "server/run.mjs",
+        "server/index.js"
+      ],
+      "tags": [],
+      "sections": [],
+      "refs": [],
+      "created": "2026-11-11 15:56",
+      "updated": "2026-11-11 15:56",
+      "notes": [],
+      "count": 1
     }
   ]
 }

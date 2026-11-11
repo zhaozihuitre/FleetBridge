@@ -32,7 +32,7 @@ import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
 
@@ -780,6 +780,7 @@ const timers = [];
 let startedUp = false; // start() went all the way (the update tool waits for this)
 
 // This server's version: the app folder it runs from (an update installs a new one, see desktop/appdir.cjs).
+export { recoverScreens };
 export const appVersion = (() => {
   try {
     return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).fleetBuild || JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
