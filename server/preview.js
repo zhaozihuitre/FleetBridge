@@ -258,6 +258,23 @@ export function installBin(port = config.port) {
   } catch {
     // Windows
   }
+  // BROWSER on Windows (see browserCommand): the URL arrives as a plain argument, "%s" (left by tools
+  // that append the URL instead) dropped
+  const q = (s) => `'${s.replace(/'/g, "''")}'`;
+  fs.writeFileSync(path.join(BIN_DIR, 'fleet-browser.ps1'), `# BROWSER of Fleet Bridge's terminals: fleet-open without cmd in between. Written by Fleet Bridge.\r\n$targets = @($args | Where-Object { $_ -and $_ -ne '%s' })\r\n$env:ELECTRON_RUN_AS_NODE = '1'\r\n& ${q(exe)} ${q(script)} @targets\r\nexit $LASTEXITCODE\r\n`);
+}
+
+/**
+ * The BROWSER our terminals get. On Windows not fleet-open.cmd: a program opening a URL starts it
+ * without quoting (Python's webbrowser, Go's exec: no spaces, no quotes), cmd cuts the URL at its first
+ * "&" and runs the rest as commands, and gcloud's webbrowser, seeing it fail, opens the URL a second time
+ * with the default browser. PowerShell -File takes it as one argument. With "%s" so that Python's
+ * webbrowser splits the command into its words (without it, it would look for one program by that name).
+ */
+export function browserCommand() {
+  if (process.platform !== 'win32') return path.join(BIN_DIR, 'fleet-open');
+  const ps1 = path.join(BIN_DIR, 'fleet-browser.ps1').replace(/\\/g, '/'); // forward slashes: split like a POSIX shell
+  return `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${ps1}" %s`;
 }
 
 const FLEET_OPEN_SRC = `// fleet-open <file|folder|URL>: shows a page in Fleet Bridge (a pane of the command center)

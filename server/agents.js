@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DATA_DIR, DEV, DEV_PREFIX } from './config.js';
 import { L } from './i18n.js';
 import * as host from './ptyclient.js';
-import { BIN_DIR } from './preview.js';
+import { BIN_DIR, browserCommand } from './preview.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -195,11 +195,10 @@ function termEnv() {
   // run started from one of them would take the installed app's data folder and terminals
   if (!DEV) delete env.MONITOR_DATA_DIR;
   env.TERM ||= 'xterm-256color';
-  // fleet-open on the PATH, and as BROWSER for tools that honour it (forward slashes: Python's
-  // webbrowser splits the value like a POSIX shell and would eat backslashes)
+  // fleet-open on the PATH, and as BROWSER for tools that honour it (gcloud, gh, Python's webbrowser)
   const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') || 'PATH';
   env[pathKey] = `${BIN_DIR}${path.delimiter}${env[pathKey] || ''}`;
-  env.BROWSER = path.join(BIN_DIR, process.platform === 'win32' ? 'fleet-open.cmd' : 'fleet-open').replace(/\\/g, '/');
+  env.BROWSER = browserCommand();
   return env;
 }
 

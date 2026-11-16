@@ -7,6 +7,7 @@ import { collectGit } from './collectors/git.js';
 import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
+import { modelQuota } from './modelquota.js';
 import { getLang, getLightGrain, getPaper, getTheme, L, setLang, setLightGrain, setPaper, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
@@ -139,8 +140,11 @@ function publish() {
       const agentId = byPid.get(u.pid) || bySession.get(u.sessionId) || null;
       const prompt = prompts.get(u.sessionId) || null;
       const org = orgInfo(orgOfUnit(u));
+      // the quota its model runs on (its organization's reading) and when that resets
+      const other = org && readOrg && org.id !== readOrg ? others.find((x) => x.org.id === org.id) : null;
+      const quota = other ? modelQuota(u.model, other.limits, { asOf: other.fetchedAt }) : org && readOrg && org.id !== readOrg ? null : modelQuota(u.model, view?.limits);
       // seenAt: when you last opened its terminal (a turn ended after it: "done, not looked at yet")
-      return { ...u, owned: Boolean(agentId), agentId, seenAt: seenAt(u.sessionId), permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
+      return { ...u, owned: Boolean(agentId), agentId, seenAt: seenAt(u.sessionId), permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, quota, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
     }),
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units

@@ -55,7 +55,7 @@ function resolve(ours, ref) {
 const TOOLS = [
   {
     name: 'fleet_status',
-    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval = a permission dialog / needs-answer = a question or choice such as AskUserQuestion or plan approval / starting / shell), queued orders, last order and its latest reply, context use. Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
+    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval = a permission dialog / needs-answer = a question or choice such as AskUserQuestion or plan approval / starting / shell), queued orders, last order and its latest reply, context use, model and the quota it runs on (the tightest limit, % used, when it resets). Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
     inputSchema: { type: 'object', properties: {} },
     async run() {
       const { st, ours } = await fleet();
@@ -65,6 +65,7 @@ const TOOLS = [
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
         if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
+        if (u?.model) out.push(`  model: ${u.model}${u.quota ? ` · quota ${u.quota.label} ${Math.round(u.quota.usedPct)}% used${u.quota.active ? ' (gating now)' : ''}, ${u.quota.resetsAt ? 'resets ' + new Date(u.quota.resetsAt).toLocaleString('zh-CN', { hour12: false }) : 'not started'}${u.quota.asOf ? ' (other organization, last read ' + new Date(u.quota.asOf).toLocaleString('zh-CN', { hour12: false }) + ')' : ''}` : ''}`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
         if (u?.lastText) out.push(`  last reply: ${short(u.lastText, 300)}`);
         return out.join('\n');

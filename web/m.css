@@ -173,6 +173,9 @@ button.card:active { filter: brightness(1.35); }
 .card .meta .pj { min-width: 0; font-family: var(--display); letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .meta .ext { flex: none; padding: 0 5px; border: 1px solid var(--line-hi); font-size: 10px; }
 .card .meta time { margin-left: auto; }
+.card .meta .mq { flex: none; white-space: nowrap; font-size: 11px; color: var(--muted); }
+.card .meta .mq.on { color: var(--amber); }
+.card .meta .mq.low { color: var(--red); }
 .card .sub { -webkit-line-clamp: 2; }
 .card .st { font-size: 13px; }
 

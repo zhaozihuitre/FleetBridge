@@ -243,6 +243,7 @@ const EN = {
   '电脑内存吃紧：只剩 {0}': 'The computer is short of memory: {0} left',
   '电脑 CPU 满载 1 分钟（{0}%）': 'The computer\'s CPU fully busy for a minute ({0}%)',
   '系统负荷（内存吃紧、CPU 满载）': 'System load (memory short, CPU busy)',
+  '{0} 用的额度：': 'Quota {0} runs on:', '另一个组织的额度，截至 {0}': 'Another organization’s quota, as of {0}',
 };
 
 const JA = {
@@ -471,6 +472,7 @@ const JA = {
   '电脑内存吃紧：只剩 {0}': 'パソコンのメモリ不足：残り {0}',
   '电脑 CPU 满载 1 分钟（{0}%）': 'パソコンの CPU が 1 分間フル稼働（{0}%）',
   '系统负荷（内存吃紧、CPU 满载）': 'システム負荷（メモリ不足・CPU 高負荷）',
+  '{0} 用的额度：': '{0} が使う利用枠：', '另一个组织的额度，截至 {0}': '別の組織の利用枠、{0} 時点',
 };
 
 const DICT = { en: EN, ja: JA };

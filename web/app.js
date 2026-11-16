@@ -686,12 +686,27 @@ function unitCard(u) {
     <div class="stats">
       <div class="stat" style="--kc:${loadColor}"><div class="k"><span>${L('记忆负载')}</span><span class="mono">${u.contextPct == null ? '--' : Math.round(u.contextPct) + '%'} · ${kTokens(u.contextTokens)}</span></div>${seg(u.contextPct ?? 0, 20, loadColor)}</div>
       <div class="stat"><div class="k"><span>${L('僚机')}</span></div><div class="v" title="${esc(drones)}">${esc(drones)}</div></div>
+      ${u.offline ? '' : quotaStat(u)}
     </div>
     <div class="repos">
       <div class="k"><span>${L('仓库')} ×${u.repos.length}</span><span>${oldestFetch ? L('最早 fetch 在 ') + ago(now - oldestFetch) : ''}</span></div>
       ${!u.gitScanned ? `<div class="empty">${L('扫描中…')}</div>` : u.repos.length ? repos : `<div class="empty">${L('这个目录下没有 git 仓库')}</div>`}
     </div>
   </article>`;
+}
+
+// The quota this terminal's model runs on (server/modelquota.js): the limit holding it (the one gating now,
+// else the most used; a per-model weekly cap counts only its model), how much is used and when it resets.
+function quotaStat(u) {
+  const q = u.quota;
+  if (!q) return '';
+  const used = Math.min(100, Math.max(0, q.usedPct));
+  const low = 100 - used <= state.thresholds.energyLowPct;
+  const color = low ? 'var(--red)' : q.active ? 'var(--amber)' : 'var(--cyan)';
+  const resets = q.resetsAt ? L('{0} 重置', when(q.resetsAt)) : L('未开始');
+  const line = (l) => `${l.label} · ${L('已用 {0}%', Math.round(l.usedPct))} · ${l.resetsAt ? L('{0} 重置', when(l.resetsAt)) : L('未开始')}`;
+  const tip = [L('{0} 用的额度：', (u.model || '').replace('claude-', '')), ...q.all.map(line), q.asOf ? L('另一个组织的额度，截至 {0}', when(q.asOf)) : ''].filter(Boolean).join('\n');
+  return `<div class="stat quota" style="--kc:${color}" title="${esc(tip)}"><div class="k"><span>${L('额度')} · ${esc(q.label)}</span><span class="mono">${Math.round(used)}% · ${q.resetsAt ? `<span data-reset="${q.resetsAt}">${dg(dur(q.resetsAt - Date.now()))}</span>` : L('未开始')}</span></div>${seg(used, 20, color)}<div class="v">${esc(resets)}${q.asOf ? ` · ${L('截至 {0}', when(q.asOf))}` : ''}</div></div>`;
 }
 
 function repoRow(r) {

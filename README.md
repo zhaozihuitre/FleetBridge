@@ -24,7 +24,7 @@ npm run dist         # 打包 Windows 安装程序到 dist/（tools/dist.mjs）
 终端里的 agent 运行 `fleet-open <文件 | 文件夹 | http://localhost:端口/…>`，页面会在指挥中心的分屏里打开（可以弹出成独立窗口），不跳到 Chrome。主控用 `fleet_open` 工具。
 
 - 支持本地 HTML、Markdown（渲染成页面）、图片、PDF、带 index.html / README.md 的文件夹，以及 localhost 地址（开发服务器）。本地文件改动后自动刷新。
-- `fleet-open` 在 `<数据目录>\bin`，已加进舰桥启动的终端的 PATH，并设为 `BROWSER`，所以用 BROWSER 的工具（如 Python 的 `webbrowser`）也会在舰桥里打开。舰桥启动的 Claude agent 的系统提示里也写了用它。
+- `fleet-open` 在 `<数据目录>\bin`，已加进舰桥启动的终端的 PATH；`BROWSER` 也指向它（Windows 上是 `powershell -File <数据目录>/bin/fleet-browser.ps1 %s`，不经过 cmd，URL 里的 `&` 不会被截断），所以用 BROWSER 的工具（gcloud、gh、Python 的 `webbrowser`）也走它：本地页面在舰桥里打开，外部链接交给系统浏览器、只打开一次。舰桥启动的 Claude agent 的系统提示里也写了用它。
 - 非本机的 http(s) 地址仍交给系统浏览器；预览面板上的 ↗ 也可以把当前页面交给系统浏览器。
 - 预览页面来自另一个端口（与指挥中心不同源），放在受限的 iframe 里，读不到舰桥页面，也调用不了舰桥的接口。
 - 拦不住的：`start xxx.html`、`Invoke-Item` 这类直接交给 Windows 打开的方式，会用系统默认浏览器。系统设置不改。

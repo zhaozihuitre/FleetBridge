@@ -146,6 +146,15 @@ function renderSys() {
   }
 }
 
+// the quota its model runs on and when that resets (server/modelquota.js), as on the command center's cards
+function quotaTag(u) {
+  const q = u?.quota;
+  if (!q) return '';
+  const low = 100 - q.usedPct <= (state.thresholds?.energyLowPct ?? 10);
+  const tip = q.all.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt ? ' · ' + L('{0} 重置', when(l.resetsAt)) : ''}`).join('\n');
+  return `<span class="mq${low ? ' low' : q.active ? ' on' : ''}" title="${esc(tip)}">${esc(shortLabel(q))} ${Math.round(q.usedPct)}%${q.resetsAt ? ' · ' + esc(L('{0} 重置', when(q.resetsAt))) : ''}</span>`;
+}
+
 function renderUnits() {
   const now = Date.now();
   const html =
@@ -158,7 +167,7 @@ function renderUnits() {
         const mins = r.since ? Math.max(0, Math.round((now - r.since) / 60_000)) : null;
         const age = mins == null ? '' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h${pad(mins % 60)}`;
         const inner = `<div class="head">${lamp(r.kind, d.since)}<b class="nm">${esc(r.name)}</b><span class="st"${lampAttrs(r.kind, r.u, r.a, false)}>${esc(label)}</span></div>
-          <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${age ? `<time>${age}</time>` : ''}</div>
+          <div class="meta"><span class="pj">${esc(r.project)}</span>${r.ours ? '' : `<span class="ext">${L('外部会话')}</span>`}${quotaTag(r.u)}${age ? `<time>${age}</time>` : ''}</div>
           ${r.text ? `<div class="sub">${esc(r.text)}</div>` : ''}`;
         return r.ours
           ? `<button type="button" class="card ${r.kind === 'permit' || r.kind === 'question' ? 'permit' : ''}" style="--c:${color};${ago(r.waitAt)}" data-open="${esc(r.id)}">${inner}<span class="go" aria-hidden="true">›</span></button>`

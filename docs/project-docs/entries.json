@@ -4111,6 +4111,59 @@
       "updated": "2026-11-11 15:56",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-086",
+      "type": "change",
+      "title": "终端卡片显示所用模型的额度与重置时间",
+      "summary": "需求「添加模型的到期时间」按方案 A 实现：每个终端按其模型挑出卡得最紧的额度项（含 Fable 等按模型的周额度），在终端卡片、手机页、fleet_status 显示已用 % 和重置时间",
+      "detail": "**背景**：用户要求「添加下模型的到期时间」。调查后列了四种理解：A 每个模型的额度重置时间；B 模型退役日期（无数据来源，只能手维护表）；C 订阅到期（本地与接口都拿不到）；D 登录令牌到期。确认做 A，B/C/D 不做。\n\n**改动内容**：\n- 新增 `server/modelquota.js`：`limitsForModel` 取不分模型的额度项 + 名称与模型 id 匹配的按模型周额度；`modelQuota` 取最紧的一项（active 优先，其次 usedPct 最高，同分取模型自己的）。\n- `server/index.js` 发布状态时给每个 unit 加 `quota`；终端属于另一个组织时用该组织最后一次读数（带 `asOf`）。\n- 指挥中心卡片新增整行「额度」统计（倒计时随 tick 走）；手机页列表加小标签；`fleet_status` 加 `model:` 行。\n\n**原因**：顶栏只显示账号的额度，看不出某个终端用的模型（尤其 Fable 这类有单独周额度的）什么时候会被卡、什么时候能再用。\n\n**注意事项**：模型显示名与 id 的匹配靠规整后的子串（\"Opus 5.5\"→\"opus-5-5\"）；接口若改了显示名格式要回来看 `norm()`。\n",
+      "status": "done",
+      "files": [
+        "server/modelquota.js",
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "web/app.js",
+        "web/m.js",
+        "web/style.css",
+        "web/m.css",
+        "web/i18n.js"
+      ],
+      "tags": [],
+      "sections": [
+        "features",
+        "api"
+      ],
+      "refs": [],
+      "created": "2026-11-16 09:32",
+      "updated": "2026-11-16 09:32",
+      "notes": []
+    },
+    {
+      "id": "I-044",
+      "type": "issue",
+      "title": "终端里 gcloud 登录打开两次浏览器（BROWSER 经 cmd 截断 URL）",
+      "summary": "BROWSER 指向 fleet-open.cmd，调用方不给 URL 加引号，cmd 在第一个 & 处截断并把后面当命令执行；Python webbrowser 见退出码非 0 又用默认浏览器开一次。改为 PowerShell -File 脚本",
+      "detail": "**现象**：在舰桥终端里 `gcloud auth login`，先打开一个只到 `?response_type=code` 的残缺页面，同时报 `'client_id' is not recognized as an internal or external command`（scope / state / code_challenge… 同样），随后又打开一次完整的登录页（登录本身能成功）。\n\n**根因**：\n1. 终端的 `BROWSER` 指向 `<数据目录>/bin/fleet-open.cmd`。Python 的 `webbrowser`（gcloud 自带的 Python）用 `subprocess.Popen([cmd, url])` 启动它，`list2cmdline` 只给含空格的参数加引号；Go 的 exec（gh）同样。启动 .cmd 实际是 `cmd.exe /c`，cmd 在 .cmd 运行前就按 `&` 分割了命令行，所以 URL 被截断，后面的 `client_id=…` 等被当成命令执行。.cmd 里怎么写 `%*` 都救不回来。\n2. `GenericBrowser.open` 返回 `not p.wait()`，cmd 的退出码是最后一个“命令”的 9009，于是返回 False；`webbrowser.open` 接着尝试下一个浏览器 `windows-default`（`os.startfile`），用完整 URL 再打开一次。这就是“两遍”。\n\n**解决**（0.9.72 待发布）：`installBin` 另写 `fleet-browser.ps1`（设 `ELECTRON_RUN_AS_NODE` 后运行同一个 `fleet-open.cjs`，丢掉字面量 `%s`）；`BROWSER` 改为 `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"<bin>/fleet-browser.ps1\" %s`。powershell.exe 是 exe，CreateProcess 不经 cmd，-File 把 URL 当一个参数。带 `%s` 是因为 Python 只在含 `%s` 时才按 shell 规则拆分命令（否则当成一个程序名）；gh 会在末尾追加 URL，留下的 `%s` 由脚本过滤。\n\n**验证**：模拟舰桥 /api/preview 记录收到的 target，用 gcloud 自带 Python 的 `webbrowser.get().open()` 和 gh 风格（追加 URL）调用，带 8 个 `&` 的 OAuth URL：改前收到截断 URL、open() 返回 False；改后收到完整 URL、返回 True。\n\n**如何避免 / 遗留**：Windows 上不要让外部程序经 .cmd/.bat 接收 URL。在 PowerShell 里手动 `fleet-open 'https://…&…'` 仍会经过 .cmd 被截断（PowerShell 只给含空格的参数加引号）；cmd 里加双引号、Git Bash（走 sh 脚本）不受影响。组策略强制 ExecutionPolicy（MachinePolicy/UserPolicy）时 `-ExecutionPolicy Bypass` 无效。\n",
+      "status": "resolved",
+      "files": [
+        "server/preview.js",
+        "server/agents.js",
+        "README.md"
+      ],
+      "tags": [
+        "fleet-open",
+        "终端",
+        "Windows"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [],
+      "created": "2026-11-16 11:01",
+      "updated": "2026-11-16 11:01",
+      "notes": [],
+      "count": 1
     }
   ]
 }

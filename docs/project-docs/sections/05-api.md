@@ -54,6 +54,7 @@
 |---|---|
 | `usage` | `{ ok, error, fetchedAt, retryAt, limits:[{key,label,usedPct,resetsAt,active}], account }` |
 | `units[]` | 运行中的会话：`pid, sessionId, project, cwd, status, permission, contextPct, contextTokens, agents[], repos[], owned, agentId` |
+| `units[].quota` | 该终端模型受限的额度中最紧的一项：`{ key, label, usedPct, resetsAt, active, own, asOf, all:[{key,label,usedPct,resetsAt,active,own}] }`；`own` = 模型自己的周额度，`asOf` = 另一个组织的读数时间（本组织为 null）；没有模型或额度时为 null |
 | `units[].repos[]` | `name, path, branch, upstream, ahead, behind, changedCount, …, remote: {name, host, slug, web}, remotes[]`（不含原始 URL） |
 | `quests[]` | 任务：`key, kind, lv, title, goal, since, unit` |
 | `comms[]` | 最近 60 条事件 |
