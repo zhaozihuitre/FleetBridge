@@ -87,6 +87,39 @@ test('failing tests, or the user\'s checkout changed meanwhile: failed', async (
   assert.equal((await finishImpl(impl, {})).reason, 'main-repo-changed');
 });
 
+test('a branch rebased onto a newer main is counted from where it parts from main, not its approval base', async () => {
+  const repo = makeRepo('rebase');
+  const impl = startImpl({ ...P, id: 'P-004' }, { repo, dataDir: path.join(tmp, 'd4'), spawnAgent: () => ({ id: 'a', sessionId: 'a' }) });
+  assert.equal(impl.mainBranch, 'main');
+  const id = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+  // the agent's change
+  fs.mkdirSync(path.join(impl.worktree, 'server'), { recursive: true });
+  fs.writeFileSync(path.join(impl.worktree, 'server', 'x.js'), 'export const x = 1;\n');
+  git(['add', '-A'], impl.worktree);
+  git([...id, 'commit', '-qm', 'proposal'], impl.worktree);
+  // meanwhile main gets the shell and a dependency (needs the installer, but not the proposal's doing)
+  fs.mkdirSync(path.join(repo, 'desktop'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'desktop', 'main.cjs'), '// shell\n');
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ name: 'fleet-bridge', version: '1.0.1', dependencies: { dep: '1.0.0' } }, null, 2) + '\n');
+  git(['add', '-A'], repo);
+  git([...id, 'commit', '-qm', 'main moves on'], repo);
+  const snapshot = git(['status', '--porcelain'], repo);
+  // not rebased: only the branch's own change
+  let r = await finishImpl({ ...impl, snapshot }, {});
+  assert.deepEqual(r.files, ['server/x.js']);
+  assert.equal(r.status, 'built', JSON.stringify(r));
+  // rebased onto the new main: still only its own change, no installer
+  git([...id, 'rebase', '-q', 'main'], impl.worktree);
+  r = await finishImpl({ ...impl, snapshot }, {});
+  assert.deepEqual(r.files, ['server/x.js']);
+  assert.equal(r.status, 'built', JSON.stringify(r));
+  assert.equal(r.base, git(['rev-parse', 'main'], repo));
+  assert.doesNotMatch(r.stat, /package\.json|desktop/);
+  // an old proposal without mainBranch finds main too
+  r = await finishImpl({ ...impl, snapshot, mainBranch: undefined }, {});
+  assert.deepEqual(r.files, ['server/x.js']);
+});
+
 test('discard removes the worktree and branch, never the checkout\'s node_modules', () => {
   const repo = makeRepo('discard');
   const impl = startImpl({ ...P, id: 'P-003' }, { repo, dataDir: path.join(tmp, 'd3'), spawnAgent: () => ({ id: 'a', sessionId: 'a' }) });

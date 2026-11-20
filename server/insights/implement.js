@@ -134,7 +134,17 @@ export function startImpl(p, d) {
   const prompt = devPrompt(p, { branch, base, dirtyBase: Boolean(snapshot), repo: d.repo });
   const agent = d.spawnAgent({ cwd: worktree, name: `改善 ${p.id}`, prompt, settingsFile, extraArgs: ['--permission-mode', 'acceptEdits'] });
   const now = d.now || Date.now();
-  return { repo: d.repo, worktree, branch, base, dirtyBase: Boolean(snapshot), snapshot, agentId: agent.id, sessionId: agent.sessionId, startedAt: now, seenBusy: false, settingsFile };
+  // the checkout's branch it starts from (main): what it is compared with when it is done
+  let mainBranch = p.impl?.mainBranch || '';
+  if (!mainBranch) {
+    try {
+      const head = run(['rev-parse', '--abbrev-ref', 'HEAD'], d.repo);
+      mainBranch = head && head !== 'HEAD' ? head : '';
+    } catch {
+      // detached or no commits: compared with its base
+    }
+  }
+  return { repo: d.repo, worktree, branch, base, mainBranch, dirtyBase: Boolean(snapshot), snapshot, agentId: agent.id, sessionId: agent.sessionId, startedAt: now, seenBusy: false, settingsFile };
 }
 
 /**
@@ -221,6 +231,25 @@ function runTests(dir) {
 }
 
 /**
+ * What the branch's changes are counted from: where it parts from the checkout's main branch now (git
+ * merge-base), not the commit it was approved on. A branch rebased onto a newer main, the old base, would
+ * count main's own commits since (its package.json, docs, desktop/) as the proposal's and could call for the
+ * installer for them. The base it was made on only when main can't be found.
+ */
+export function compareBase(impl, run = git) {
+  const refs = [impl.mainBranch, 'main', 'master'].filter(Boolean);
+  for (const ref of [...new Set(refs)]) {
+    try {
+      const mb = run(['merge-base', ref, 'HEAD'], impl.worktree);
+      if (mb) return mb;
+    } catch {
+      // no such branch
+    }
+  }
+  return impl.base;
+}
+
+/**
  * Checks what the development agent did. Never trusts its report alone.
  * @returns {Promise<{ status: 'built'|'needs-installer'|'failed', reason?: string, files: string[], stat: string, tests: object, reply: string }>}
  */
@@ -231,15 +260,16 @@ export async function finishImpl(impl, d) {
   const now = run(['status', '--porcelain'], impl.repo);
   if (now !== impl.snapshot) return { status: 'failed', reason: 'main-repo-changed', files: [], stat: '', tests: null, reply, detail: now };
   const uncommitted = run(['status', '--porcelain'], impl.worktree);
-  const files = run(['diff', '--name-only', impl.base], impl.worktree).split('\n').filter(Boolean);
+  const base = compareBase(impl, run);
+  const files = run(['diff', '--name-only', base], impl.worktree).split('\n').filter(Boolean);
   const untracked = uncommitted.split('\n').filter((l) => l.startsWith('??')).map((l) => l.slice(3).trim());
   const all = [...new Set([...files, ...untracked])].filter((f) => f !== 'node_modules');
-  if (!all.length) return { status: 'failed', reason: 'no-changes', files: [], stat: '', tests: null, reply };
-  const stat = run(['diff', '--stat', impl.base], impl.worktree);
-  const pkgDiff = all.includes('package.json') ? run(['diff', impl.base, '--', 'package.json'], impl.worktree) : '';
+  if (!all.length) return { status: 'failed', reason: 'no-changes', files: [], stat: '', tests: null, reply, base };
+  const stat = run(['diff', '--stat', base], impl.worktree);
+  const pkgDiff = all.includes('package.json') ? run(['diff', base, '--', 'package.json'], impl.worktree) : '';
   const tests = await (d.runTests || runTests)(impl.worktree);
-  if (!tests.ok) return { status: 'failed', reason: 'tests-failed', files: all, stat, tests, reply, uncommitted: Boolean(uncommitted.trim()) };
-  return { status: needsInstaller(all, pkgDiff) ? 'needs-installer' : 'built', files: all, stat, tests, reply, uncommitted: Boolean(uncommitted.trim()) };
+  if (!tests.ok) return { status: 'failed', reason: 'tests-failed', files: all, stat, tests, reply, base, uncommitted: Boolean(uncommitted.trim()) };
+  return { status: needsInstaller(all, pkgDiff) ? 'needs-installer' : 'built', files: all, stat, tests, reply, base, uncommitted: Boolean(uncommitted.trim()) };
 }
 
 /** Starts tools/update.mjs (detached: it outlives this server, which it restarts) with its output in a log. */

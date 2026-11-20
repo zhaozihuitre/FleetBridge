@@ -4424,6 +4424,31 @@
       "updated": "2026-11-20 15:08",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-048",
+      "type": "issue",
+      "title": "改善提案 rebase 后改动统计和「需要安装包」误把 main 的改动算进来",
+      "summary": "验收按批准时的基线比较；分支 rebase 到新 main 后，main 自己的 package.json 等改动被算到提案头上。改为以分支与当前 main 的 merge-base 为基线",
+      "detail": "**现象**：P-001 的分支 rebase 到 9f0ac38 后，舰桥里显示的改动包括 package.json 等 main 自己的改动（实际相对 main 只有 8 个文件 +102/−11），可能被判成「涉及外壳或依赖，需要安装包」。\n\n**根因**：`finishImpl` 的文件列表、`--stat` 和 package.json diff 都以 `impl.base` 为基线，也就是批准时主仓库的 HEAD（P-001 是 4cd2827）。分支 rebase 到新 main 后，base..HEAD 包含了 main 在这之后的所有提交。\n\n**解决**：\n- 新增 `compareBase(impl)`：取 `git merge-base <main> HEAD`（在工作树里执行），作为验收比较的基线。\n- main 分支名在批准时记为 `impl.mainBranch`；旧提案没有这个字段，依次试 main、master，都找不到才回到 `impl.base`。\n- 验收结果带上实际使用的 `base`。\n- 测试覆盖两种情况：未 rebase 时，main 前进后改了 desktop/ 和依赖；rebase 到新 main 后。两种情况下都只算提案自己的 server/x.js，状态为 built，不判需要安装包。\n\n**如何避免**：比较分支改动时，用和目标分支的 merge-base，不要用固定的起点。\n",
+      "status": "resolved",
+      "files": [
+        "server/insights/implement.js",
+        "test/insights-implement.test.mjs"
+      ],
+      "tags": [
+        "自我改善"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "v0.9.78"
+      ],
+      "created": "2026-11-20 15:22",
+      "updated": "2026-11-20 15:22",
+      "notes": [],
+      "count": 1
     }
   ]
 }
