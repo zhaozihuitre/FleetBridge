@@ -10,7 +10,7 @@ import { removeTree } from './_fs.mjs';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-test-'));
 process.env.MONITOR_DATA_DIR = path.join(tmp, 'data');
 fs.mkdirSync(process.env.MONITOR_DATA_DIR, { recursive: true });
-const { endedTurns, noteOrder, turnReply, received, RESEND_AFTER } = await import('../server/turns.js');
+const { endedTurns, noteOrder, turnReply, received, clip, RESEND_AFTER, REPLY_MAX, REPORT_MAX } = await import('../server/turns.js');
 const { historyFiles } = await import('../server/collectors/history.js');
 const { saveReply, readReply, listReplies } = await import('../server/replies.js');
 after(() => removeTree(tmp));
@@ -122,4 +122,43 @@ test('replies on disk: saved whole, read newest first, kept to 50', () => {
   assert.equal(listReplies('agent-2', dir).length, 50);
   assert.ok(readReply('agent-2', 0, dir).text.includes('r59'));
   assert.ok(!fs.existsSync(path.join(dir, '..', 'agent-1')), 'stays in its folder');
+});
+
+// P-001: the notices cut at 1500 characters were read in full afterwards (answers of 2363 and 2951 characters)
+test('clip: an answer up to REPLY_MAX goes whole; a longer one keeps its start and its end', () => {
+  for (const n of [2363, 2951, REPLY_MAX]) {
+    const a = 'a'.repeat(n);
+    assert.deepEqual(clip(a), { text: a, cut: false, len: n });
+  }
+  const long = 'S' + 'x'.repeat(REPLY_MAX + 998) + 'E';
+  const c = clip(long);
+  assert.equal(c.cut, true);
+  assert.equal(c.len, REPLY_MAX + 1000);
+  assert.ok(c.text.startsWith('S') && c.text.endsWith('E'));
+  assert.match(c.text, /\n…（中略 1000 字）…\n/);
+  assert.equal(c.text.replace(/\n…（中略 \d+ 字）…\n/, '').length, REPLY_MAX);
+  assert.deepEqual(clip('  \n短\n '), { text: '短', cut: false, len: 1 });
+  assert.deepEqual(clip(null), { text: '', cut: false, len: 0 });
+});
+
+test('clip: a marked report goes whole past REPLY_MAX, and is cut only past its hard limit', () => {
+  assert.ok(REPORT_MAX > REPLY_MAX);
+  const report = '- 结论：做完了\n' + '改动说明。'.repeat(REPLY_MAX / 5 + 200) + '\n- 需要用户注意的事：重启';
+  assert.ok(report.length > REPLY_MAX && report.length <= REPORT_MAX);
+  assert.equal(clip(report).cut, true, 'unmarked: cut');
+  assert.deepEqual(clip(report, { marked: true }), { text: report, cut: false, len: report.length });
+  const huge = '- 结论：做完了\n' + 'y'.repeat(REPORT_MAX * 2) + '\n- 需要用户注意的事：重启';
+  const c = clip(huge, { marked: true });
+  assert.equal(c.cut, true);
+  assert.ok(c.text.length < REPORT_MAX + 40, 'the hard limit holds');
+  assert.ok(c.text.startsWith('- 结论：做完了') && c.text.endsWith('- 需要用户注意的事：重启'), 'the conclusion and what is left for the user stay');
+});
+
+test('a marked report of a turn longer than REPLY_MAX reaches the notice whole', () => {
+  const body = '- 结论：做完了\n' + '细节。'.repeat(1200) + '\n- 需要用户注意的事：无';
+  transcript('s-longreport', [user(0, '做任务'), assistant(1000, [{ type: 'text', text: `过程说明${'。'.repeat(500)}\n[[FLEET-REPORT]]\n${body}\n[[/FLEET-REPORT]]` }])]);
+  const r = turnReply('s-longreport', T0);
+  assert.equal(r.marked, true);
+  assert.ok(r.reply.length > REPLY_MAX);
+  assert.deepEqual(clip(r.reply, { marked: r.marked }), { text: body, cut: false, len: body.length });
 });

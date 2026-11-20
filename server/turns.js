@@ -12,7 +12,12 @@ import { logEvent } from './insights/events.js';
 // answer, so it doesn't have to watch screens. Orders from anyone else (typed in the terminal, the
 // input box, the phone) are only remembered as "who gave the last order".
 
-const REPLY_MAX = 1500; // characters of the answer in a notice: its start and its end
+// Characters of the answer in a notice. An answer with no report block keeps its start and its end;
+// 1500 cut answers of 2400-3000 characters, which the master then read in full anyway (P-001).
+export const REPLY_MAX = 3000;
+// A marked report ([[FLEET-REPORT]], server/report.js) is what the agent chose to tell: it goes whole,
+// up to this hard limit (the master's context pays for every notice).
+export const REPORT_MAX = 6000;
 // an order not taken this long after it went out (idle, nothing of it in the transcript) is typed in again;
 // not taken twice this long after that, the master is told it never ran
 export const RESEND_AFTER = 25_000;
@@ -307,10 +312,20 @@ function cutShort(content) {
   return texts.some((s) => /^\[Request interrupted by user/.test(String(s || '').trim()));
 }
 
-/** Start and end of a long answer, with a marker in between. */
-export function clip(text, max = REPLY_MAX) {
+/**
+ * The answer as a notice carries it. A marked report goes whole up to REPORT_MAX, any other answer up to
+ * REPLY_MAX; a longer one keeps its start and its end with a marker in between (a report's conclusion is at
+ * its start, what is left for the user at its end).
+ * @param {string} text
+ * @param {{ marked?: boolean, max?: number }} [o] marked: the text is a report block
+ * @returns {{ text: string, cut: boolean, len: number }} len: the length of the whole answer
+ */
+export function clip(text, o = {}) {
   const s = String(text || '').trim();
-  if (s.length <= max) return { text: s, cut: false };
+  const max = o.max || (o.marked ? REPORT_MAX : REPLY_MAX);
+  if (s.length <= max) return { text: s, cut: false, len: s.length };
   const head = Math.round(max * 0.6);
-  return { text: `${s.slice(0, head)}\n…（中略 ${s.length - max} 字）…\n${s.slice(-(max - head))}`, cut: true };
+  return { text: `${s.slice(0, head)}
+…（中略 ${s.length - max} 字）…
+${s.slice(-(max - head))}`, cut: true, len: s.length };
 }

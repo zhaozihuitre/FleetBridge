@@ -34,3 +34,10 @@ test('never ran: after the resend, or why it could not be typed again', () => {
   assert.match(doneNotice({ ...base, neverRan: true, blocked: 'busy-input' }), /输入框里有别的文字/);
   assert.match(doneNotice({ ...base, neverRan: true }), /已经空闲 1 分钟/);
 });
+
+test('done, cut: the note comes after the answer and tells the whole length', () => {
+  const s = doneNotice({ ...base, reply: '开头\n…（中略 500 字）…\n结尾', cut: true, len: 3500, file: 'C:/data/replies/a/b.md' });
+  assert.match(s, /结尾\n（已截断，全文 3500 字，可用 fleet_read_reply 读全文）\n全文：/);
+  assert.doesNotMatch(doneNotice({ ...base, reply: '短回答', cut: false, len: 3 }), /已截断/);
+  assert.match(doneNotice({ ...base, reply: 'x', cut: true }), /（已截断，可用 fleet_read_reply 读全文）/, 'no length known');
+});

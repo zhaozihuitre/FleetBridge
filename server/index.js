@@ -200,7 +200,8 @@ function publish() {
     const u = owned.find((x) => x.agentId === t.agentId);
     // the screen's last answer only when there's no transcript at all: it can be an older turn's
     const full = r ? r.reply : u?.lastText || '';
-    const { text: reply, cut } = clip(full);
+    // a marked report goes whole (up to its own limit), any other answer up to a lower one (turns.js clip)
+    const { text: reply, cut, len } = clip(full, { marked: !!r?.marked });
     // the whole answer on disk too (the notice gives its path; fleet_read_reply reads it)
     const status = t.neverRan ? 'never-ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done';
     const file = t.neverRan ? null : saveReply({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, order: t.text, reply: full, ms: t.ms, status });
@@ -212,7 +213,7 @@ function publish() {
     logEvent(`notice.${t.neverRan ? 'never_ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done'}`, { agent: getAgent(t.agentId)?.name || t.name, agentId: t.agentId, ms: t.ms, len: full.length, cut, marked: !!r?.marked, resent: !!t.resent, reason: t.blocked || undefined });
     // stopped on the quota: when the limit gating it resets (the notice says it, local time)
     const gate = r?.error ? gatingLimit(state.usage?.limits) : null;
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, file, resetsAt: gate?.resetsAt || 0, resetLabel: gate?.label || '', marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, len, file, resetsAt: gate?.resetsAt || 0, resetLabel: gate?.label || '', marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
     if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);

@@ -4369,6 +4369,33 @@
       "created": "2026-11-20 13:55",
       "updated": "2026-11-20 13:55",
       "notes": []
+    },
+    {
+      "id": "C-089",
+      "type": "change",
+      "title": "完成通知：汇报标记块完整保留，回答上限提到 3000 字",
+      "summary": "改善提案 P-001：1500 字的上限把 2400–3000 字的回答截断，主控随后又读全文。现在汇报标记块完整进通知（硬上限 6000 字），无标记块的回答上限 3000 字，截断时注明全文字数。",
+      "detail": "**背景**：近 14 天被截断的完成通知里 40%（2/5）在 10 分钟内又被主控用 `fleet_read_reply` / `fleet_read_screen` 读了全文（回答 2363、2951 字）；用户还专门派单让 agent 把被截断的汇报写进文件。\n\n**改动内容**\n- `server/turns.js`：`clip(text, { marked })`。汇报标记块（`pickReply` 返回 `marked`）上限 `REPORT_MAX = 6000`，其他回答 `REPLY_MAX = 3000`（原来统一 1500）。超过时仍保留开头 60% 和结尾 40%。返回值多了 `len`（全文字数）。\n- `server/index.js`：按 `r.marked` 调 `clip`，把 `len` 交给 `masterTurnDone`。\n- `server/master.js` `doneNotice`：截断说明改为「（已截断，全文 N 字，可用 fleet_read_reply 读全文）」，仍在回答之后、「全文：路径」之前。\n\n**原因**：汇报标记块是 agent 选定要告诉主控的内容（D-015），结论在开头、「需要用户」在结尾，中间被截掉后主控只能再读一次。\n\n**影响范围**：只影响发给主控的「【舰桥通知】完成 / 中断」里回答的长度；全文落盘、`fleet_read_reply`、桌面和手机摘要不变。`events.jsonl` 的 `cut` 含义不变，截断后读全文的检测规则照常工作。\n\n**注意事项**：通知变长，主控上下文消耗增加（一条最多约 6000 字）。要调回去改 `REPLY_MAX` / `REPORT_MAX` 两个常量即可。\n",
+      "status": "done",
+      "files": [
+        "server/turns.js",
+        "server/index.js",
+        "server/master.js",
+        "test/turns.test.mjs",
+        "test/notice.test.mjs"
+      ],
+      "tags": [
+        "主控",
+        "通知",
+        "自我改善"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-11-20 13:38",
+      "updated": "2026-11-20 13:38",
+      "notes": []
     }
   ]
 }

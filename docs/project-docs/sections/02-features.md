@@ -82,7 +82,8 @@
 
 - **汇报标记块**（`server/report.js`）：舰桥启动的 agent（主控除外）的系统提示里约定，任务的最终汇报写在单独一行 `[[FLEET-REPORT]]` 和 `[[/FLEET-REPORT]]` 之间。舰桥取这一轮里**最后一个**标记块作为汇报，通知里写「汇报：」。
 - **没有标记块时**：取这一轮最后一次工具调用之后的全部文字，并且只算 stop hook 之前的。stop hook（如 project-docs）把 agent 拦回去后，它补的那句（「无需更新文档」）不再覆盖正式回答；stop hook 之前一句话都没有时，才用 stop hook 之后的回复。transcript 里 stop hook 的反馈是 `isMeta` 的 user 消息，以 `Stop hook feedback:` 开头。桌面和手机通知的摘要（`summary.js` 的 `lastTurn`）也按这个规则取回答。
-- **全文落盘**（`server/replies.js`）：每次完成或中断，完整回答写到 `<数据目录>/replies/<agent id>/<yyyymmdd-hhmmss>.md`（含指令、状态、用时），每个 agent 保留最近 50 份。通知里的回答仍然只保留开头和结尾共 1500 字，后面附「全文：<路径>」；被截断时提示用 `fleet_read_reply`。
+- **全文落盘**（`server/replies.js`）：每次完成或中断，完整回答写到 `<数据目录>/replies/<agent id>/<yyyymmdd-hhmmss>.md`（含指令、状态、用时），每个 agent 保留最近 50 份。通知后面附「全文：<路径>」。
+- **通知里回答的长度**（`server/turns.js` 的 `clip`）：汇报标记块完整放进通知，硬上限 6000 字（`REPORT_MAX`）；没有标记块的回答上限 3000 字（`REPLY_MAX`）。超过上限时保留开头 60% 和结尾 40%，中间写「…（中略 N 字）…」，通知末尾注明「（已截断，全文 N 字，可用 fleet_read_reply 读全文）」。标记块之外的过程文字本来就不进通知。
 - **`fleet_read_reply(agent, turn?)`**：返回保存的完整回答，`turn` 0 是最近一次，1 是上一次……；没有保存过时（不是主控派的那一轮），读 transcript 里最后一轮的回答。不受屏幕大小和长度限制（`fleet_read_screen` 只能看到当前屏幕）。
 - **指令未送进去时自动重发一次**：发出 25 秒后，agent 仍不是作战中、最后一条指令还是旧的，transcript 里也没有这条指令（user 消息），舰桥就重发一次（`agents.js` 的 `resendOrder`）。
   - 重发前先检查：屏幕上有对话框、或输入框里有别人打的字时，不重发。

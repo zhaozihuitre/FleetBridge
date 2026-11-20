@@ -462,7 +462,8 @@ export function doneNotice(x) {
   const head = order.length > 40 ? order.slice(0, 40) + '…' : order;
   // the full answer is on disk (server/replies.js): its path, and fleet_read_reply when this one is cut
   const full = x.file ? '\n' + L(`全文：${x.file}`, `Full text: ${x.file}`, `全文：${x.file}`) : '';
-  const cutNote = x.cut ? '\n' + L('（太长已截断，完整内容用 fleet_read_reply 读取）', '(cut: fleet_read_reply gives it in full)', '（長いため省略。全文は fleet_read_reply で取得）') : '';
+  const n = x.len > 0 ? x.len : 0; // the whole answer's length, so the master can tell how much is missing
+  const cutNote = x.cut ? '\n' + L(`（已截断${n ? `，全文 ${n} 字` : ''}，可用 fleet_read_reply 读全文）`, `(cut${n ? `: ${n} characters in all` : ''}; fleet_read_reply gives it in full)`, `（長いため省略${n ? `、全文 ${n} 字` : ''}。全文は fleet_read_reply で取得）`) : '';
   const reply = x.reply
     ? `${x.marked ? L('汇报：', 'Report:', '報告：') : L('回答：', 'Answer:', '回答：')}\n${x.reply}${cutNote}${full}`
     : L('（没取到回答，用 fleet_read_reply 或 fleet_read_screen 查看）', '(no answer found: see fleet_read_reply or fleet_read_screen)', '（回答を取得できません。fleet_read_reply か fleet_read_screen で確認）');
