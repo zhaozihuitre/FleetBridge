@@ -117,7 +117,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--cyan); outline-
 .pilot .lang-wrap + .icon-btn { margin-left: 6px; }
 html[lang="en"] .tab .cn { display: none; }
 html[lang="ja"] .tab .cn { font-size: 12px; }
-.energy .resets { margin-left: auto; color: var(--soft); }
+/* when it resets, always shown (web/quotafmt.js); the ticking countdown after it while there is room */
+.energy .resets { color: var(--soft); overflow: hidden; text-overflow: ellipsis; }
+.energy .row .cd { margin-left: auto; flex: none; }
 .icon-btn { width: 44px; height: 44px; background: transparent; border: 1px solid var(--line-hi); color: var(--cyan); display: flex; align-items: center; justify-content: center; }
 
 /* Body */
@@ -723,7 +725,7 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
   .pilot small { display: none; }
 }
 @media (max-width: 1500px) {
-  .energy .resets { display: none; }
+  .energy .row .cd { display: none; } /* narrower: the reset time stays, the countdown goes (it is in the tooltip) */
 }
 @media (max-width: 1250px) {
   .search { flex-basis: 120px; }
@@ -936,3 +938,16 @@ html.web [data-win] { display: none; }
 .pp-hist { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
 .pp-empty { padding: 28px 16px; color: var(--muted); font-size: 13px; line-height: 1.7; text-align: center; border: 1px dashed var(--line); }
 @media (max-width: 760px) { .pp-full { padding-left: 14px; } .pp-cols { grid-template-columns: 1fr; } .pp-row { grid-template-columns: 44px minmax(0, 1fr); } .pp-tags { grid-column: 2; justify-content: flex-start; } }
+
+/* a terminal card's quota: every limit its model counts against, with when it resets */
+.unit .stat.quota .v { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.unit .stat.quota .ql { white-space: nowrap; }
+.unit .stat.quota .ql b { font-weight: 500; color: var(--soft); }
+.unit .stat.quota .ql.main b { color: var(--kc, var(--cyan)); }
+.unit .stat.quota .ql.main { color: var(--text); }
+/* the master's panel: the tightest quota and when it resets */
+.master-bar .master-quota { margin-left: 10px; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.master-bar .master-quota.on { color: var(--amber); }
+.master-bar .master-quota.low { color: var(--red); }
+.master-bar .master-st:has(+ .master-quota:not([hidden])) { margin-right: 0; }
+.master-bar .master-quota:not([hidden]) { margin-right: auto; }

@@ -244,6 +244,7 @@ const EN = {
   '电脑 CPU 满载 1 分钟（{0}%）': 'The computer\'s CPU fully busy for a minute ({0}%)',
   '系统负荷（内存吃紧、CPU 满载）': 'System load (memory short, CPU busy)',
   '{0} 用的额度：': 'Quota {0} runs on:', '另一个组织的额度，截至 {0}': 'Another organization’s quota, as of {0}',
+  '还有 {0} 分钟 · {1} 重置': '{0} min left · resets {1}', '即将重置': 'resetting now',
   // improvement proposals
   '改善': 'Proposals', '舰桥根据使用情况提出的改进': 'Improvements to Fleet Bridge from how it is used', '通知': 'Notices',
   '待决定': 'Awaiting you',
@@ -570,6 +571,7 @@ const JA = {
   '电脑 CPU 满载 1 分钟（{0}%）': 'パソコンの CPU が 1 分間フル稼働（{0}%）',
   '系统负荷（内存吃紧、CPU 满载）': 'システム負荷（メモリ不足・CPU 高負荷）',
   '{0} 用的额度：': '{0} が使う利用枠：', '另一个组织的额度，截至 {0}': '別の組織の利用枠、{0} 時点',
+  '还有 {0} 分钟 · {1} 重置': 'あと {0} 分 · {1} にリセット', '即将重置': 'まもなくリセット',
   // improvement proposals
   '改善': '改善', '舰桥根据使用情况提出的改进': '利用状況に基づく艦橋の改善',
   '待决定': '判断待ち',

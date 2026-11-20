@@ -9,6 +9,8 @@ import { toggleLegend } from './legend.js';
 import { createAnnouncer, speakNow } from './voice.js';
 import { switchView, wantedView } from './device.js';
 import { initPhoneProposals, loadPhoneProposals, pendingProposals, phoneProposalsHtml } from './m-proposals.js';
+import { quotaText } from './quotafmt.js';
+const QT = quotaText(L); // when a quota resets, its last hour counting down (web/quotafmt.js)
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
 // (unless it chose this one); the switch stays at hand either way
@@ -65,10 +67,9 @@ function renderQuota() {
       const c = low ? 'var(--red)' : l.active ? 'var(--amber)' : 'var(--cyan)';
       const on = Math.round(used / 5);
       const seg = `<span class="seg">${Array.from({ length: 20 }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('')}</span>`;
-      // what's used and when it resets (with the day); a window not started yet has no reset time
-      const started = l.resetsAt > 0;
+      // what is used and when it resets (local time, its last hour counting down); not started: no reset time
       // steady width: the digits in fixed cells, room for "100%" (the column itself is fixed in m.css)
-      const v = `<span class="v"><span class="pct3">${String(Math.round(used)).replace(/\d/g, (d) => `<i class="dg">${d}</i>`)}%</span><small>${started ? esc(L('{0} 重置', when(l.resetsAt))) : L('未开始')}</small></span>`;
+      const v = `<span class="v"><span class="pct3">${String(Math.round(used)).replace(/\d/g, (d) => `<i class="dg">${d}</i>`)}%</span><small>${esc(QT.resetText(l.resetsAt))}</small></span>`;
       return `<div class="q" style="--c:${c}" title="${esc(l.label)}"><span class="k">${esc(shortLabel(l))}</span>${seg}${v}</div>`;
     })
     .join('');
@@ -152,8 +153,8 @@ function quotaTag(u) {
   const q = u?.quota;
   if (!q) return '';
   const low = 100 - q.usedPct <= (state.thresholds?.energyLowPct ?? 10);
-  const tip = q.all.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt ? ' · ' + L('{0} 重置', when(l.resetsAt)) : ''}`).join('\n');
-  return `<span class="mq${low ? ' low' : q.active ? ' on' : ''}" title="${esc(tip)}">${esc(shortLabel(q))} ${Math.round(q.usedPct)}%${q.resetsAt ? ' · ' + esc(L('{0} 重置', when(q.resetsAt))) : ''}</span>`;
+  const tip = q.all.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt ? ' · ' + QT.resetText(l.resetsAt) : ''}`).join('\n');
+  return `<span class="mq${low ? ' low' : q.active ? ' on' : ''}" title="${esc(tip)}">${esc(shortLabel(q))} ${Math.round(q.usedPct)}%${q.resetsAt ? ' · ' + esc(QT.resetText(q.resetsAt)) : ''}</span>`;
 }
 
 function renderUnits() {

@@ -10,6 +10,7 @@ import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 import { initSys, renderSys, sysWarnSince, sysWarnText } from './sysload.js';
 import { initProposals, loadProposals, proposalCount, proposalsPage } from './proposals.js';
+import { quotaText, tightest } from './quotafmt.js';
 
 const $ = (id) => document.getElementById(id);
 // Opened on this computer, or from another device over web access (a tablet, a phone, another PC):
@@ -51,6 +52,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
+const QT = quotaText(L); // "今天 18:10 重置", "还有 25 分钟 · 13:10 重置" (web/quotafmt.js)
 const TABS = ['units', 'agents', 'orders', 'notices', 'proposals', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
@@ -136,7 +138,7 @@ function renderEnergy() {
           <div class="row"><span class="label"><span class="lk">${weekly ? 'RESERVE' : 'ENERGY'} · </span>${esc(l.label)}</span>${stale}
             <span class="left ${low ? 'low' : ''}">${pct3(used)}</span></div>
           ${seg(used, 24, color)}
-          <div class="row"><span class="cd"${started ? ` data-reset="${l.resetsAt}"` : ''}>${started ? dg(dur(l.resetsAt - Date.now())) : L('未开始')}</span><span class="resets">${esc(resets)}</span></div>
+          <div class="row"><span class="resets"${started ? ` data-reset-text="${l.resetsAt}"` : ''}>${esc(QT.resetText(l.resetsAt))}</span>${started ? `<span class="cd" data-reset="${l.resetsAt}">${dg(dur(l.resetsAt - Date.now()))}</span>` : ''}</div>
         </div>`;
       })
       .join('');
@@ -197,6 +199,11 @@ function when(ms) {
 function tick() {
   $('clock').innerHTML = dg(new Date().toLocaleTimeString(locale, { hour12: false }));
   document.querySelectorAll('[data-reset]').forEach((el) => (el.innerHTML = dg(dur(+el.dataset.reset - Date.now()))));
+  // when a quota resets: its last hour counts down by the minute ("还有 25 分钟 · 13:10 重置")
+  document.querySelectorAll('[data-reset-text]').forEach((el) => {
+    const t = QT.resetText(+el.dataset.resetText);
+    if (el.textContent !== t) el.textContent = t;
+  });
   document.querySelectorAll('[data-since]').forEach((el) => (el.textContent = 'T+' + dur(Date.now() - +el.dataset.since)));
 }
 
@@ -704,10 +711,12 @@ function quotaStat(u) {
   const used = Math.min(100, Math.max(0, q.usedPct));
   const low = 100 - used <= state.thresholds.energyLowPct;
   const color = low ? 'var(--red)' : q.active ? 'var(--amber)' : 'var(--cyan)';
-  const resets = q.resetsAt ? L('{0} 重置', when(q.resetsAt)) : L('未开始');
   const line = (l) => `${l.label} · ${L('已用 {0}%', Math.round(l.usedPct))} · ${l.resetsAt ? L('{0} 重置', when(l.resetsAt)) : L('未开始')}`;
   const tip = [L('{0} 用的额度：', (u.model || '').replace('claude-', '')), ...q.all.map(line), q.asOf ? L('另一个组织的额度，截至 {0}', when(q.asOf)) : ''].filter(Boolean).join('\n');
-  return `<div class="stat quota" style="--kc:${color}" title="${esc(tip)}"><div class="k"><span>${L('额度')} · ${esc(q.label)}</span><span class="mono">${Math.round(used)}% · ${q.resetsAt ? `<span data-reset="${q.resetsAt}">${dg(dur(q.resetsAt - Date.now()))}</span>` : L('未开始')}</span></div>${seg(used, 20, color)}<div class="v">${esc(resets)}${q.asOf ? ` · ${L('截至 {0}', when(q.asOf))}` : ''}</div></div>`;
+  // every limit its model counts against, each with when it resets (the one holding it first, bright)
+  const others = (q.all || []).filter((l) => l.key !== q.key);
+  const row = (l, main) => `<span class="ql${main ? ' main' : ''}"><b>${esc(l.label)} ${Math.round(Math.min(100, Math.max(0, l.usedPct)))}%</b> · <span${l.resetsAt ? ` data-reset-text="${l.resetsAt}"` : ''}>${esc(QT.resetText(l.resetsAt))}</span></span>`;
+  return `<div class="stat quota" style="--kc:${color}" title="${esc(tip)}"><div class="k"><span>${L('额度')} · ${esc(q.label)}</span><span class="mono">${Math.round(used)}%${q.resetsAt ? ` · <span data-reset="${q.resetsAt}">${dg(dur(q.resetsAt - Date.now()))}</span>` : ''}</span></div>${seg(used, 20, color)}<div class="v">${row(q, true)}${others.map((l) => row(l, false)).join('')}${q.asOf ? `<span class="ql">${L('截至 {0}', when(q.asOf))}</span>` : ''}</div></div>`;
 }
 
 function repoRow(r) {
@@ -1127,6 +1136,18 @@ function renderMaster() {
   $('master-term').hidden = !alive;
   $('master-st').textContent = alive ? L('● 主控在线') : L('● 主控未启动');
   $('master-st').classList.toggle('on', alive);
+  // the tightest quota of the organization read now, and when it resets (the bar above the master's terminal)
+  const tq = tightest(usageLimits(state.usage));
+  const mq = $('master-quota');
+  if (mq) {
+    mq.hidden = !tq;
+    if (tq) {
+      const low = 100 - tq.usedPct <= state.thresholds.energyLowPct;
+      mq.className = `master-quota${low ? ' low' : tq.active ? ' on' : ''}`;
+      mq.innerHTML = `${esc(tq.label)} ${Math.round(tq.usedPct)}% · <span${tq.resetsAt > 0 ? ` data-reset-text="${tq.resetsAt}"` : ''}>${esc(QT.resetText(tq.resetsAt))}</span>`;
+      mq.title = usageLimits(state.usage).map((l) => QT.limitLine(l)).join('\n');
+    }
+  }
   $('master-new').disabled = $('master-stop').disabled = $('master-voice').disabled = !alive;
   $('master-start').disabled = !state.agentSupport?.ok;
   if (alive && masterTerm?.id !== m.id) {

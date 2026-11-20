@@ -6,6 +6,7 @@ import { getAgent, inputEmpty, killAgent, listAgents, sendText, spawnAgent } fro
 import { L } from './i18n.js';
 import { cachedSummary } from './summary.js';
 import { currentOrg, LIMIT_RE, orgAt, orgInfo } from './accounts.js';
+import { resetText } from './quotatext.js';
 
 // The master console: a Claude Code session in the command center's left column that commands the
 // other agents through the fleet MCP tools (server/fleet-mcp.cjs). It works in its own folder, so its
@@ -505,10 +506,12 @@ export function doneNotice(x) {
   if (x.error) {
     if (LIMIT_RE.test(x.error)) {
       const org = orgInfo(orgAt(Date.now()) || currentOrg())?.name || L('组织未知', 'unknown organization', '組織不明');
+      // when the limit gating it resets (the usage reading, local time): "（5 小时 · 今天 18:10 重置）"
+      const back = x.resetsAt > 0 ? `${x.resetLabel ? x.resetLabel + ' · ' : ''}${resetText(x.resetsAt)}` : '';
       return L(
-        `【舰桥通知】⛔ 额度到限：${x.name}（${x.agentId.slice(0, 8)}）没做完你派的指令「${head}」：「${org}」的额度用完了（${x.error}）。等额度重置后它会接着做，或者用 /login 换到另一个组织。`,
-        `[Fleet notice] ⛔ Quota used up: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": the quota of "${org}" is used up (${x.error}). It goes on after the reset, or /login to the other organization.`,
-        `【艦橋通知】⛔ 利用枠上限：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了していません。「${org}」の利用枠を使い切りました（${x.error}）。リセット後に再開するか、/login で別の組織へ。`,
+        `【舰桥通知】⛔ 额度到限：${x.name}（${x.agentId.slice(0, 8)}）没做完你派的指令「${head}」：「${org}」的额度用完了（${x.error}）。${back ? `额度重置：${back}。` : ''}等额度重置后它会接着做，或者用 /login 换到另一个组织。`,
+        `[Fleet notice] ⛔ Quota used up: ${x.name} (${x.agentId.slice(0, 8)}) did not finish your order "${head}": the quota of "${org}" is used up (${x.error}).${back ? ` Reset: ${back}.` : ''} It goes on after the reset, or /login to the other organization.`,
+        `【艦橋通知】⛔ 利用枠上限：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を完了していません。「${org}」の利用枠を使い切りました（${x.error}）。${back ? `リセット：${back}。` : ''}リセット後に再開するか、/login で別の組織へ。`,
       );
     }
     return L(

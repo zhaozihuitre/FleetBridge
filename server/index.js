@@ -8,6 +8,7 @@ import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
 import { modelQuota } from './modelquota.js';
+import { gatingLimit } from './quotatext.js';
 import { readReply, saveReply } from './replies.js';
 import { analyzeNow, decide, improveState, improveTick, initImprove, proposalStore } from './insights/improve.js';
 import { clearEvents, logEvent, readEvents } from './insights/events.js';
@@ -209,7 +210,9 @@ function publish() {
     const summaryKey = `master:${t.agentId}:${t.since}`;
     if (!t.neverRan && !r?.interrupted && !r?.error && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
     logEvent(`notice.${t.neverRan ? 'never_ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done'}`, { agent: getAgent(t.agentId)?.name || t.name, agentId: t.agentId, ms: t.ms, len: full.length, cut, marked: !!r?.marked, resent: !!t.resent, reason: t.blocked || undefined });
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, file, marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
+    // stopped on the quota: when the limit gating it resets (the notice says it, local time)
+    const gate = r?.error ? gatingLimit(state.usage?.limits) : null;
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, file, resetsAt: gate?.resetsAt || 0, resetLabel: gate?.label || '', marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
     if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);
@@ -221,7 +224,7 @@ function publish() {
   }
   state.improve = improveState();
   // notices (desktop toasts via the widget, phone push, the lists): decided once, each with its summary
-  updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
+  updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow(), limits: state.usage?.limits });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
   // system load (server/sysload.js): the machine, and each terminal's process tree
   sysUnits(state.units);

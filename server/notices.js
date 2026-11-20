@@ -4,6 +4,7 @@ import { config, DATA_DIR } from './config.js';
 import { L } from './i18n.js';
 import { currentOrg, LIMIT_RE, orgAt, orgInfo } from './accounts.js';
 import { clipSentence, kindIcon, kindWord, lastTurn, notifySettings, summarize } from './summary.js';
+import { gatingLimit, resetText } from './quotatext.js';
 
 // Notices: what is worth telling you without looking at a screen, decided once here and shown by every
 // channel the same way (desktop toasts from the widget, phone push, the lists): each says which
@@ -146,9 +147,13 @@ export function updateNotices(units, quests, prompts, o = {}) {
         org = orgInfo(orgAt(turn.lastAt) || currentOrg())?.name || L('组织未知', 'unknown organization', '組織不明');
         // short enough for a phone's title line: whose, and when it comes back ("resets 6pm")
         const back = turn.error.match(/resets?\s+(?:at\s+)?([^·(（\n]+?)\s*(?:[·(（]|$)/i)?.[1];
-        title = L('「{0}」额度用完', '{0} quota used up', '「{0}」の利用枠を使い切り').replace('{0}', org) + (back ? L('，{0} 重置', ', back {0}', '、{0} にリセット').replace('{0}', back) : '');
-        result = turn.error + (result ? '\n' + result : '');
-        needs = L('等额度重置，或 /login 换到另一个组织。', 'Wait for the reset, or /login to the other organization.', 'リセットを待つか、/login で別の組織へ。');
+        // when it comes back by the usage reading (the limit gating now), local time; the error's own words
+        // ("resets 6pm") only when there is no reading
+        const g = gatingLimit(o.limits);
+        const resets = g ? resetText(g.resetsAt) : back ? L('{0} 重置', 'back {0}', '{0} にリセット').replace('{0}', back) : '';
+        title = L('「{0}」额度用完', '{0} quota used up', '「{0}」の利用枠を使い切り').replace('{0}', org) + (resets ? L('，', ', ', '、') + resets : '');
+        result = turn.error + (g ? '\n' + L(`${g.label} 已用 ${Math.round(g.usedPct)}%`, `${g.label} ${Math.round(g.usedPct)}% used`, `${g.label} ${Math.round(g.usedPct)}% 使用`) : '') + (result ? '\n' + result : '');
+        needs = resets ? L(`等额度重置（${resets}），或 /login 换到另一个组织。`, `Wait for the reset (${resets}), or /login to the other organization.`, `リセット（${resets}）を待つか、/login で別の組織へ。`) : L('等额度重置，或 /login 换到另一个组织。', 'Wait for the reset, or /login to the other organization.', 'リセットを待つか、/login で別の組織へ。');
       }
     }
     if (kind === 'interrupted') [result, needs] = [turn.lastTool ? L('停在：', 'Stopped at: ', '停止位置：') + turn.lastTool : result, L('等你的新指示。', 'Waiting for what to do instead.', '次の指示を待っています。')];
