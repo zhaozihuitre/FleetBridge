@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-insights-'));
 process.env.MONITOR_DATA_DIR = tmp;
@@ -14,7 +15,7 @@ const { analyze, parseModel, digest } = await import('../server/insights/analyze
 const { due } = await import('../server/insights/improve.js');
 const { collect, sessionSignals, userMessages } = await import('../server/insights/collect.js');
 const { logEvent, readEvents } = await import('../server/insights/events.js');
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => removeTree(tmp));
 
 const NOW = Date.parse('2026-11-20T04:00:00Z');
 const DAY = 86_400_000;

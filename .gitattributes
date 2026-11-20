@@ -1,0 +1,3 @@
+# project-docs is written by pdoc.py, which writes CRLF on Windows: kept LF in the repository so a
+# regenerated file shows only what really changed (P-001 had 8643 changed lines for one new entry)
+docs/project-docs/** text eol=lf

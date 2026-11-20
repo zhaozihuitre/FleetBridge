@@ -7,13 +7,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'server', 'fleet-mcp.cjs');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-mcp-'));
 process.env.MONITOR_DATA_DIR = tmp;
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => removeTree(tmp));
 
 function client(file) {
   const p = spawn(process.execPath, [file], { stdio: ['pipe', 'pipe', 'inherit'] });

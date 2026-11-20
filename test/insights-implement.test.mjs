@@ -6,12 +6,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-impl-'));
 process.env.MONITOR_DATA_DIR = path.join(tmp, 'data');
 fs.mkdirSync(process.env.MONITOR_DATA_DIR, { recursive: true });
 const { startImpl, finishImpl, followImpl, discardImpl, needsInstaller, updateResult, findRepo, isFleetRepo, devPrompt, DENY } = await import('../server/insights/implement.js');
-after(() => fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 3 }));
+after(() => removeTree(tmp));
 
 const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 function makeRepo(name) {
@@ -111,4 +112,65 @@ test('installer needed for the shell or dependencies; the update log read', () =
   fs.writeFileSync(log, '');
   assert.equal(updateResult(log, Date.now() - 10 * 60_000).done, true, 'no answer in 5 minutes: failed');
   assert.match(devPrompt(P, { branch: 'improve/p-001', base: 'abcdef0123', dirtyBase: true, repo: 'E:/x' }), /基线不包含它们/);
+});
+
+test('the acceptance run: node --test output parsed (as P-001\'s "48 passed / 2 failed"), the npm-test node used', async () => {
+  const { parseTestOutput, failingTests, testNode } = await import('../server/insights/implement.js');
+  const out = [
+    '✔ a test (1ms)',
+    '✖ C:/x/test/insights-flow.test.mjs (1040.0905ms)',
+    '✖ C:/x/test/insights-implement.test.mjs (1037.3208ms)',
+    'ℹ tests 50',
+    'ℹ pass 48',
+    'ℹ fail 2',
+    '✖ failing tests:',
+    '',
+    'test at test/insights-flow.test.mjs:20:1',
+    '✖ C:/x/test/insights-flow.test.mjs (1040.0905ms)',
+    "  Error: EPERM, Permission denied: 'C:/Temp/fleet-flow-h35LkT'",
+    '✖ C:/x/test/insights-implement.test.mjs (1037.3208ms)',
+    "  Error: EPERM, Permission denied: 'C:/Temp/fleet-impl-9wjWSc'",
+  ].join('\n');
+  const r = parseTestOutput(out, null);
+  assert.equal(r.ok, false);
+  assert.equal(r.pass, 48);
+  assert.equal(r.fail, 2);
+  assert.deepEqual(r.failures, ['C:/x/test/insights-flow.test.mjs', 'C:/x/test/insights-implement.test.mjs']);
+  assert.equal(r.errors.length, 2);
+  assert.match(r.errors[0], /EPERM/);
+  assert.equal(parseTestOutput('ℹ pass 48\nℹ fail 0', null).ok, true);
+  assert.equal(parseTestOutput('ℹ pass 48\nℹ fail 0', new Error('exit 1')).ok, false);
+  const E = String.fromCharCode(27);
+  assert.deepEqual(failingTests(`${E}[31m✖ one ${E}[90m(2ms)${E}[39m${E}[39m\n✖ two`), ['one', 'two'], 'colors taken out');
+  const n = testNode();
+  assert.ok(n === null || fs.existsSync(n));
+});
+
+test('a retry tells the agent the user\'s note and why the last build failed', () => {
+  const p = { ...P, decision: { action: 'retry', note: '修那 2 项并还原文档噪声' }, impl: { result: { status: 'failed', reason: 'tests-failed', files: ['server/turns.js'], tests: { pass: 48, fail: 2, node: 'app v24.22.1', failures: ['test/insights-flow.test.mjs'], errors: ['Error: EPERM, Permission denied'] } } } };
+  const s = devPrompt(p, { branch: 'improve/p-001', base: 'abcdef0123', dirtyBase: false, repo: 'E:/x' });
+  assert.match(s, /^## 这是重试/);
+  assert.match(s, /用户的要求（务必照做）：修那 2 项并还原文档噪声/);
+  assert.match(s, /48 通过 \/ 2 失败/);
+  assert.match(s, /insights-flow\.test\.mjs/);
+  assert.match(s, /EPERM/);
+  assert.match(s, /## 提案 P-001/, 'the proposal itself still follows');
+  assert.match(s, /LF/, 'the line-ending rule');
+  // the first build: no retry part
+  assert.doesNotMatch(devPrompt(P, { branch: 'b', base: 'abcdef0', repo: 'x' }), /这是重试/);
+});
+
+test('.gitattributes keeps project-docs LF: a CRLF rewrite shows only what really changed', () => {
+  const repo = makeRepo('eol');
+  fs.copyFileSync(path.join(process.cwd(), '.gitattributes'), path.join(repo, '.gitattributes'));
+  fs.mkdirSync(path.join(repo, 'docs', 'project-docs'), { recursive: true });
+  const lines = Array.from({ length: 200 }, (_, i) => `line ${i}`);
+  fs.writeFileSync(path.join(repo, 'docs', 'project-docs', 'entries.json'), lines.join('\n') + '\n');
+  git(['add', '-A'], repo);
+  git(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'docs'], repo);
+  // pdoc on Windows: the same lines in CRLF, one new at the end
+  fs.writeFileSync(path.join(repo, 'docs', 'project-docs', 'entries.json'), [...lines, 'new entry'].join('\r\n') + '\r\n');
+  git(['add', '-A'], repo);
+  const stat = git(['diff', '--cached', '--numstat'], repo);
+  assert.match(stat, /^1\s+0\s+docs\/project-docs\/entries\.json$/m, stat);
 });

@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 import { ENV_EXIT, healShutdownRollback } from '../server/selfheal.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-heal-'));
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => removeTree(tmp));
 
 const MIN = 60_000;
 const BOOT = Date.parse('2026-11-19T03:16:39Z');

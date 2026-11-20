@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-test-'));
 process.env.MONITOR_DATA_DIR = path.join(tmp, 'data');
@@ -12,7 +13,7 @@ fs.mkdirSync(process.env.MONITOR_DATA_DIR, { recursive: true });
 const { endedTurns, noteOrder, turnReply, received, RESEND_AFTER } = await import('../server/turns.js');
 const { historyFiles } = await import('../server/collectors/history.js');
 const { saveReply, readReply, listReplies } = await import('../server/replies.js');
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => removeTree(tmp));
 
 const T0 = Date.parse('2026-11-20T01:00:00Z');
 const iso = (ms) => new Date(T0 + ms).toISOString();

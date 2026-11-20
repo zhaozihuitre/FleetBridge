@@ -4304,6 +4304,36 @@
       "updated": "2026-11-20 10:34",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "I-046",
+      "type": "issue",
+      "title": "改善提案验收误判测试失败；重试没把备注告诉开发 agent",
+      "summary": "P-001 两次被判「48 通过 / 2 失败」：验收用舰桥的 Electron（Node 24.22）跑测试，它的 fs.rmSync 删不掉只读文件和带目录联接的文件夹，两个测试文件的清理钩子报 EPERM；开发 agent 用系统 node 24.18 全过。重试时首条指令和第一次完全一样，备注和失败原因都没传过去",
+      "detail": "**现象**：\n- 改善提案 P-001 两次构建都被舰桥判为「测试 48 通过 / 2 失败」，开发 agent 在同一个 worktree 里 `npm test` 却是 48/48。\n- 用户重试时写的备注（修那 2 项、还原文档噪声）没有生效，第二次「没有新增改动」。\n- P-001 的 entries.json / index.html 有 8643 / 1368 行改动。\n\n**根因**：\n1. 验收用 `process.execPath` 跑测试。安装版里它是 Electron 当 node 用，是 **Node v24.22.1**；开发 agent 和 `npm test` 用的是系统 **node v24.18.0**。\n   - v24.22.1 在 Windows 上用 `fs.rmSync` 删不掉只读文件（git 的对象文件是只读的），报 EPERM。\n   - 删带目录联接（junction）的文件夹时，不报错也不删。\n   - `insights-flow` 和 `insights-implement` 两个测试文件在临时目录里建 git 仓库，它们的 `after` 清理钩子因此失败。node --test 把它计成文件级失败：总数 50 = 48 个测试全过 + 2 个文件级失败。\n   - P-001 自己的改动没有问题。\n2. `decide('retry')` 只把备注存进提案，`startImpl` / `devPrompt` 生成的首条指令和第一次一模一样，开发 agent 不知道要修什么。\n3. 文档大改动是换行符噪声：pdoc 在 Windows 上写 CRLF，仓库是 LF。忽略换行后实际只有新增的一条 C-088（27 行）和 index.html 1 行。\n\n**解决**：\n- 验收改用 PATH 上的 `node`（和 `npm test` 一致），找不到才用舰桥自己。结果记录 node 版本、失败的测试名和错误行（`parseTestOutput` / `failingTests`）。\n- 重试时首条指令开头加「这是重试」：上一次的原因、验收结果（node、失败测试、错误）、改过的文件、用户备注（务必照做）。另外规则里提醒文档要保持 LF。\n- 测试清理改用 `test/_fs.mjs` 的 `removeTree`：先去掉只读属性、先拆目录联接再删，删不掉只警告、不让测试失败。两种 node 下都是 48/48，不再残留临时目录。\n- 新增 `.gitattributes`：`docs/project-docs/** text eol=lf`，CRLF 写回的文件入库时自动转回 LF，只显示真实改动。\n\n**如何避免**：\n- 验收环境要和开发者跑测试的环境一致。\n- 在 Windows 上删除 git 仓库或含 junction 的目录，不要直接用 `fs.rmSync`。\n",
+      "status": "resolved",
+      "files": [
+        "server/insights/implement.js",
+        "test/_fs.mjs",
+        "test/insights-implement.test.mjs",
+        "test/insights-flow.test.mjs",
+        ".gitattributes"
+      ],
+      "tags": [
+        "自我改善",
+        "测试",
+        "Windows"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "0.9.76"
+      ],
+      "created": "2026-11-20 13:44",
+      "updated": "2026-11-20 13:44",
+      "notes": [],
+      "count": 1
     }
   ]
 }

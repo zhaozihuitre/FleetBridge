@@ -43,10 +43,32 @@ export function findRepo(setting, candidates = []) {
 
 export const branchOf = (id) => `improve/${String(id).toLowerCase()}`;
 
+/**
+ * What a retry has to fix: the user's (or the master's) note and how the last build was judged. A retry used to
+ * send the very first order again, without either: the agent found nothing new to do (P-001's second build).
+ */
+export function retryPart(p) {
+  if (p.decision?.action !== 'retry' || !p.impl?.result) return '';
+  const r = p.impl.result;
+  const why = { 'tests-failed': '舰桥验收时测试没通过', 'no-changes': '相对基线没有任何改动', 'main-repo-changed': '主仓库工作区在开发期间被改动了', timeout: '超过 4 小时没做完', 'agent-gone': '开发 agent 中途退出了', 'check-failed': '校验出错' }[r.reason] || r.reason || '未通过';
+  const t = r.tests;
+  const lines = [
+    `## 这是重试：上一次没有通过验收`,
+    `- 原因：${why}`,
+    t ? `- 舰桥的验收测试（${t.node || '未知 node'}，命令 \`node --test "test/*.test.mjs"\`，工作目录就是这个 worktree）：${t.pass} 通过 / ${t.fail} 失败` : '',
+    t?.failures?.length ? `- 失败的测试：\n${t.failures.map((f) => `  - ${f}`).join('\n')}` : '',
+    t?.errors?.length ? `- 错误信息：\n${t.errors.map((e) => `  - ${e}`).join('\n')}` : '',
+    r.files?.length ? `- 上一次改动的文件：${r.files.join('、')}` : '',
+    p.decision?.note ? `- 用户的要求（务必照做）：${p.decision.note}` : '',
+    `- 上一次的提交已经在这个分支上。先看清上面的问题，在它的基础上修改；如果你复现不了失败，要在汇报里写明你怎么跑的、结果如何，不要只说「没有新增改动」。`,
+  ];
+  return lines.filter(Boolean).join('\n') + '\n\n';
+}
+
 /** The first order of the development agent. */
 export function devPrompt(p, o) {
   const ev = (p.evidence || []).map((e) => `- ${e.ref || e.metric}${e.value ? ' = ' + e.value : ''}${e.quote ? '：' + e.quote : ''}`).join('\n');
-  return `你是舰桥（Fleet Bridge）的开发 agent，负责实现一条用户已经同意的改善提案。
+  return `${retryPart(p)}你是舰桥（Fleet Bridge）的开发 agent，负责实现一条用户已经同意的改善提案。
 
 ## 提案 ${p.id}：${p.title}
 - 现象：${p.finding}
@@ -64,7 +86,7 @@ ${ev || '- （无）'}
 1. 只修改当前目录（这个 worktree）里的文件；不要碰主仓库目录 ${o.repo}、其他项目或用户目录下的任何文件。
 2. 不要 git push、npm publish，不要运行 tools/update.mjs 或安装包，不要打包发布。更新安装由舰桥在用户确认后进行。
 3. 为改动补充或更新测试（test/*.test.mjs，node:test），运行 \`npm test\` 并保证全部通过；对改过的 .js/.mjs/.cjs 运行 \`node --check\`。
-4. 按 project-docs 的约定更新文档（docs/project-docs/sections/*.md，并用 pdoc 记一条变更）。
+4. 按 project-docs 的约定更新文档（docs/project-docs/sections/*.md，并用 pdoc 记一条变更）。仓库里的文本文件都是 LF 换行；pdoc 在 Windows 上会写成 CRLF，提交前用 \`git diff --stat\` 确认文档只有实际新增的几行，不是整个文件都变了（是的话先把换行改回 LF）。
 5. 完成后在这个分支上本地提交（git add + git commit），提交说明写清楚改了什么。
 6. 最后用下面的格式汇报（这是舰桥读取的正式汇报）：
 [[FLEET-REPORT]]
@@ -138,17 +160,63 @@ export function needsInstaller(files, pkgDiff = '') {
   return files.includes('package.json') && /^[+-]\s*"(dependencies|devDependencies|optionalDependencies|fleetShellApi|electron|main|build)"/m.test(pkgDiff);
 }
 
+// Which node runs the acceptance tests: the one `npm test` runs with (node on the PATH), as the development
+// agent ran them; this app's own executable as node only when there is none. The installed app's Electron
+// (Node 24.22) can't remove read-only files with fs.rmSync (git's objects), which failed two test files'
+// cleanup there and not in the agent's run: P-001 was "48 passed / 2 failed" for that alone.
+let nodeExe;
+export function testNode() {
+  if (nodeExe !== undefined) return nodeExe;
+  try {
+    const found = execFileSync(process.platform === 'win32' ? 'where.exe' : 'which', ['node'], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l && fs.existsSync(l));
+    nodeExe = found || null;
+  } catch {
+    nodeExe = null;
+  }
+  return nodeExe;
+}
+
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+/** The failing tests' names from node --test's output (its "failing tests:" list, else every ✖ line). */
+export function failingTests(text) {
+  const lines = String(text || '').replace(ANSI, '').split(/\r?\n/);
+  const at = lines.findIndex((l) => /✖ failing tests:/.test(l));
+  const pick = (ls) => [...new Set(ls.map((l) => l.match(/^\s*✖\s+(.+?)(?:\s+\(\d+(?:\.\d+)?ms\))?\s*$/)?.[1]).filter((n) => n && n !== 'failing tests:'))];
+  return (at >= 0 ? pick(lines.slice(at + 1)) : pick(lines)).slice(0, 20);
+}
+
+/** What node --test's output says: the counts, the failing tests and their first error lines. */
+export function parseTestOutput(text, err) {
+  const clean = String(text || '').replace(ANSI, '');
+  const pass = Number(clean.match(/ℹ pass (\d+)/)?.[1] || 0);
+  const fail = clean.match(/ℹ fail (\d+)/)?.[1];
+  const failures = failingTests(clean);
+  // the error lines right under the failing list (what went wrong, for the report and a retry)
+  const list = clean.split(/\r?\n/);
+  const at = list.findIndex((l) => /✖ failing tests:/.test(l));
+  const errors = at >= 0 ? list.slice(at + 1).filter((l) => /Error|assert|expected|actual|EPERM|EACCES|ENOENT/i.test(l)).slice(0, 12).map((l) => l.trim().slice(0, 240)) : [];
+  return { ok: !err && fail === '0', pass, fail: Number(fail || 0), failures, errors, tail: clean.split('\n').slice(-25).join('\n') };
+}
+
 function runTests(dir) {
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
   delete env.NODE_TEST_CONTEXT; // a run started from inside a test run would skip its files
+  const exe = testNode() || process.execPath;
+  let version = '';
+  try {
+    version = execFileSync(exe, ['-p', 'process.version'], { encoding: 'utf8', windowsHide: true, env, timeout: 15_000 }).trim();
+  } catch {
+    // only for the report
+  }
   return new Promise((resolve) => {
-    const p = execFile(process.execPath, ['--test', 'test/*.test.mjs'], { cwd: dir, windowsHide: true, timeout: TEST_TIMEOUT, env, maxBuffer: 8 * 1024 * 1024 }, (err, out, errOut) => {
-      const text = `${out || ''}${errOut || ''}`;
-      const pass = text.match(/ℹ pass (\d+)/)?.[1];
-      const fail = text.match(/ℹ fail (\d+)/)?.[1];
-      resolve({ ok: !err && fail === '0', pass: Number(pass || 0), fail: Number(fail || 0), tail: text.split('\n').slice(-25).join('\n') });
+    const p = execFile(exe, ['--test', 'test/*.test.mjs'], { cwd: dir, windowsHide: true, timeout: TEST_TIMEOUT, env, maxBuffer: 8 * 1024 * 1024 }, (err, out, errOut) => {
+      resolve({ ...parseTestOutput(`${out || ''}${errOut || ''}`, err), node: `${exe === process.execPath ? 'app' : 'node'} ${version}`.trim() });
     });
-    p.on('error', () => resolve({ ok: false, pass: 0, fail: 0, tail: 'could not run the tests' }));
+    p.on('error', () => resolve({ ok: false, pass: 0, fail: 0, failures: [], errors: [], tail: 'could not run the tests', node: exe }));
   });
 }
 

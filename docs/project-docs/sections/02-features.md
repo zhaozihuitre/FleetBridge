@@ -141,9 +141,11 @@ flowchart LR
   - 回合结束后舰桥自己校验：
     - 主仓库的 `git status` 必须和开始时一样（不一样就是越界或你自己改了，为安全标为失败）。
     - worktree 相对基线必须有改动。
-    - 在 worktree 里重新跑 `npm test`。
+    - 在 worktree 里重新跑测试：`node --test "test/*.test.mjs"`，工作目录是 worktree。用的是 PATH 上的 `node`（和 `npm test`、开发 agent 用的一样），找不到才用舰桥自己的可执行文件当 node。结果记下用的 node 版本、通过 / 失败数、失败的测试名和错误信息。
   - 改到 `desktop/`、`bin/`、`package-lock.json` 或 `package.json` 的依赖、外壳字段时，标为「需安装包」，不提供就地更新。
   - 4 小时没做完自动停止，标为失败。
+  - **重试**：首条指令开头加一段「这是重试」，写上上一次没通过的原因、验收测试的结果（node 版本、失败的测试、错误信息）、上一次改过的文件，以及你在「重试」时写的备注（要求照做）。
+  - 仓库的 `.gitattributes` 让 `docs/project-docs/**` 始终以 LF 入库。pdoc 在 Windows 上写的 CRLF 不会再让整个 entries.json / index.html 都显示为改动。
 - **更新与回滚**：
   - 用户确认后，以分离进程运行 worktree 里的 `tools/update.mjs --from <worktree> --data-dir <数据目录> --port <端口>`，输出写进日志，之后每次刷新读一次。
   - `✔ now running` 记为已更新；`✖` 或 5 分钟没结果记为失败（update.mjs 本身会在新版本起不来时回到旧版本）。

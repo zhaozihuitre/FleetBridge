@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-flow-'));
 const dataDir = path.join(tmp, 'data');
@@ -15,7 +16,7 @@ fs.mkdirSync(dataDir, { recursive: true });
 const { initImprove, decide, improveTick, improveState, analyzeNow } = await import('../server/insights/improve.js');
 const { createStore } = await import('../server/insights/proposals.js');
 const { setImproveSettings } = await import('../server/insights/settings.js');
-after(() => fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 3 }));
+after(() => removeTree(tmp));
 
 const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const repo = path.join(tmp, 'FleetBridge');
@@ -110,4 +111,20 @@ test('reject keeps the reason; later; an analysis with the feature on (rules onl
   const r = await analyzeNow('user');
   assert.equal(r.model, 'off');
   assert.ok(store.lastAnalysis().at > 0);
+});
+
+test('retry: the second development agent is told the note and why the first build failed', async () => {
+  const p = store.merge([{ fingerprint: 'retry', title: '要重试的提案', finding: 'f', change: 'c', benefit: 'b', effort: 'S', risk: 'r', evidence: [{ ref: 'event:x' }] }]).added[0];
+  await decide(p.id, 'approve', '', 'user');
+  improveTick([{ agentId: 'dev1', status: 'busy' }], new Set());
+  improveTick([{ agentId: 'dev1', status: 'idle' }], new Set()); // its turn ends with nothing changed
+  await wait(() => store.get(p.id).status !== 'implementing');
+  assert.equal(store.get(p.id).status, 'failed');
+  assert.equal(store.get(p.id).impl.result.reason, 'no-changes');
+  await decide(p.id, 'retry', '请把 docs 的换行改回 LF', 'master');
+  const prompt = agents.get('dev1').o.prompt;
+  assert.match(prompt, /^## 这是重试/);
+  assert.match(prompt, /请把 docs 的换行改回 LF/);
+  assert.match(prompt, /相对基线没有任何改动/);
+  await decide(p.id, 'discard', '', 'user');
 });

@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { removeTree } from './_fs.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-test-'));
 process.env.MONITOR_DATA_DIR = tmp;
 const { doneNotice } = await import('../server/master.js');
-after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+after(() => removeTree(tmp));
 
 const base = { agentId: 'abcdef0123456789', name: 'demo', text: '修复 bug 并汇报', ms: 65_000 };
 
