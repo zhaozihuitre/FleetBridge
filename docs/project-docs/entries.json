@@ -4396,6 +4396,34 @@
       "created": "2026-11-20 13:38",
       "updated": "2026-11-20 13:38",
       "notes": []
+    },
+    {
+      "id": "I-047",
+      "type": "issue",
+      "title": "任务栏图标变成空白：旧快捷方式抢走窗口的 AppUserModelID",
+      "summary": "按「所有用户」装到 Program Files 后，用户自己开始菜单里遗留的旧 Fleet Bridge.lnk 没删，任务栏按 AUMID 匹配到它，显示空白图标",
+      "detail": "**现象**：任务栏上舰桥的按钮显示空白文档图标，按钮名是「Fleet Bridge」，不是「Fleet Bridge 舰桥」。窗口本身有图标（WM_GETICON 正常），exe、两个快捷方式和 desktop/icon.ico 都能取出正确图标。\n\n**根因**：\n- Windows 用开始菜单里 AppUserModelID 与窗口相同的快捷方式，决定任务栏按钮的图标和名字。\n- 用户自己的开始菜单（%APPDATA%）里遗留一个旧的 `Fleet Bridge.lnk`（11/16 生成）。它的 AUMID 也是 `local.claude-ops.monitor`，但没有设图标（IconLocation 为空）。\n- 11/20 10:34 用 0.9.75 安装包「为所有用户」安装：快捷方式写到了 ProgramData，安装脚本 `Delete \"$SMPROGRAMS\\Fleet Bridge.lnk\"` 也只删 ProgramData 那边，用户自己的旧快捷方式留了下来。exe 被替换后，任务栏取了这个旧快捷方式，图标变成空白。\n- 与 0.9.76 就地更新无关：就地更新只换 server/web，不动外壳和窗口（外壳进程 10:37 启动，在就地更新之前）。\n\n**解决**：\n- server/shortcuts.js：安装包版在 Windows 上启动时，只要开始菜单里有安装包的 `Fleet Bridge 舰桥.lnk`，就删掉用户和所有用户开始菜单里的 `Fleet Bridge.lnk`、`CLAUDE OPS.lnk`，再运行 `ie4uinit.exe -show` 刷新图标。不动桌面上的快捷方式，它们可能是用户自己建的。\n- build/installer.nsh：同时删除 %APPDATA% 开始菜单里的旧快捷方式（不论按哪种模式安装），装完后调用 SHChangeNotify(SHCNE_ASSOCCHANGED)。\n\n**如何避免**：改快捷方式名称或 AUMID 时，要考虑两种安装范围（当前用户 / 所有用户）都可能留下旧快捷方式。窗口要重新打开（或舰桥重启）后，任务栏才会取新的图标。\n",
+      "status": "resolved",
+      "files": [
+        "server/shortcuts.js",
+        "server/run.mjs",
+        "build/installer.nsh",
+        "test/shortcuts.test.mjs"
+      ],
+      "tags": [
+        "安装包",
+        "Windows"
+      ],
+      "sections": [
+        "config-deploy"
+      ],
+      "refs": [
+        "v0.9.77"
+      ],
+      "created": "2026-11-20 15:08",
+      "updated": "2026-11-20 15:08",
+      "notes": [],
+      "count": 1
     }
   ]
 }

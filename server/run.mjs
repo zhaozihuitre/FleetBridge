@@ -8,6 +8,7 @@ import util from 'node:util';
 import * as server from './index.js';
 import { DATA_DIR, ROOT } from './config.js';
 import { healShutdownRollback } from './selfheal.js';
+import { cleanShortcuts } from './shortcuts.js';
 
 const send = (m) => process.send?.(m);
 
@@ -82,6 +83,12 @@ try {
   console.log(`server ${server.appVersion} starting (pid ${process.pid})`);
   await server.start({ onListening: () => send({ type: 'ready', url: server.url, version: server.appVersion }) });
   console.log('server started');
+  // old shortcuts that answer for the window and blank its taskbar icon (shortcuts.js)
+  try {
+    cleanShortcuts();
+  } catch (e) {
+    console.error('shortcut check failed:', e.message);
+  }
   // a newer version set aside by the last Windows shutdown (an old shell's misjudgment), or by a start Windows
   // itself failed (selfheal.js), comes back: looked at 5 s after the start, then every 5 minutes
   let healing = false;
