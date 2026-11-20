@@ -8,6 +8,7 @@ import './tip.js';
 import { toggleLegend } from './legend.js';
 import { createAnnouncer, speakNow } from './voice.js';
 import { switchView, wantedView } from './device.js';
+import { initPhoneProposals, loadPhoneProposals, pendingProposals, phoneProposalsHtml } from './m-proposals.js';
 
 // one address for every device: a tablet or computer that lands here goes on to the full page
 // (unless it chose this one); the switch stays at hand either way
@@ -233,11 +234,23 @@ function renderNotices() {
 }
 function setView(v) {
   view = v;
-  renderUnits.last = renderNotices.last = null;
+  renderUnits.last = renderNotices.last = renderProposals.last = null;
   for (const b of document.querySelectorAll('.list-tabs [data-view]')) b.setAttribute('aria-selected', String(b.dataset.view === v));
   if (v === 'units') renderUnits();
-  else renderNotices();
+  else if (v === 'notices') renderNotices();
+  else renderProposals();
 }
+
+// the improvement proposals (m-proposals.js): the count on its tab, the list when it is shown
+function renderProposals() {
+  const n = pendingProposals(state);
+  $('pp-new').hidden = !n;
+  $('pp-new').textContent = n || '';
+  if (view !== 'proposals') return;
+  const html = phoneProposalsHtml(state, EMPTY);
+  if (renderProposals.last !== html) $('list').innerHTML = renderProposals.last = html;
+}
+initPhoneProposals({ toast: (t) => toast(t), render: () => ((renderProposals.last = null), renderProposals()) });
 document.querySelector('.list-tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-view]');
   if (b) setView(b.dataset.view);
@@ -311,6 +324,8 @@ function render() {
   renderUnits();
   loadNotices();
   renderNotices();
+  loadPhoneProposals(state).then((changed) => changed && ((renderProposals.last = null), renderProposals()));
+  renderProposals();
   renderSheet();
   renderPending();
 }

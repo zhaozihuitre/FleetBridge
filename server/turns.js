@@ -4,6 +4,7 @@ import path from 'node:path';
 import { historyFiles } from './collectors/history.js';
 import { DATA_DIR } from './config.js';
 import { pickReply } from './report.js';
+import { logEvent } from './insights/events.js';
 
 // Turns the master gave out: an order typed into one of our agents by the master (fleet_send, a
 // queued order it sent later, the first order of fleet_spawn). When that turn is over (the agent is
@@ -19,6 +20,8 @@ export const RESEND_AFTER = 25_000;
 // be told when they end (they used to be forgotten, and their notices with them)
 const FILE = path.join(DATA_DIR, 'turns.json');
 const turns = new Map(load()); // agent id -> { text, at, started }
+const lastEnded = new Map(); // agent id -> when its last turn of the master's ended
+const CORRECTION_WINDOW = 10 * 60_000;
 let saved = JSON.stringify(Object.fromEntries(turns));
 
 function load() {
@@ -44,6 +47,12 @@ function save() {
 export function noteOrder(agent, by, text, now = Date.now()) {
   if (!agent || agent.kind === 'shell' || agent.kind === 'master') return;
   agent.orderBy = by;
+  // someone stepping in on a turn of the master's, or right after it (self-improvement statistics:
+  // the master's order wasn't enough)
+  const mine = turns.get(agent.id);
+  const ended = lastEnded.get(agent.id);
+  if (by !== 'master' && (mine || (ended && now - ended < CORRECTION_WINDOW)))
+    logEvent('order.correction', { agent: agent.name || '', agentId: agent.id, by, during: Boolean(mine), afterMs: now - (mine ? mine.at : ended), text }, { now });
   if (by === 'master') turns.set(agent.id, { text: String(text || ''), at: now, started: false });
   else turns.delete(agent.id); // someone else took over this agent: its next result isn't the master's
   save();
@@ -123,6 +132,7 @@ export function endedTurns(units, waiting, now = Date.now(), { resend } = {}) {
     turns.delete(u.agentId);
     done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan, resent: Boolean(t.resentAt) });
   }
+  for (const d of done) lastEnded.set(d.agentId, now);
   // agents that are gone don't finish
   const live = new Set(units.map((u) => u.agentId));
   for (const id of turns.keys()) if (!live.has(id) && now - turns.get(id).at > 600_000) turns.delete(id);
@@ -132,7 +142,7 @@ export function endedTurns(units, waiting, now = Date.now(), { resend } = {}) {
 
 // The session's transcript: from the history scan, else looked up once under ~/.claude/projects.
 const found = new Map();
-function transcriptOf(sessionId) {
+export function transcriptOf(sessionId) {
   if (historyFiles.has(sessionId)) return historyFiles.get(sessionId);
   const hit = found.get(sessionId);
   if (hit && (hit.file || Date.now() - hit.at < 5000)) return hit.file;

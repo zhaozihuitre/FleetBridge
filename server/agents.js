@@ -140,6 +140,15 @@ function statusLineCommand() {
   const cmd = STATUSLINE_CMD.replace(/\\/g, '/');
   return /\s/.test(cmd) ? `"${cmd}"` : cmd; // unquoted where possible: a quoted string is not a command in PowerShell
 }
+/** The settings our agents start with, as an object (the self-improvement agents build theirs on it). */
+export function agentSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(agentSettingsFile() || '', 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
 function agentSettingsFile() {
   // MONITOR_AGENT_SETTINGS (dev / tests only): a JSON object merged in, e.g. to switch off a plugin
   let extra = {};
@@ -337,7 +346,7 @@ export function getAgent(id) {
 /**
  * @param {{cwd: string, name?: string, resume?: string, prompt?: string}} opts
  */
-export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) {
+export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [], settingsFile }) {
   const support = agentSupport();
   if (!support.ok) throw new Error(support.error);
   if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw new Error(L('文件夹不存在', 'Folder does not exist', 'フォルダが存在しません'));
@@ -356,7 +365,8 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   // where pages go: the command center, not the system browser
   // and, for the agents the master gives orders to, how to mark the final report (server/report.js)
   args.push('--append-system-prompt', kind === 'master' ? OPEN_HINT : `${OPEN_HINT} ${REPORT_HINT}`);
-  const settings = agentSettingsFile();
+  // settingsFile: its own (a self-improvement development agent: ours plus what it may never do)
+  const settings = settingsFile || agentSettingsFile();
   if (settings) args.push('--settings', settings);
   args.push(...extraArgs);
 

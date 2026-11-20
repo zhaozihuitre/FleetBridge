@@ -84,6 +84,72 @@
   - 重发后又过 50 秒仍没收到，同样报「未执行」，并说明「已自动重发一次」。
   - 重发后正常做完的，完成通知里会注明「指令第一次没送进去，舰桥已自动重发一次」。
 
+## 自我改善（改善提案）
+
+舰桥根据自己的使用情况提出改进舰桥自身的提案，用户同意后在独立分支开发，再次确认后就地更新。设计见 `docs/self-improve-design.md`，代码在 `server/insights/`。
+
+```mermaid
+flowchart LR
+  A[events.jsonl + 指令记录 + 主控/agent 会话记录] --> B[脱敏 redact.js]
+  B --> C[规则检测 detectors.js]
+  B --> D[模型分析 analyze.js<br/>claude -p，可关]
+  C --> E[提案库 proposals.json<br/>去重 / 冷却]
+  D --> E
+  E --> F{用户：同意 / 拒绝 / 稍后}
+  F -- 同意 --> G[worktree 分支 improve/p-xxx<br/>开发 agent 实现 + 测试 + 提交]
+  G --> H[舰桥校验：主仓库未动、跑测试]
+  H --> I{用户：就地更新?}
+  I -- 是 --> J[tools/update.mjs --from worktree<br/>起不来自动回退]
+```
+
+- **数据**：
+  - 事件日志 `events.jsonl`：完成、中断、未执行通知，是否截断，读屏、读全文次数，授权等待时长，自动重发，主控回合中或刚结束时的手动纠正，回答授权。
+  - 指令记录 `orders.jsonl`。
+  - 主控会话里用户自己说的话（不含【舰桥通知】、hook、命令）。
+  - 收到过指令的 agent 的会话记录（末尾 8 MB）：失败的工具调用、stop hook、中断、手动输入。
+  - 默认统计最近 14 天，只在本机读。
+- **脱敏**（`redact.js`）：凡是要进模型输入、提案文字或证据的内容都先过一遍。
+  - 各家 key / token：Anthropic、OpenAI、GitHub、GitLab、Slack、AWS、Google、npm、JWT。
+  - 私钥，URL 里的账号密码，Authorization / Cookie 头，`password / token / secret / api_key / session / cookie = 值`，命令行的 `--password` 等。
+  - 邮箱、长十六进制串、长随机串、长 base64。
+  - 本机的推送 topic 和手机访问令牌（按原值）。
+  - 用户目录换成 `~`，用户名换成 `‹redacted:user›`。
+- **规则检测**（10 个，超阈值才出提案）：截断后读全文、追问主控、频繁读屏、指令没送进去、同类授权久等、手动纠正、重复指令、工具同样方式失败、频繁中断、stop hook 打断。
+- **模型分析**：
+  - 默认开，`claude-sonnet-5-5`，不带工具、不保存会话，最多 3 分钟。
+  - 输入是脱敏后的统计、规则发现和用户原话样本，约 30k 字以内，并附上已有和已拒绝的提案标题，要求不要重复。
+  - 输出的证据必须引用输入里出现过的 ref 或指标，引用不上的证据删掉，没有证据的提案丢弃。
+  - 模型失败时用规则提案；关掉 `llm` 就完全不出本机。
+- **时机**：
+  - 每天 12:30，或上次分析后主控回合满 30 轮。
+  - 两次自动分析至少隔 6 小时；额度低、demo、或事件不足 20 条时不跑。
+  - 指挥中心「立即分析」、主控的 `fleet_improve_analyze` 可随时手动触发。
+- **去重与冷却**：
+  - 同一 fingerprint，或标题字符二元组相似度 ≥ 0.6，算同一提案，只更新计数和证据。
+  - 拒绝的永不再提；只有指标恶化到拒绝时的 3 倍才再提一次，并附上次拒绝的理由。
+  - 「稍后」7 天后回到待决定；已更新的同类 30 天内不提。
+- **审批入口**：
+  - 指挥中心的「改善 PROPOSALS」标签：数字是待决定 + 待更新的数量。列表按状态分组，点开看详情，按钮随状态变化；同意、更新、回滚、丢弃都要确认，拒绝可写理由。
+  - 标签页顶部的开关：自我改善、模型分析、推送到手机，以及「立即分析」「清空事件日志」。
+  - 手机页的「改善」标签：列表、详情和同样的按钮（开关只在电脑上）。
+  - ntfy 推送默认关，推送内容只有标题。
+  - 主控：新提案、开发完成、更新结果都会发【舰桥通知】💡 / 🛠 / ✅。三个工具 `fleet_proposals`、`fleet_decide`、`fleet_improve_analyze`；主控说明和工具说明都写明只有用户明确同意才能 approve 或 install。
+- **实施**（`implement.js`，同时只做一个）：
+  - 在 FleetBridge 仓库建 `git worktree <数据目录>/improve/P-xxx`，分支 `improve/p-xxx`，基线是主仓库 HEAD；主仓库有未提交改动时会提示基线不含它们。`node_modules` 用目录联接指向主仓库。
+  - 开发 agent 以 `--permission-mode acceptEdits` 启动（只自动接受工作目录内的编辑）。它的 settings 在舰桥的基础上加了禁止规则：`git push`、`npm publish`、`update.mjs`、安装包、`git worktree remove`、`git branch -D`、`git reset --hard`，并允许 `npm test`、`git add/commit/diff` 等常用命令免确认。
+  - 首条指令包含提案全文和规则：只改 worktree、写测试、更新 project-docs、本地提交、用 `[[FLEET-REPORT]]` 汇报。新文件夹的信任对话框由舰桥自动回答。
+  - 回合结束后舰桥自己校验：
+    - 主仓库的 `git status` 必须和开始时一样（不一样就是越界或你自己改了，为安全标为失败）。
+    - worktree 相对基线必须有改动。
+    - 在 worktree 里重新跑 `npm test`。
+  - 改到 `desktop/`、`bin/`、`package-lock.json` 或 `package.json` 的依赖、外壳字段时，标为「需安装包」，不提供就地更新。
+  - 4 小时没做完自动停止，标为失败。
+- **更新与回滚**：
+  - 用户确认后，以分离进程运行 worktree 里的 `tools/update.mjs --from <worktree> --data-dir <数据目录> --port <端口>`，输出写进日志，之后每次刷新读一次。
+  - `✔ now running` 记为已更新；`✖` 或 5 分钟没结果记为失败（update.mjs 本身会在新版本起不来时回到旧版本）。
+  - 「回滚」用主仓库的 `update.mjs --rollback`；「丢弃」先拆掉 `node_modules` 联接（拆不掉就什么都不删），再删 worktree 和分支。
+  - 整个流程不 push、不发版；分支保留，合并由用户决定。
+
 ## 手机访问
 
 - 顶栏手机图标 → 「开启手机访问」：另开一个只给手机的服务（端口 = 主端口 + 2，安装版为 8789），监听局域网；电脑上的主服务仍只在 127.0.0.1。默认关闭，设置存 `~/.claude-ops/mobile.json`。

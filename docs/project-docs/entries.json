@@ -4218,6 +4218,60 @@
       "created": "2026-11-20 09:34",
       "updated": "2026-11-20 09:34",
       "notes": []
+    },
+    {
+      "id": "M-021",
+      "type": "milestone",
+      "title": "自我改善：根据使用情况提出改善提案，同意后开发并就地更新",
+      "summary": "server/insights/ 采集本机使用数据、脱敏、10 条规则 + 模型分析生成提案；指挥中心与手机页审批，同意后在独立 worktree 分支由开发 agent 实现，校验后再确认就地更新，可回滚",
+      "detail": "**完成了什么**：「fleet 会根据用户的使用习惯和会话内容自动提出改善意见，得到同意后会进行开发和更新」的设计（docs/self-improve-design.md）中，阶段 1 和阶段 2 都已实现。\n\n**关键产出**：\n- `server/insights/`：\n  - settings：开关。\n  - events：事件日志。\n  - redact：脱敏。\n  - collect：采集。\n  - detectors：10 条规则。\n  - analyze：模型分析与证据校验。\n  - proposals：提案库、去重、冷却、状态机。\n  - implement：worktree、开发 agent、校验、update.mjs、回滚、丢弃。\n  - improve：调度和通知。\n- 界面：\n  - 指挥中心「改善 PROPOSALS」标签（`web/proposals.js`）。\n  - 手机页「改善」标签（`web/m-proposals.js`）。\n  - ntfy 推送，默认关。\n- 主控：\n  - 工具 `fleet_proposals`、`fleet_decide`、`fleet_improve_analyze`。\n  - 新增通用的主控通知队列 `queueMasterNote`。\n  - GUIDE 写明 approve / install 只在用户明确同意后执行。\n- 测试：新增 22 项（脱敏、检测器、提案库、分析与证据校验、真实 git 仓库上的 worktree 实施、完整的提案流程）；全部 39 项通过。\n- 用真实数据空跑：构造出的模型输入里没有用户名、推送 topic、邮箱或 key。\n\n**下一步**：\n- 装上之后积累事件日志（安装前没有事件，规则层大多要等数据）。\n- 观察第一次分析的质量和阈值，必要时再调。\n- 阶段 3（提案草稿、批量实施、一键合并）未做。\n",
+      "status": "done",
+      "files": [
+        "server/insights/",
+        "web/proposals.js",
+        "web/m-proposals.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs",
+        "test/insights-*.test.mjs",
+        "docs/self-improve-design.md"
+      ],
+      "tags": [
+        "自我改善",
+        "主控",
+        "agent"
+      ],
+      "sections": [
+        "features",
+        "api",
+        "data"
+      ],
+      "refs": [
+        "0.9.74"
+      ],
+      "created": "2026-11-20 10:00",
+      "updated": "2026-11-20 10:00",
+      "notes": []
+    },
+    {
+      "id": "D-016",
+      "type": "decision",
+      "title": "改善提案在独立 git worktree 中实施，不在主仓库工作区",
+      "summary": "开发 agent 在 <数据目录>/improve/P-xxx 的 worktree 分支里工作；舰桥校验主仓库状态不变、重跑测试，更新前再征求同意",
+      "detail": "**问题**：同意提案后由 agent 自动改舰桥自己的代码，既不能碰用户正在改的主仓库工作区，也要能确认它没越界。\n\n**候选方案**：\n- A 在主仓库里新开分支：切分支会影响用户正在做的未提交改动。\n- B 复制一份源码：没有 git 历史，难以合并。\n- C git worktree：独立工作区，共享同一个仓库和历史，分支可以直接合并。\n\n**结论**：C。\n\n**做法**：\n- `node_modules` 用目录联接指向主仓库。丢弃前先拆掉联接，拆不掉就什么都不删，防止删除时穿过联接删掉主仓库的模块。\n- 开发 agent 用 acceptEdits 模式，加上 settings 里的 deny 规则（push、publish、update.mjs、安装包等）。\n- 舰桥事后校验主仓库的 `git status` 和开始时一致，并在 worktree 里自己跑一遍测试。\n\n**限制**：agent 有 Bash，没法从系统层面完全阻止它写其他目录。所以靠三层把关：deny 规则、事后校验、安装前用户再次确认。\n",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "自我改善",
+        "安全"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-11-20 10:00",
+      "updated": "2026-11-20 10:00",
+      "notes": []
     }
   ]
 }

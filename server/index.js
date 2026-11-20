@@ -9,6 +9,10 @@ import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collector
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
 import { modelQuota } from './modelquota.js';
 import { readReply, saveReply } from './replies.js';
+import { analyzeNow, decide, improveState, improveTick, initImprove, proposalStore } from './insights/improve.js';
+import { clearEvents, logEvent, readEvents } from './insights/events.js';
+import { allowed as proposalActions } from './insights/proposals.js';
+import { improveSettings, setImproveSettings } from './insights/settings.js';
 import { getLang, getLightGrain, getPaper, getTheme, L, setLang, setLightGrain, setPaper, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
@@ -16,14 +20,14 @@ import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
-import { clip, endedTurns, masterTurn, noteOrder, turnReply } from './turns.js';
+import { clip, endedTurns, masterTurn, noteOrder, transcriptOf, turnOver, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
 import { mobileInfo, pendingDevices, setMobile, startMobile, stopMobile, webSetupNeeded, webUrl } from './mobile.js';
-import { pushInfo, pushNotices, setPush, testPush } from './push.js';
+import { pushInfo, pushMessage, pushNotices, setPush, testPush } from './push.js';
 import { lineText, noticeHistory, noticeNeverRan, noticeSystem, recentNotices, toastText, updateNotices } from './notices.js';
 import { startSysload, sysKill, sysState, sysUnits, sysWant } from './sysload.js';
-import { kindIcon, kindWord, lastTurn, notifySettings, setNotifySettings, summarize, useClaude } from './summary.js';
+import { kindIcon, kindWord, lastTurn, notifySettings, runClaude, setNotifySettings, summarize, useClaude } from './summary.js';
 import { screenHtml } from './screenhtml.js';
 import { demoSessions } from './demo.js';
 import { resumeSession } from './launch.js';
@@ -33,8 +37,8 @@ import { markSeen, seenAt } from './seen.js';
 import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
-import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
+import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
 
@@ -68,6 +72,7 @@ function offlineCards(sessions) {
 }
 let state = null;
 const promptSeen = new Map(); // agent id -> when its current permission dialog was first seen
+const promptAsked = new Map(); // agent id -> { at, text, agent } of the dialog it shows (self-improvement statistics)
 function promptSince(id) {
   if (!promptSeen.has(id)) promptSeen.set(id, Date.now());
   return promptSeen.get(id);
@@ -100,8 +105,14 @@ function publish() {
     const prompt = a ? permissionPrompt(a) || questionPrompt(a) || pickerPrompt(a) : null;
     if (!prompt) {
       promptSeen.delete(id);
+      const was = id && promptAsked.get(id);
+      if (was) {
+        promptAsked.delete(id);
+        logEvent('permit.wait', { agent: was.agent, agentId: id, kind: was.kind, text: was.text, waitMs: Date.now() - was.at });
+      }
       continue;
     }
+    if (!promptAsked.has(id)) promptAsked.set(id, { at: promptSince(id), text: prompt.text.split('\n').find((l) => l.trim()) || '', kind: prompt.kind || 'permission', agent: a.name || s.name || s.project });
     prompts.set(s.sessionId, prompt);
     s.permission ||= { at: promptSince(id), message: prompt.text.split('\n').find((l) => l.trim()) || prompt.options.map((o) => o.label).join(' / ') };
     asks.push({ agentId: id, name: a.name || s.name || s.project, project: s.project, prompt });
@@ -177,7 +188,11 @@ function publish() {
   // and the turns it gave out that have ended, with their answers
   const owned = state.units.filter((u) => u.owned && u.agentId);
   // an order that didn't go in is typed again once (turns.js; agents.js resendOrder)
-  const resend = (id, text) => resendOrder(getAgent(id), text);
+  const resend = (id, text) => {
+    const r = resendOrder(getAgent(id), text);
+    logEvent(r === 'sent' || r === 'enter' ? 'order.resent' : 'order.blocked', { agent: getAgent(id)?.name || '', agentId: id, reason: r, text });
+    return r;
+  };
   for (const t of endedTurns(owned, new Set(asks.map((x) => x.agentId)), Date.now(), { resend })) {
     const r = turnReply(t.sessionId, t.since);
     if (r?.messaged) continue; // it already answered the master itself (SendMessage)
@@ -193,10 +208,18 @@ function publish() {
     const turn = lt && lt.promptAt >= t.since - 5000 ? lt : { prompt: t.text, reply: r?.reply || '', said: r?.reply || '' };
     const summaryKey = `master:${t.agentId}:${t.since}`;
     if (!t.neverRan && !r?.interrupted && !r?.error && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
+    logEvent(`notice.${t.neverRan ? 'never_ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done'}`, { agent: getAgent(t.agentId)?.name || t.name, agentId: t.agentId, ms: t.ms, len: full.length, cut, marked: !!r?.marked, resent: !!t.resent, reason: t.blocked || undefined });
     masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, file, marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
     if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);
+  // self-improvement (server/insights): the schedule, development agents, updates under way
+  try {
+    improveTick(owned, new Set(asks.map((x) => x.agentId)));
+  } catch (e) {
+    console.error('self-improvement tick failed', e.message);
+  }
+  state.improve = improveState();
   // notices (desktop toasts via the widget, phone push, the lists): decided once, each with its summary
   updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow() });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
@@ -231,6 +254,25 @@ function publish() {
 }
 
 // the five-hour quota nearly used up: summaries by rules only (the model would spend what is left)
+// This machine's own secrets, taken out of anything the self-improvement analysis sends (by their exact value,
+// besides the patterns of insights/redact.js): the push topic, the phone access's tokens and password hash.
+function localSecrets() {
+  const out = [];
+  const walk = (v) => {
+    if (typeof v === 'string' && v.length >= 12) out.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  for (const f of ['push.json', 'mobile.json']) {
+    try {
+      walk(JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), 'utf8')));
+    } catch {
+      // not there
+    }
+  }
+  return out.filter((s) => !/^https?:\/\/[^/]+\/?$/.test(s)); // a bare server address (https://ntfy.sh) is no secret
+}
+
 function quotaLow() {
   const five = usage?.limits?.find((l) => l.key === 'session' || /five|5h/i.test(l.key || '')) || usage?.fiveHour;
   const used = five?.usedPct ?? five?.used ?? null;
@@ -328,7 +370,10 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
       return ok;
     }
     if (action === 'key') return sendKey(a, key);
-    if (action === 'answer') return answerPrompt(a, String(choice));
+    if (action === 'answer') {
+      logEvent('tool.answer', { agent: a.name || '', agentId: a.id, choice: String(choice), via });
+      return answerPrompt(a, String(choice));
+    }
     if (action === 'queue' && typeof text === 'string' && text.trim()) {
       enqueue(a.id, text.trim(), via);
       recordOrder({ kind: 'queued', ...orderTarget(a), text: text.trim(), via });
@@ -540,7 +585,55 @@ async function handleRequest(req, res) {
   if (req.method === 'GET' && req.url.startsWith('/api/agents/screen?')) {
     const a = getAgent(new URL(req.url, 'http://localhost').searchParams.get('id') || '');
     if (!a) return send(res, 404, { error: 'unknown_agent' });
+    if (!req.headers.origin) logEvent('tool.read_screen', { agent: a.name || '', agentId: a.id }); // the master's tool (a page sends an Origin)
     return send(res, 200, { lines: screenLines(a), alive: a.alive });
+  }
+  // self-improvement proposals (server/insights): the list or one, decisions, an analysis now, the switches
+  if (req.method === 'GET' && (req.url === '/api/proposals' || req.url.startsWith('/api/proposals?'))) {
+    const store = proposalStore();
+    const id = new URL(req.url, 'http://localhost').searchParams.get('id');
+    if (id) {
+      const p = store.get(id);
+      return p ? send(res, 200, { proposal: p, allowed: proposalActions(p.status), improve: improveState() }) : send(res, 404, { error: 'unknown_proposal' });
+    }
+    const brief = (p) => ({ ...p, history: undefined, impl: p.impl && { branch: p.impl.branch, result: p.impl.result && { status: p.impl.result.status, reason: p.impl.result.reason, tests: p.impl.result.tests && { pass: p.impl.result.tests.pass, fail: p.impl.result.tests.fail }, files: p.impl.result.files?.length || 0 }, installResult: p.impl.installResult && { ok: p.impl.installResult.ok, version: p.impl.installResult.version } }, allowed: proposalActions(p.status) });
+    return send(res, 200, { proposals: store.list().map(brief), improve: improveState() });
+  }
+  if (req.method === 'POST' && req.url === '/api/proposals/decide') {
+    const b = await readBody(req);
+    const by = req.fleetWeb ? 'phone' : b.by === 'master' ? 'master' : 'user';
+    try {
+      const p = await decide(String(b.id || ''), String(b.action || ''), String(b.note || '').slice(0, 500), by);
+      publish();
+      return send(res, 200, { ok: true, proposal: p });
+    } catch (e) {
+      return send(res, 400, { error: String(e.message || e) });
+    }
+  }
+  if (req.method === 'POST' && req.url === '/api/proposals/analyze') {
+    const b = await readBody(req);
+    if (!improveSettings().enabled) return send(res, 400, { error: 'self_improve_off' });
+    try {
+      const r = await analyzeNow(req.fleetWeb ? 'phone' : b.by === 'master' ? 'master' : 'user');
+      publish();
+      return send(res, 200, { findings: r.findings, model: r.model, error: r.error || null, added: r.added.map((p) => ({ id: p.id, title: p.title })), updated: r.updated.length });
+    } catch (e) {
+      return send(res, 500, { error: String(e.message || e) });
+    }
+  }
+  if (req.url === '/api/improve/settings') {
+    if (req.method === 'POST') {
+      if (req.fleetWeb) return send(res, 403, { error: 'computer_only' }); // the switches only on the computer
+      const s = setImproveSettings(await readBody(req));
+      publish();
+      return send(res, 200, s);
+    }
+    return send(res, 200, improveSettings());
+  }
+  if (req.method === 'POST' && req.url === '/api/improve/clear') {
+    if (req.fleetWeb) return send(res, 403, { error: 'computer_only' });
+    clearEvents();
+    return send(res, 200, { ok: true });
   }
   // an agent's full answer (the master's fleet_read_reply): a saved one (turn 0 = latest), else, with
   // none saved yet (a turn the master didn't give), the transcript's last turn
@@ -548,6 +641,7 @@ async function handleRequest(req, res) {
     const q = new URL(req.url, 'http://localhost').searchParams;
     const a = getAgent(q.get('id') || '');
     if (!a) return send(res, 404, { error: 'unknown_agent' });
+    if (!req.headers.origin) logEvent('tool.read_reply', { agent: a.name || '', agentId: a.id });
     const saved = readReply(a.id, q.get('turn') || 0);
     if (saved) return send(res, 200, { source: 'file', ...saved });
     if (Number(q.get('turn') || 0) > 0) return send(res, 404, { error: 'no_such_turn' });
@@ -845,6 +939,45 @@ export async function start({ onListening } = {}) {
   // the first usage and git scans fill the cards when they're done; the page works meanwhile
   Promise.all([refreshUsage(), refreshGit()]).catch((e) => console.error('first refresh failed', e.message));
   startSysload({ onWarn: (w) => (noticeSystem(w), publish()), onChange: () => publish() });
+  // self-improvement (docs/self-improve-design.md): what it needs of the rest of the server
+  initImprove({
+    dataDir: DATA_DIR,
+    demo: Boolean(process.env.MONITOR_DEMO),
+    port: config.port,
+    appVersion: () => appVersion,
+    masterSession: () => getAgent(masterInfo().id)?.sessionId || masterInfo().id || null,
+    transcriptOf,
+    turnOver,
+    turnReply,
+    events: (since) => readEvents(since),
+    runModel: (prompt, o) => runClaude(prompt, o),
+    lang: () => getLang(),
+    quotaLow: () => quotaLow(),
+    redactOptions: () => ({ secrets: localSecrets() }),
+    // the FleetBridge checkout: this code's own folder when it is one (a dev run), else a project folder seen
+    repoCandidates: () => [ROOT, ...new Set((state?.history || []).map((h) => h.cwd).filter(Boolean)), ...(state?.units || []).map((u) => u.cwd)],
+    baseSettings: () => agentSettings(),
+    spawnAgent: (o) => {
+      const a = spawnAgent(o);
+      publish();
+      return a;
+    },
+    alive: (id) => Boolean(getAgent(id)?.alive),
+    endAgent: (id) => getAgent(id) && endAgent(getAgent(id)),
+    // its new worktree folder asks to be trusted: ours, so yes
+    trustIfAsked: (id) => {
+      const a = getAgent(id);
+      const t = a && trustPrompt(a);
+      const yes = t?.options.find((o) => /yes|trust|proceed/i.test(o.label));
+      if (yes && !a.trustAnsweredAt) {
+        a.trustAnsweredAt = Date.now();
+        answerPrompt(a, yes.key);
+      }
+    },
+    masterNote: (text) => queueMasterNote(text),
+    push: (m) => pushMessage({ ...m, click: webUrl?.() || undefined }),
+    changed: () => setTimeout(publish, 0),
+  });
   timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
   await startMobile({ action: (b) => agentAction(b), web: webRequest, socket: (req, socket, head) => agentSocket(req, socket, head), changed: () => publish(), screen: (id) => {
     const a = getAgent(id);

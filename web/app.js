@@ -9,6 +9,7 @@ import { ask } from './ui.js';
 import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 import { initSys, renderSys, sysWarnSince, sysWarnText } from './sysload.js';
+import { initProposals, loadProposals, proposalCount, proposalsPage } from './proposals.js';
 
 const $ = (id) => document.getElementById(id);
 // Opened on this computer, or from another device over web access (a tablet, a phone, another PC):
@@ -50,7 +51,7 @@ const KIND = {
 };
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
-const TABS = ['units', 'agents', 'orders', 'notices', 'archive'];
+const TABS = ['units', 'agents', 'orders', 'notices', 'proposals', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -974,7 +975,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
-  if (ui.tab === 'orders' || ui.tab === 'notices') return { kind: ui.tab, list: [] }; // one scrolling page, no paging
+  if (ui.tab === 'orders' || ui.tab === 'notices' || ui.tab === 'proposals') return { kind: ui.tab, list: [] }; // one scrolling page, no paging
   return { kind: ui.tab, list: { units: state.units, agents: liveAgents() }[ui.tab] };
 }
 
@@ -1047,11 +1048,14 @@ function renderPage() {
       : emptyBlock('empty', L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。'), `<button class="btn" data-empty-deploy>${L('＋ 出击')}</button>`);
   else if (ui.tab === 'orders') html = ordersPage();
   else if (ui.tab === 'notices') html = noticesPage();
+  else if (ui.tab === 'proposals') html = proposalsPage();
   if (kind !== 'archive') {
-    const scroller = { orders: '.orders', notices: '.notices' }[kind];
+    const scroller = { orders: '.orders', notices: '.notices', proposals: '.proposals' }[kind];
     const keep = scroller ? document.querySelector(scroller)?.scrollTop || 0 : 0;
     const repoScroll = new Map([...document.querySelectorAll('.unit[data-unit] .repos')].map((r) => [r.closest('.unit').dataset.unit, r.scrollTop]));
-    $('page').innerHTML = html;
+    // the proposals page is drawn again only when it changed (a note being typed there keeps its focus)
+    if (kind !== 'proposals' || renderPage.pp !== html) $('page').innerHTML = html;
+    renderPage.pp = kind === 'proposals' ? html : null;
     if (keep) document.querySelector(scroller).scrollTop = keep; // live refreshes keep the scroll position
     for (const r of document.querySelectorAll('.unit[data-unit] .repos')) {
       r.scrollTop = repoScroll.get(r.closest('.unit').dataset.unit) || 0;
@@ -1070,6 +1074,11 @@ function renderPage() {
   $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0);
   noticeBadge();
   loadNotices();
+  // improvement proposals: the ones waiting on you, and the list fetched again when it changed
+  const pc = proposalCount(state);
+  $('n-proposals').textContent = pc;
+  $('n-proposals').classList.toggle('new', pc > 0);
+  loadProposals(state).then((changed) => changed && ui.tab === 'proposals' && renderPage());
   const busy = state.units.filter((u) => u.status === 'busy').length;
   $('summary').textContent = L('◆ 作战 {0}　◆ 待命 {1}', busy, state.units.length - busy);
   // one page: no pager; many pages: a window of 7 dots around the current one, and the count
@@ -1255,6 +1264,7 @@ async function post(url, body) {
   return res.json();
 }
 initSys({ post, toast });
+initProposals({ post, toast, render: () => renderPage() });
 
 async function focus(pid) {
   // our own agents live in the terminal panel, not in an outside window
@@ -2614,8 +2624,8 @@ window.addEventListener('hashchange', () => {
 function uiView() {
   const { kind, list } = currentList();
   const size = pageSize(kind);
-  const pages = kind === 'orders' || kind === 'notices' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
-  const shown = kind === 'orders' || kind === 'notices' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
+  const pages = kind === 'orders' || kind === 'notices' || kind === 'proposals' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
+  const shown = kind === 'orders' || kind === 'notices' || kind === 'proposals' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
   const label = (x) => x.name || x.title || x.project || x.cwd || x.id;
   return {
     tab: ui.tab,

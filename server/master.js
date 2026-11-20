@@ -18,9 +18,31 @@ const MCP_CONFIG = path.join(DATA_DIR, 'master-mcp.json');
 
 // fleet tools the master may use without asking; answering another agent's permission prompt is
 // left out on purpose: that approves something on the user's behalf, so Claude Code asks first
-const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_read_reply', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
+const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_read_reply', 'fleet_proposals', 'fleet_decide', 'fleet_improve_analyze', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
 
 const GUIDE = `# 主控 · Fleet Bridge master console
+
+你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
+
+- 用户消息里的「#名字」指对应的终端（和 fleet_status 里的名字或项目名对应，可以直接作为 agent 参数传给工具），「#all」指全部我方 agent。旧对话里的「@名字」也是同样的意思。
+- 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
+- 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
+- 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕；要看它某一轮回答的全文（不受屏幕大小和长度限制），用 fleet_read_reply。
+- 以「【舰桥通知】」开头的消息是舰桥自动发来的，不是用户说的。有两种：
+  - 等授权 / 等回答：某个 agent 弹出了授权框或选择框。把问题和选项简要转告用户（需要用户决定的就问用户），或在明显该怎么选时直接用 fleet_answer 回答，并告诉用户你选了什么。
+  - 完成：你派给某个 agent 的指令（fleet_send、排队后发出的、fleet_spawn 带的首条指令）这一轮做完了，附有它的回答。把结果汇总告诉用户；需要后续动作的提出建议或继续派发。回答被截断时用 fleet_read_reply 读全文（通知里也附了全文文件的路径）。用户自己在终端里下的指令不会通知。
+- agent 在等授权时，把它问的内容告诉用户；用户同意后再用 fleet_answer 回应。明显无害的只读操作可以直接同意。
+- 需要新的 agent 时用 fleet_projects 找文件夹，再用 fleet_spawn 启动。
+- 用户说「打开 / 切到 / 看看 某个终端或页面」时，用 fleet_ui 操作指挥中心：切标签页（部队 units / 活动终端 agents / 指令 orders / 存档 archive）、翻页、在分屏里打开或关闭终端、搜索会话、看某个项目的存档、打开审查改动、全屏等。每次调用都会返回界面当前显示的内容。
+- 你不亲自做任何具体业务：不只是改代码，取数据、查资料、写文件、跑脚本或 skill 产出内容等都算业务。需要做业务时，用 fleet_spawn 单独开一个终端派给它：在合适的项目目录里开；没有合适目录时，开一个专门的工作终端（例如用 fleet_projects 找一个工作用的文件夹）。你只负责拆分任务、分派、跟进和汇总。
+- 要给用户看页面（本地 HTML / Markdown 文件、图片、localhost 页面）时，用 fleet_open 在舰桥里打开，不要打开系统浏览器；终端里的 agent 用「fleet-open <路径或URL>」命令（舰桥已放进它们的 PATH）。
+- 只读的状态确认不算业务：fleet_status、fleet_read_screen、fleet_read_reply、fleet_proposals、fleet_projects、fleet_ui 这些可以随时用。
+- 改善提案：舰桥会根据使用情况自动提出改进舰桥自身的提案（【舰桥通知】💡）。用 fleet_proposals 看详情，转告用户现象、证据、改动、收益和风险，问用户是否同意。只有用户明确同意后，才能用 fleet_decide 批准（approve）；开发完成后是否就地更新（install），也必须再问用户、得到明确同意才执行。你自己不能替用户同意。用户说「分析一下 / 看看有什么可改进的」时可用 fleet_improve_analyze。
+- 回答用户时用用户使用的语言，简洁地说结果。
+`;
+
+// the 0.9.73 default
+const GUIDE_V8 = `# 主控 · Fleet Bridge master console
 
 你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
 
@@ -224,7 +246,7 @@ function prepare(url) {
   } catch {
     // none yet
   }
-  if (current === null || [GUIDE_V1, GUIDE_V2, GUIDE_V3, GUIDE_V4, GUIDE_V5, GUIDE_V6, GUIDE_V7].includes(current)) fs.writeFileSync(guide, GUIDE);
+  if (current === null || [GUIDE_V1, GUIDE_V2, GUIDE_V3, GUIDE_V4, GUIDE_V5, GUIDE_V6, GUIDE_V7, GUIDE_V8].includes(current)) fs.writeFileSync(guide, GUIDE);
   // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
   fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
   // Electron's own binary runs it as node; under plain node, execPath is node itself
@@ -517,6 +539,14 @@ export function masterTurnDone(x) {
  * Questions our agents wait on, and the master's turns that ended, typed into the master in one message.
  * @param {{agentId: string, name: string, project: string, prompt: {kind: string, text: string, options: {key: string, label: string}[]}}[]} asks
  */
+// Other notices for the master (self-improvement proposals, their builds and updates): sent with the next
+// notice that can go out, oldest first, kept an hour at most
+const notes = [];
+export function queueMasterNote(text) {
+  notes.push({ text: String(text), at: Date.now() });
+  while (notes.length > 20) notes.shift();
+}
+
 export function notifyMaster(asks) {
   // one question per agent (its session can be found twice: by its process and by its id)
   asks = [...new Map(asks.map((x) => [x.agentId, x])).values()];
@@ -554,23 +584,27 @@ export function notifyMaster(asks) {
       return complete(f.best) || now0 - f.at > INCOMPLETE_WAIT; // a partial reading waits a little for the full one
     })
     .map((x) => firstSeen.get(x.agentId).best);
-  if (!fresh.length && !finished.length) return;
+  while (notes.length && Date.now() - notes[0].at > 3_600_000) notes.shift();
+  if (!fresh.length && !finished.length && !notes.length) return;
   // never type into the middle of what the user is writing to the master: wait for an empty input
   if (Date.now() - (m.typedAt || 0) < TYPING_PAUSE || !inputEmpty(m)) return;
   // a finished turn waits at most 15 s for its model summary (the rules' one is there at once)
   const now = Date.now();
   const ready = (x) => !x.summaryKey || cachedSummary(x.summaryKey)?.done !== false || now - x.at > 15_000;
-  if (!fresh.length && !finished.some(ready)) return;
+  if (!fresh.length && !finished.some(ready) && !notes.length) return;
   const done = finished.filter(ready);
   const later = finished.filter((x) => !ready(x));
   finished.splice(0, finished.length, ...later);
-  const parts = [...done.map(doneNotice), ...fresh.map(notice)];
+  const told = notes.splice(0, notes.length);
+  const parts = [...done.map(doneNotice), ...fresh.map(notice), ...told.map((n) => n.text)];
   const tail = [];
   if (done.length) tail.push(L('把结果汇总告诉用户', 'sum the results up for the user', '結果をまとめてユーザーに伝える'));
+  if (told.length && !done.length && !fresh.length) tail.push(L('按通知里说的转告用户', 'tell the user as the notice says', '通知の内容をユーザーに伝える'));
   if (fresh.length) tail.push(L('用 fleet_answer 按编号回答，该由用户决定的先问用户', 'answer with fleet_answer by number, asking the user first when it is theirs to decide', 'fleet_answer で番号を指定して回答。ユーザーが決めるべきものは先に確認'));
   const body = [...parts, L(`（舰桥自动发送：${tail.join('；')}。）`, `(Sent by Fleet Bridge: ${tail.join('; ')}.)`, `（艦橋が自動送信：${tail.join('。')}。）`)].join('\n\n');
   if (!sendText(m, body)) {
     finished.unshift(...done);
+    notes.unshift(...told);
     return;
   }
   saveFinished();

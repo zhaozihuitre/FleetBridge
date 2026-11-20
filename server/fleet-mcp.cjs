@@ -104,6 +104,48 @@ const TOOLS = [
     },
   },
   {
+    name: 'fleet_proposals',
+    description: "Fleet Bridge's improvement proposals (made from how it is used: finding, evidence, change, benefit, effort, risk) and where each stands. No id: the list (status = new, later, implementing, built, installed, rejected… or 'open' for all not closed). With id: one in full (its evidence, the development agent's report, tests, the files changed). Read-only.",
+    inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'e.g. P-007' }, status: { type: 'string' } } },
+    async run({ id, status }) {
+      const r = await api(`/api/proposals${id ? `?id=${encodeURIComponent(id)}` : ''}`);
+      if (id) {
+        const p = r.proposal;
+        if (!p) return `no proposal ${id}`;
+        const ev = (p.evidence || []).map((e) => `  - ${e.ref || e.metric}${e.value ? ' = ' + e.value : ''}${e.quote ? ': ' + e.quote : ''}`).join('\n');
+        const res = p.impl?.result;
+        const lines = [`${p.id} [${p.status}] ${p.title}  (effort ${p.effort}, from ${p.source}${p.count ? `, seen ${p.count}×` : ''})`, `finding: ${p.finding}`, `evidence:\n${ev || '  (none)'}`, `change: ${p.change}`, `benefit: ${p.benefit}`, `risk: ${p.risk}`, `decisions you may take now: ${(r.allowed || []).join(', ') || '(none)'}`];
+        if (p.impl?.branch) lines.push(`branch: ${p.impl.branch} (worktree ${p.impl.worktree})`);
+        if (res) lines.push(`build: ${res.status}${res.reason ? ' · ' + res.reason : ''}${res.tests ? ` · tests ${res.tests.pass} passed / ${res.tests.fail} failed` : ''}${res.files?.length ? `\nfiles: ${res.files.join(', ')}` : ''}${res.stat ? `\n${res.stat}` : ''}`);
+        if (p.impl?.reply) lines.push(`development agent's report:\n${p.impl.reply}`);
+        if (p.impl?.installResult) lines.push(`update: ${p.impl.installResult.ok ? 'ok ' + (p.impl.installResult.version || '') : 'failed'}\n${p.impl.installResult.tail || ''}`);
+        return lines.join('\n');
+      }
+      const want = status === 'open' ? null : status;
+      const list = (r.proposals || []).filter((p) => (want ? p.status === want : status === 'open' ? !['rejected', 'discarded', 'installed', 'rolled-back'].includes(p.status) : true));
+      const head = r.improve ? `self-improvement: ${r.improve.settings.enabled ? 'on' : 'off'}${r.improve.settings.llm ? '' : ' (rules only)'} · last analysis ${r.improve.last?.at ? new Date(r.improve.last.at).toLocaleString('zh-CN') : 'never'}${r.improve.analyzing ? ' · analyzing now' : ''}` : '';
+      return [head, ...list.map((p) => `${p.id} [${p.status}] ${p.title} (effort ${p.effort})`)].filter(Boolean).join('\n') || 'no proposals';
+    },
+  },
+  {
+    name: 'fleet_decide',
+    description: "Act on an improvement proposal FOR THE USER. approve (its development starts in a separate git worktree branch), reject (note = the user's reason: it is never proposed again), later (a week), retry (a failed build), install (update the running Fleet Bridge in place from the built branch; it rolls back by itself if the new version doesn't start), rollback (back to the version before), discard (remove its branch). approve and install ONLY after the user clearly said yes to exactly that; never on your own. Nothing is pushed or released.",
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, decision: { type: 'string', enum: ['approve', 'reject', 'later', 'retry', 'install', 'rollback', 'discard'] }, note: { type: 'string' } }, required: ['id', 'decision'] },
+    async run({ id, decision, note }) {
+      const r = await api('/api/proposals/decide', { id, action: decision, note: note || '', by: 'master' });
+      return `${r.proposal.id} → ${r.proposal.status}${r.proposal.impl?.branch && decision === 'approve' ? ` (branch ${r.proposal.impl.branch}; you get a 【舰桥通知】 when it is built)` : ''}`;
+    },
+  },
+  {
+    name: 'fleet_improve_analyze',
+    description: "Run Fleet Bridge's self-improvement analysis now (it also runs by itself once a day): it looks at how Fleet Bridge was used (notices, orders, screen reads, permission waits, corrections, failed tool calls) and adds improvement proposals. Takes up to a few minutes; returns what it found.",
+    inputSchema: { type: 'object', properties: {} },
+    async run() {
+      const r = await api('/api/proposals/analyze', { by: 'master' });
+      return `findings by the rules: ${r.findings} · model: ${r.model}${r.error ? ' (' + r.error + ')' : ''} · new proposals: ${(r.added || []).map((p) => `${p.id} ${p.title}`).join('; ') || 'none'} · updated: ${r.updated ?? 0}`;
+    },
+  },
+  {
     name: 'fleet_send',
     description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
@@ -158,7 +200,7 @@ const TOOLS = [
     description: [
       'Drive the Fleet Bridge command center window the user is looking at, and see what it shows. Every call returns the current view (tab, page, terminals open in the split, ...). Actions:',
       '- state: just report the view',
-      '- tab {tab: units | agents | orders | archive}: units = cards of every session; agents = our live terminals; orders = the order log and queues; archive = past sessions by folder',
+      '- tab {tab: units | agents | orders | notices | proposals | archive}: units = cards of every session; agents = our live terminals; orders = the order log and queues; notices = recent notices; proposals = the improvement proposals; archive = past sessions by folder',
       '- page {to: next | prev | <number>}',
       '- folder {cwd}: show that project folder in the archive (cwd or project name)',
       '- open {agents: [...]}: open these agents\' terminals in the split view (max 4; the last one becomes the big, active one)',

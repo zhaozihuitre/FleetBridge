@@ -16,6 +16,11 @@
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
 | GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |
 | GET | `/api/agents/reply?id=&turn=` | 我方 agent 某一轮的完整回答（主控 `fleet_read_reply`）。返回 `{ source: 'file', file, text, turn, count }`；没有保存过时返回 `{ source: 'transcript', text, ended }`。错误：`unknown_agent`、`no_such_turn`、`no_reply`（均 404） | 同源 |
+| GET | `/api/proposals[?id=]` | 改善提案列表（`{ proposals, improve }`），或一条的全部内容（`{ proposal, allowed, improve }`，`allowed` 是当前状态可做的决定） | 同源 / 手机 |
+| POST | `/api/proposals/decide` | `{ id, action, note?, by? }`，`action` 取 `approve / reject / later / new / retry / install / rollback / discard`，按状态检查是否允许（不允许返回 400 `not_allowed:<状态>:<动作>`）。手机来的记为 `by: phone` | 同源 / 手机 |
+| POST | `/api/proposals/analyze` | 立即分析一次，返回 `{ findings, model: used/off/failed, added, updated }`；自我改善关闭时 400 `self_improve_off` | 同源 / 手机 |
+| GET/POST | `/api/improve/settings` | 自我改善的开关（见数据章节 `self-improve.json`）；只能在电脑上改 | 同源 |
+| POST | `/api/improve/clear` | 清空事件日志 `events.jsonl`；只能在电脑上 | 同源 |
 | WS | `/ws/agents/{id}` | 我方 agent 的终端通道 | 同源 |
 | GET | `/`、`/widget`、`/term` | 指挥中心、战况小窗、弹出终端页面 | — |
 

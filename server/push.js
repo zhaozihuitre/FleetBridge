@@ -82,6 +82,13 @@ const sent = new Set();
  * (base: the web address, or null when web access is off): #term=<our agent> (an outside session has
  * no terminal to open here: the page itself).
  */
+/** One message of our own (the self-improvement proposals), when push is on. */
+export function pushMessage({ title, message, priority = 3, tags = ['bell'], click }) {
+  if (!settings.enabled || !settings.topic) return false;
+  send({ title, message, priority, tags, click });
+  return true;
+}
+
 export function pushNotices(notices, base) {
   if (!settings.enabled || !settings.topic) return;
   for (const n of notices) {

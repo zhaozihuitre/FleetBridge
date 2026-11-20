@@ -243,15 +243,15 @@ const MODEL_TIMEOUT = 15_000;
 let running = 0;
 const waiting = [];
 
-function runModel(prompt) {
+function runModel(prompt, { model = MODEL, timeout = MODEL_TIMEOUT } = {}) {
   return new Promise((resolve, reject) => {
     if (!claudeExe) return reject(new Error('no claude'));
-    const p = spawn(claudeExe, ['-p', '--model', MODEL, '--no-session-persistence', '--setting-sources', '', '--tools', '', '--output-format', 'text'], { windowsHide: true, cwd: os.tmpdir(), env: { ...process.env, CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: '' } });
+    const p = spawn(claudeExe, ['-p', '--model', model, '--no-session-persistence', '--setting-sources', '', '--tools', '', '--output-format', 'text'], { windowsHide: true, cwd: os.tmpdir(), env: { ...process.env, CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: '' } });
     let out = '';
     const timer = setTimeout(() => {
       p.kill();
       reject(new Error('timeout'));
-    }, MODEL_TIMEOUT);
+    }, timeout);
     p.stdout.on('data', (d) => (out += d));
     p.on('error', (e) => {
       clearTimeout(timer);
@@ -264,6 +264,9 @@ function runModel(prompt) {
     p.stdin.end(prompt);
   });
 }
+
+/** claude -p on the user's plan: no tools, no session kept, no settings or hooks (also for server/insights). */
+export const runClaude = (prompt, o) => limited(() => runModel(prompt, o));
 
 async function limited(fn) {
   if (running >= 2) await new Promise((r) => waiting.push(r));
