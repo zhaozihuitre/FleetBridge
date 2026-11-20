@@ -4272,6 +4272,38 @@
       "created": "2026-11-20 10:00",
       "updated": "2026-11-20 10:00",
       "notes": []
+    },
+    {
+      "id": "I-045",
+      "type": "issue",
+      "title": "fleet_status 和指挥中心不再显示模型额度与重置时间（被回退到 0.9.69）",
+      "summary": "11-19 13:14 服务进程以 0xC000026B 启动失败两次，外壳把 0.9.72 判为坏版本、退回安装包自带的 0.9.69；0.9.69 没有自愈代码，一直停留；主控早上重启时又复制了 0.9.69 的 fleet-mcp.cjs，就地更新到 0.9.74 后主控仍用旧工具",
+      "detail": "**现象**：\n- 主控的 fleet_status 里每个 agent 的「model: … · quota … resets …」一行不见了。\n- 指挥中心终端卡片上的额度和重置时间也没了。\n\n**根因**（三环相扣）：\n1. 11-19 13:14（JST），服务进程退出，外壳重启它时连续两次以 `3221226091`（0xC000026B，STATUS_DLL_INIT_FAILED，Windows 没能启动这个进程）失败。外壳据此把 0.9.72 记进 `app/current.json` 的 `failed`，退回 `previous` = 安装包自带的 0.9.69-shell。13:33 PTY host 也重启了，说明整个应用一起被结束了。\n   - 系统日志里这一刻既没有关机、睡眠、注销，也没有崩溃记录，所以触发原因查不到。\n   - 但可以确定这不是代码的问题：进程根本没跑起来。\n2. 0.9.70 的自愈（selfheal.js）只在「回退后运行的那个版本」里执行，而且只认本次开机之前的失败。回退到的 0.9.69 根本没有这段代码，所以一直停在 0.9.69，没有额度显示。\n3. 主控的 MCP 脚本 `<数据目录>/fleet-mcp.cjs` 只在主控启动时复制。11-20 早上主控在 0.9.69 下启动，复制了旧脚本。10:14 就地更新到 0.9.74 后，服务和页面都是新的，但主控仍在用旧工具，fleet_status 仍然没有那一行。\n\n**解决**（0.9.75）：\n- `fleet-mcp.cjs`：每次调用时检查自身文件是否变了，变了就从文件重新加载工具，并发 `notifications/tools/list_changed`。半写或损坏的文件不采用。\n- `master.js`：新增 `refreshMcpScript()`，服务每次启动（`adoptMaster`）都在内容不同时重写副本（先写临时文件再改名）。以后就地更新后，主控不用重启就能用到新工具。\n- `selfheal.js`：失败原因是 0xC000026B / 0xC0000142 这类「Windows 没能启动进程」的，即使在本次开机内，10 分钟后也恢复回那个版本。每个版本 6 小时内最多恢复一次（记录在 `app/healed.json`，因为外壳改写 current.json 时会丢掉别的字段）。`run.mjs` 除了启动 5 秒后检查一次，之后每 5 分钟再检查一次。\n- `desktop/main.cjs`（要用安装包更新外壳才生效）：遇到这两种退出码不算版本坏掉，也不计入崩溃循环，原版本隔 5、10…30 秒重试最多 6 次。\n\n**如何避免**：\n- 外壳和安装包自带的服务版本太旧，回退到它就会丢掉之后所有的修复。\n- 需要用新安装包更新外壳，回退的落脚点才会有自愈和这次的外壳修复。\n\n**测试**：\n- `test/selfheal.test.mjs` 复现 11-19 的 current.json：10 分钟内不恢复、之后恢复一次、6 小时内不重复、真实失败和需要新外壳的版本不恢复。\n- `test/mcp-reload.test.mjs` 起一个真实的 MCP 子进程：换掉文件后同一进程用上新工具、发出 list_changed、坏文件不采用；refreshMcpScript 只在内容不同时写。\n",
+      "status": "resolved",
+      "files": [
+        "server/selfheal.js",
+        "server/run.mjs",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "desktop/main.cjs",
+        "test/selfheal.test.mjs",
+        "test/mcp-reload.test.mjs"
+      ],
+      "tags": [
+        "升级",
+        "主控",
+        "额度"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "0.9.75"
+      ],
+      "created": "2026-11-20 10:34",
+      "updated": "2026-11-20 10:34",
+      "notes": [],
+      "count": 1
     }
   ]
 }

@@ -82,18 +82,24 @@ try {
   console.log(`server ${server.appVersion} starting (pid ${process.pid})`);
   await server.start({ onListening: () => send({ type: 'ready', url: server.url, version: server.appVersion }) });
   console.log('server started');
-  // a newer version set aside by the last Windows shutdown (an old shell's misjudgment) comes back
-  setTimeout(() => {
+  // a newer version set aside by the last Windows shutdown (an old shell's misjudgment), or by a start Windows
+  // itself failed (selfheal.js), comes back: looked at 5 s after the start, then every 5 minutes
+  let healing = false;
+  const heal = () => {
+    if (healing) return;
     try {
       const back = healShutdownRollback({ dataDir: DATA_DIR, root: ROOT });
       if (back) {
-        console.log(`version ${back} was set aside by the last shutdown, not a real failure: back to it`);
+        healing = true;
+        console.log(`version ${back} was set aside by a shutdown or a start Windows failed, not by itself: back to it`);
         send({ type: 'reload' });
       }
     } catch (e) {
       console.error('shutdown rollback check failed:', e.message);
     }
-  }, 5_000);
+  };
+  setTimeout(heal, 5_000);
+  setInterval(heal, 5 * 60_000).unref();
 } catch (e) {
   console.error('server failed to start:', e.stack || e.message);
   send({ type: 'failed', error: e.code === 'EADDRINUSE' ? 'EADDRINUSE' : e.message });

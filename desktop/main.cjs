@@ -116,8 +116,14 @@ function spawnServer(dir) {
   });
 }
 
+// Exit codes of a process Windows could not start at all (0xC000026B "DLL initialization failed", 0xC0000142):
+// the session or the desktop going away, the app being killed as a whole. Never the version's fault: on 11-19
+// such two starts set 0.9.72 aside mid-day and the app ran the installer's 0.9.69 until updated by hand.
+const ENV_EXIT = /\((3221226091|3221225794)\)/;
+
 /** The current version's server, falling back to the previous version if it won't start. */
 async function startServer() {
+  let envFails = 0;
   for (let attempt = 0; attempt < 3; attempt++) {
     const cur = apps ? apps.resolve(app.getVersion()) : { version: 'checkout', dir: SHELL_DIR };
     try {
@@ -130,6 +136,15 @@ async function startServer() {
       console.error(`server ${cur.version} failed: ${e.message}`);
       if (/EADDRINUSE/.test(e.message)) return null; // a standalone `npm start` already serves: use it
       if (quitting || endingSession) throw e; // the system is taking us down: not the version's fault
+      // Windows could not start the process: wait and try the same version again (a minute and a half in all),
+      // never set it aside; still failing, the caller tries again later (onServerLost)
+      if (ENV_EXIT.test(e.message)) {
+        if (++envFails > 6) throw e;
+        await new Promise((r) => setTimeout(r, 5000 * envFails));
+        if (quitting || endingSession) throw e;
+        attempt--;
+        continue;
+      }
       // a version is set aside only when it fails twice in a row (one failure can be the moment, not the code)
       if (attempt === 0 && !/did not start in/.test(e.message)) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -148,7 +163,8 @@ async function onServerLost(code) {
   serverChild = null;
   if (quitting || endingSession) return;
   const now = Date.now();
-  restarts = [...restarts.filter((t) => now - t < 120_000), now];
+  // killed by Windows (see ENV_EXIT) doesn't count towards the crash loop that sets a version aside
+  if (!ENV_EXIT.test(`(${code})`)) restarts = [...restarts.filter((t) => now - t < 120_000), now];
   if (restarts.length >= 3 && apps?.rollback(`crashed ${restarts.length} times (${code})`)) restarts = [];
   try {
     await startServer();

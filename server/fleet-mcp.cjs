@@ -280,6 +280,41 @@ const TOOLS = [
   },
 ];
 
+// The tools as they are on disk now. This file is a copy (<data>/fleet-mcp.cjs) that the server writes again
+// each time it starts: an in-place update used to leave the master on the old tools until the master itself
+// was restarted (0.9.72's model and quota line missing from fleet_status after an update). Each call looks at
+// the file and, when it changed, takes its tools from it; a changed list is announced (tools/list_changed).
+let loadedAt = 0;
+try {
+  loadedAt = require('fs').statSync(__filename).mtimeMs;
+} catch {
+  // keep what is loaded
+}
+function currentTools() {
+  if (require.main !== module) return TOOLS; // loaded by the reloader below, or a test
+  let at = loadedAt;
+  try {
+    at = require('fs').statSync(__filename).mtimeMs;
+  } catch {
+    return liveTools;
+  }
+  if (at === loadedAt) return liveTools;
+  try {
+    delete require.cache[require.resolve(__filename)];
+    const fresh = require(__filename).TOOLS;
+    if (!Array.isArray(fresh) || !fresh.length) throw new Error('no tools');
+    const names = (l) => l.map((t) => t.name).join(',');
+    const changed = names(fresh) !== names(liveTools);
+    liveTools = fresh;
+    loadedAt = at;
+    if (changed) process.stdout.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' }) + '\n');
+  } catch {
+    loadedAt = at; // a half-written or broken copy: keep the tools there are, look again when it changes
+  }
+  return liveTools;
+}
+let liveTools = TOOLS;
+
 function reply(id, result, error) {
   process.stdout.write(JSON.stringify(error ? { jsonrpc: '2.0', id, error } : { jsonrpc: '2.0', id, result }) + '\n');
 }
@@ -288,11 +323,11 @@ async function handle(msg) {
   const { id, method, params } = msg;
   if (id === undefined) return; // notifications
   if (method === 'initialize')
-    return reply(id, { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fleet', version: '1.0.0' } });
+    return reply(id, { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: { listChanged: true } }, serverInfo: { name: 'fleet', version: '1.0.0' } });
   if (method === 'ping') return reply(id, {});
-  if (method === 'tools/list') return reply(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+  if (method === 'tools/list') return reply(id, { tools: currentTools().map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
   if (method === 'tools/call') {
-    const tool = TOOLS.find((t) => t.name === params?.name);
+    const tool = currentTools().find((t) => t.name === params?.name);
     if (!tool) return reply(id, null, { code: -32602, message: `unknown tool ${params?.name}` });
     try {
       return reply(id, { content: [{ type: 'text', text: await tool.run(params.arguments || {}) }] });
@@ -303,6 +338,10 @@ async function handle(msg) {
   reply(id, null, { code: -32601, message: `method not found: ${method}` });
 }
 
+module.exports = { TOOLS };
+// required (the reloader above, tests): only the tools, no stdin loop
+if (require.main === module) start();
+function start() {
 let buf = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
@@ -320,3 +359,4 @@ process.stdin.on('data', (chunk) => {
   }
 });
 process.stdin.on('end', () => process.exit(0));
+}

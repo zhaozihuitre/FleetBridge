@@ -214,6 +214,7 @@ export function masterAgent() {
 
 /** After a server restart: the master still running in the PTY host is ours again. */
 export function adoptMaster() {
+  refreshMcpScript(); // a master taken back from before an update gets this version's tools
   const a = listAgents().find((x) => x.kind === 'master' && x.alive);
   if (a) {
     masterId = a.id;
@@ -236,6 +237,33 @@ function transcriptExists(sessionId) {
   }
 }
 
+/**
+ * The master's MCP script, copied out of the app (it may be inside an asar archive, which a plain node process
+ * can't read). Written whenever it differs, also by a server that only took a running master back (an
+ * in-place update): the running script takes its tools from the new copy on its next call (fleet-mcp.cjs).
+ * It used to be written only when the master started, so after an update the master kept the old tools.
+ */
+export function refreshMcpScript() {
+  try {
+    const src = fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs'));
+    let cur = null;
+    try {
+      cur = fs.readFileSync(MCP_SCRIPT);
+    } catch {
+      // none yet
+    }
+    if (!cur || !cur.equals(src)) {
+      fs.mkdirSync(path.dirname(MCP_SCRIPT), { recursive: true });
+      fs.writeFileSync(MCP_SCRIPT + '.tmp', src);
+      fs.renameSync(MCP_SCRIPT + '.tmp', MCP_SCRIPT); // whole, never half-written for a reader
+      return true;
+    }
+  } catch (e) {
+    console.error('master tools not refreshed:', e.message);
+  }
+  return false;
+}
+
 function prepare(url) {
   fs.mkdirSync(MASTER_DIR, { recursive: true });
   const guide = path.join(MASTER_DIR, 'CLAUDE.md');
@@ -247,8 +275,7 @@ function prepare(url) {
     // none yet
   }
   if (current === null || [GUIDE_V1, GUIDE_V2, GUIDE_V3, GUIDE_V4, GUIDE_V5, GUIDE_V6, GUIDE_V7, GUIDE_V8].includes(current)) fs.writeFileSync(guide, GUIDE);
-  // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
-  fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
+  refreshMcpScript();
   // Electron's own binary runs it as node; under plain node, execPath is node itself
   const config = { mcpServers: { fleet: { type: 'stdio', command: process.execPath, args: [MCP_SCRIPT], env: { ELECTRON_RUN_AS_NODE: '1', FLEET_URL: url } } } };
   fs.writeFileSync(MCP_CONFIG, JSON.stringify(config, null, 2));
