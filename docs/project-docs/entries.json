@@ -4164,6 +4164,60 @@
       "updated": "2026-11-16 11:01",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-087",
+      "type": "change",
+      "title": "主控完成通知：汇报标记块、全文落盘与 fleet_read_reply、指令未送进去自动重发",
+      "summary": "通知里的回答改取 [[FLEET-REPORT]] 标记块或 stop hook 之前的正式回答；完整回答写到 replies/<agent>/ 并可用 fleet_read_reply 读取；首条指令没送进去时自动重发一次，仍失败再报未执行",
+      "detail": "**背景**：\n- 完成通知里的回答截到 1500 字，提示「用 fleet_read_screen 看全文」，但读屏只能看到当前 120×32 屏幕，长回答早已滚出去。\n- 回答取的是「这一轮最后一段文字」：stop hook（project-docs）拦回去后 agent 补的「无需更新文档」覆盖了正式汇报。\n- fleet_spawn 带指令（尤其 resume）或信任对话框之后，首条指令有时没提交：agent 一直空闲，last order 还是旧的。这时 `started` 永远不成立，旧的「未执行」检测（需要先看到状态变化）根本不触发，主控一直等。\n\n**改动**：\n1. `server/report.js`：\n   - `REPORT_HINT` 追加到我方 agent（主控除外）的 `--append-system-prompt`。\n   - `pickReply`：优先取最后一个 `[[FLEET-REPORT]]…[[/FLEET-REPORT]]` 块；否则取最后一次工具调用之后、stop hook 之前的文字；stop hook 之前什么都没说，才用之后的。\n   - `turns.turnReply` 和 `summary.lastTurn` 都改用它。\n2. `server/replies.js`：\n   - 每次完成或中断，完整回答写到 `<数据目录>/replies/<agent id>/<时间>.md`，每个 agent 保留 50 份；通知里附路径。\n   - 新接口 `GET /api/agents/reply` 和 MCP 工具 `fleet_read_reply(agent, turn)`。\n   - 主控 GUIDE 升到新版（旧默认留作 GUIDE_V7 以便自动升级），ALLOWED 加上该工具。\n3. `turns.endedTurns`：\n   - 指令发出 25 s 后，agent 不在作战中、lastPrompt 不是它、transcript 也没有这条 user 消息 → 通过 `agents.resendOrder` 重发一次。\n   - 不往对话框里重发；输入框里有别的字时不重发；指令还在输入框里时只补回车；输入框没出现时不重发。\n   - 重发后 50 s 仍没收到 → 「未执行（已自动重发一次）」；一直没能重发 → 75 s 后报「未执行」并给原因；重发后做完的，完成通知里注明。\n\n**影响范围**：\n- 只影响主控派的回合。\n- 系统提示的改动对之后启动 / 接管的 agent 生效。\n- 新工具在主控重启后可用。\n\n**测试**：`npm test`（node:test，17 项）；在一份真实 transcript 上，旧规则取到「无需更新文档」，新规则取到正式回答。\n",
+      "status": "done",
+      "files": [
+        "server/report.js",
+        "server/replies.js",
+        "server/turns.js",
+        "server/master.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/summary.js",
+        "server/fleet-mcp.cjs",
+        "test/"
+      ],
+      "tags": [
+        "主控",
+        "通知",
+        "agent"
+      ],
+      "sections": [
+        "features",
+        "api"
+      ],
+      "refs": [
+        "0.9.73"
+      ],
+      "created": "2026-11-20 09:34",
+      "updated": "2026-11-20 09:34",
+      "notes": []
+    },
+    {
+      "id": "D-015",
+      "type": "decision",
+      "title": "agent 汇报用 [[FLEET-REPORT]] 标记块，不靠最后一句",
+      "summary": "约定标记块写在系统提示里；没有标记块时退回 stop hook 之前的正式回答",
+      "detail": "**问题**：主控拿到的回答经常不是正式汇报（被 stop hook 的后续回复覆盖、或只是最后一小段）。\n\n**候选方案**：\n- A 取最长的一段：会误取中途的长分析。\n- B 取 stop hook 之前的最后一段：不依赖 agent 配合，但分不清哪段是汇报。\n- C 约定标记块：最准，但要 agent 遵守，也会在终端里显示两行标记。\n\n**结论**：C 为主、B 兜底（B 改进为「最后一次工具调用之后的全部文字」，避免只拿到最后一小段）。\n\n**理由**：\n- 标记块对没遵守约定的会话（外部接管、旧会话）没有坏处，兜底仍比原来的「最后一句」好。\n- 标记用纯 ASCII 的 `[[FLEET-REPORT]]`：Markdown 渲染不会把它吃掉，也不会和正文冲突。\n",
+      "status": "accepted",
+      "files": [],
+      "tags": [
+        "主控",
+        "通知"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [],
+      "created": "2026-11-20 09:34",
+      "updated": "2026-11-20 09:34",
+      "notes": []
     }
   ]
 }

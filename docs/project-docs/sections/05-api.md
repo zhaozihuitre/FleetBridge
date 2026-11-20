@@ -14,6 +14,8 @@
 | POST | `/api/snooze` | 某任务稍后提醒 | 同源 |
 | POST | `/api/agents` | 出击 / 接管我方 agent | 同源 |
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
+| GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |
+| GET | `/api/agents/reply?id=&turn=` | 我方 agent 某一轮的完整回答（主控 `fleet_read_reply`）。返回 `{ source: 'file', file, text, turn, count }`；没有保存过时返回 `{ source: 'transcript', text, ended }`。错误：`unknown_agent`、`no_such_turn`、`no_reply`（均 404） | 同源 |
 | WS | `/ws/agents/{id}` | 我方 agent 的终端通道 | 同源 |
 | GET | `/`、`/widget`、`/term` | 指挥中心、战况小窗、弹出终端页面 | — |
 

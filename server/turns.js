@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { historyFiles } from './collectors/history.js';
 import { DATA_DIR } from './config.js';
+import { pickReply } from './report.js';
 
 // Turns the master gave out: an order typed into one of our agents by the master (fleet_send, a
 // queued order it sent later, the first order of fleet_spawn). When that turn is over (the agent is
@@ -11,6 +12,9 @@ import { DATA_DIR } from './config.js';
 // input box, the phone) are only remembered as "who gave the last order".
 
 const REPLY_MAX = 1500; // characters of the answer in a notice: its start and its end
+// an order not taken this long after it went out (idle, nothing of it in the transcript) is typed in again;
+// not taken twice this long after that, the master is told it never ran
+export const RESEND_AFTER = 25_000;
 // kept in <data>/turns.json too: an update restarts the server, and the turns under way must still
 // be told when they end (they used to be forgotten, and their notices with them)
 const FILE = path.join(DATA_DIR, 'turns.json');
@@ -51,7 +55,7 @@ export const masterTurn = (id) => turns.get(id) || null;
  * Called on every publish with our agents' live units and the ones waiting on a person.
  * @returns {{agentId: string, sessionId: string, name: string, text: string, ms: number}[]} turns that just ended
  */
-export function endedTurns(units, waiting, now = Date.now()) {
+export function endedTurns(units, waiting, now = Date.now(), { resend } = {}) {
   const done = [];
   for (const u of units) {
     const t = turns.get(u.agentId);
@@ -64,6 +68,36 @@ export function endedTurns(units, waiting, now = Date.now()) {
     const head = t.text.replace(/\s+/g, ' ').trim().slice(0, 30);
     const ours = !head || String(u.lastPrompt || '').replace(/\s+/g, ' ').trim().startsWith(head);
     const started = t.started || ((u.statusSince || 0) > t.at + 500 && ours);
+    // An order that never went in (the first order of fleet_spawn, a resume, right after the trust dialog):
+    // never seen working, idle, its last order still an older one and no such message in the transcript.
+    // Typed in again once (agents.js resendOrder: never into a dialog or over other text); still not in
+    // after that, the master is told it never ran.
+    if (!started && resend && u.status !== 'busy' && !waiting.has(u.agentId) && !ours) {
+      const since = t.resentAt || t.at;
+      if (now - since >= RESEND_AFTER && received(u.sessionId, t.at, t.text) !== true) {
+        if (!t.resentAt) {
+          const r = resend(u.agentId, t.text) || 'sent';
+          if (r === 'sent' || r === 'enter') {
+            t.resentAt = now;
+            t.resend = r;
+            save();
+            continue;
+          }
+          // not typed in (a dialog, other text in the input line, no input line): tried again on the next
+          // publishes, and told as never run after a while
+          t.blocked = r;
+          if (now - t.at < RESEND_AFTER * 3) continue;
+          turns.delete(u.agentId);
+          done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan: true, resent: false, blocked: r });
+          continue;
+        }
+        if (now - t.resentAt >= RESEND_AFTER * 2) {
+          turns.delete(u.agentId);
+          done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan: true, resent: true, resend: t.resend });
+          continue;
+        }
+      }
+    }
     if (!started || u.status !== 'idle' || waiting.has(u.agentId)) {
       delete t.quiet;
       delete t.settle;
@@ -87,7 +121,7 @@ export function endedTurns(units, waiting, now = Date.now()) {
     }
     delete t.settle;
     turns.delete(u.agentId);
-    done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan });
+    done.push({ agentId: u.agentId, sessionId: u.sessionId, name: u.name || u.project, text: t.text, ms: now - t.at, since: t.at, neverRan, resent: Boolean(t.resentAt) });
   }
   // agents that are gone don't finish
   const live = new Set(units.map((u) => u.agentId));
@@ -151,7 +185,7 @@ function tail(file) {
  * Only this turn counts: a turn that wrote no text has no reply (not the one before it).
  * An API error (the quota used up, "needs credits", an overloaded server) is not an answer: it is error,
  * until a real answer after it.
- * @returns {{ reply: string, messaged: boolean, interrupted: boolean, error: string } | null} null: no transcript to read
+ * @returns {{ reply: string, marked: boolean, messaged: boolean, interrupted: boolean, error: string } | null} null: no transcript to read
  */
 export function turnReply(sessionId, since) {
   const file = sessionId && transcriptOf(sessionId);
@@ -162,13 +196,14 @@ export function turnReply(sessionId, since) {
   } catch {
     return null;
   }
-  let reply = '';
+  const mine = [];
   let messaged = false;
   let interrupted = false;
   let error = '';
   for (const e of entries) {
     const at = Date.parse(e.timestamp || '') || 0;
     if (!at || at < since - 2000) continue; // before this turn (entries with no time aren't messages)
+    mine.push(e);
     if (e.type === 'user' && cutShort(e.message?.content)) interrupted = true;
     if (e.type !== 'assistant' || !Array.isArray(e.message?.content)) continue;
     for (const c of e.message.content) {
@@ -177,14 +212,15 @@ export function turnReply(sessionId, since) {
         continue;
       }
       if (c.type === 'text' && c.text?.trim()) {
-        reply = c.text.trim();
         error = '';
         interrupted = false; // it went on and answered after all
       }
       if (c.type === 'tool_use' && c.name === 'SendMessage') messaged = true;
     }
   }
-  return { reply, messaged, interrupted, error };
+  // the report: a marked block, else the answer before a stop hook sent it back to work (server/report.js)
+  const { reply, marked } = pickReply(mine);
+  return { reply, marked, messaged, interrupted, error };
 }
 
 /**
@@ -216,6 +252,29 @@ export function turnOver(sessionId, since) {
   }
   return over;
 }
+
+/**
+ * Whether the transcript has this order as a message of the user's, written after it went out
+ * (null: no transcript to read; a new session has none until its first message).
+ */
+export function received(sessionId, since, text) {
+  const file = sessionId && transcriptOf(sessionId);
+  if (!file) return null;
+  const head = flatText(text).slice(0, 30);
+  try {
+    return tail(file).some((e) => {
+      if (e.type !== 'user' || e.isMeta || e.isSidechain) return false;
+      const at = Date.parse(e.timestamp || '') || 0;
+      if (at < since - 2000) return false;
+      const c = e.message?.content;
+      const said = flatText(typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x) => x?.type === 'text').map((x) => x.text).join(' ') : '');
+      return Boolean(said) && (!head || said.includes(head));
+    });
+  } catch {
+    return null;
+  }
+}
+const flatText = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
 /** Whether the transcript has anything of the turn that started at `since` (null: no transcript to read). */
 function traced(sessionId, since) {

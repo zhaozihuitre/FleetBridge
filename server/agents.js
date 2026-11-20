@@ -10,6 +10,7 @@ import { DATA_DIR, DEV, DEV_PREFIX } from './config.js';
 import { L } from './i18n.js';
 import * as host from './ptyclient.js';
 import { BIN_DIR, browserCommand } from './preview.js';
+import { REPORT_HINT } from './report.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -353,7 +354,8 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [] }) 
   if (DEV) name = DEV_PREFIX + String(name || path.basename(cwd)).replace(DEV_PREFIX, '');
   if (name) args.push('--name', String(name).slice(0, 60));
   // where pages go: the command center, not the system browser
-  args.push('--append-system-prompt', OPEN_HINT);
+  // and, for the agents the master gives orders to, how to mark the final report (server/report.js)
+  args.push('--append-system-prompt', kind === 'master' ? OPEN_HINT : `${OPEN_HINT} ${REPORT_HINT}`);
   const settings = agentSettingsFile();
   if (settings) args.push('--settings', settings);
   args.push(...extraArgs);
@@ -524,6 +526,25 @@ export function sendText(agent, text) {
   };
   setTimeout(verify, 1500);
   return true;
+}
+
+/**
+ * Types an order again that didn't go in (server/turns.js: idle, and nothing of it in the transcript).
+ * Never into a dialog; if the order still sits in the input line, only Enter; never over other text
+ * someone has typed there.
+ * @returns {'sent' | 'enter' | 'dialog' | 'busy-input' | 'no-input' | 'gone'}
+ */
+export function resendOrder(agent, text) {
+  if (!agent?.alive) return 'gone';
+  if (dialogShowing(agent)) return 'dialog';
+  const head = String(text).replace(/\s+/g, ' ').trim().slice(0, 10);
+  if (orderInInput(agent, head)) {
+    agent.term.write('\r');
+    return 'enter';
+  }
+  if (inputLine(agent) === null) return 'no-input'; // Claude Code's input box isn't drawn (still loading, or something else on screen)
+  if (!inputEmpty(agent)) return 'busy-input'; // (its dim placeholder counts as empty)
+  return sendText(agent, text) ? 'sent' : 'gone';
 }
 
 /** Whether Claude Code's input line (the ❯ line under a rule) still holds this text, or a collapsed paste. */

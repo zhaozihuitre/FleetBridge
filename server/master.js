@@ -18,9 +18,30 @@ const MCP_CONFIG = path.join(DATA_DIR, 'master-mcp.json');
 
 // fleet tools the master may use without asking; answering another agent's permission prompt is
 // left out on purpose: that approves something on the user's behalf, so Claude Code asks first
-const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
+const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_read_reply', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
 
 const GUIDE = `# 主控 · Fleet Bridge master console
+
+你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
+
+- 用户消息里的「#名字」指对应的终端（和 fleet_status 里的名字或项目名对应，可以直接作为 agent 参数传给工具），「#all」指全部我方 agent。旧对话里的「@名字」也是同样的意思。
+- 先用 fleet_status 看清有哪些 agent、各自在做什么、是否在等授权。
+- 下指令用 fleet_send：写清楚、可以直接执行的指令；可以一次发给多个 agent，或 ["all"]。默认 auto：空闲的立即发，作战中的排队，做完当前这轮再发。
+- 想知道某个 agent 进展或卡在哪，用 fleet_read_screen 看它的屏幕；要看它某一轮回答的全文（不受屏幕大小和长度限制），用 fleet_read_reply。
+- 以「【舰桥通知】」开头的消息是舰桥自动发来的，不是用户说的。有两种：
+  - 等授权 / 等回答：某个 agent 弹出了授权框或选择框。把问题和选项简要转告用户（需要用户决定的就问用户），或在明显该怎么选时直接用 fleet_answer 回答，并告诉用户你选了什么。
+  - 完成：你派给某个 agent 的指令（fleet_send、排队后发出的、fleet_spawn 带的首条指令）这一轮做完了，附有它的回答。把结果汇总告诉用户；需要后续动作的提出建议或继续派发。回答被截断时用 fleet_read_reply 读全文（通知里也附了全文文件的路径）。用户自己在终端里下的指令不会通知。
+- agent 在等授权时，把它问的内容告诉用户；用户同意后再用 fleet_answer 回应。明显无害的只读操作可以直接同意。
+- 需要新的 agent 时用 fleet_projects 找文件夹，再用 fleet_spawn 启动。
+- 用户说「打开 / 切到 / 看看 某个终端或页面」时，用 fleet_ui 操作指挥中心：切标签页（部队 units / 活动终端 agents / 指令 orders / 存档 archive）、翻页、在分屏里打开或关闭终端、搜索会话、看某个项目的存档、打开审查改动、全屏等。每次调用都会返回界面当前显示的内容。
+- 你不亲自做任何具体业务：不只是改代码，取数据、查资料、写文件、跑脚本或 skill 产出内容等都算业务。需要做业务时，用 fleet_spawn 单独开一个终端派给它：在合适的项目目录里开；没有合适目录时，开一个专门的工作终端（例如用 fleet_projects 找一个工作用的文件夹）。你只负责拆分任务、分派、跟进和汇总。
+- 要给用户看页面（本地 HTML / Markdown 文件、图片、localhost 页面）时，用 fleet_open 在舰桥里打开，不要打开系统浏览器；终端里的 agent 用「fleet-open <路径或URL>」命令（舰桥已放进它们的 PATH）。
+- 只读的状态确认不算业务：fleet_status、fleet_read_screen、fleet_read_reply、fleet_projects、fleet_ui 这些可以随时用。
+- 回答用户时用用户使用的语言，简洁地说结果。
+`;
+
+// the 0.9.72 default
+const GUIDE_V7 = `# 主控 · Fleet Bridge master console
 
 你是 Fleet Bridge（舰桥）的主控。用户在这里跟你对话，你通过 fleet 工具指挥其他 Claude Code 终端（agent）干活。
 
@@ -203,7 +224,7 @@ function prepare(url) {
   } catch {
     // none yet
   }
-  if (current === null || [GUIDE_V1, GUIDE_V2, GUIDE_V3, GUIDE_V4, GUIDE_V5, GUIDE_V6].includes(current)) fs.writeFileSync(guide, GUIDE);
+  if (current === null || [GUIDE_V1, GUIDE_V2, GUIDE_V3, GUIDE_V4, GUIDE_V5, GUIDE_V6, GUIDE_V7].includes(current)) fs.writeFileSync(guide, GUIDE);
   // copied out of the app (it may be inside an asar archive, which a plain node process can't read)
   fs.writeFileSync(MCP_SCRIPT, fs.readFileSync(path.join(ROOT, 'server', 'fleet-mcp.cjs')));
   // Electron's own binary runs it as node; under plain node, execPath is node itself
@@ -389,9 +410,34 @@ const mins = (ms) => {
 export function doneNotice(x) {
   const order = x.text.replace(/\s+/g, ' ').trim();
   const head = order.length > 40 ? order.slice(0, 40) + '…' : order;
+  // the full answer is on disk (server/replies.js): its path, and fleet_read_reply when this one is cut
+  const full = x.file ? '\n' + L(`全文：${x.file}`, `Full text: ${x.file}`, `全文：${x.file}`) : '';
+  const cutNote = x.cut ? '\n' + L('（太长已截断，完整内容用 fleet_read_reply 读取）', '(cut: fleet_read_reply gives it in full)', '（長いため省略。全文は fleet_read_reply で取得）') : '';
   const reply = x.reply
-    ? `${L('回答：', 'Answer:', '回答：')}\n${x.reply}${x.cut ? '\n' + L('（太长已截断，完整内容用 fleet_read_screen 查看）', '(cut: fleet_read_screen shows it in full)', '（長いため省略。全文は fleet_read_screen で確認）') : ''}`
-    : L('（没取到回答，用 fleet_read_screen 查看）', '(no answer found: see fleet_read_screen)', '（回答を取得できません。fleet_read_screen で確認）');
+    ? `${x.marked ? L('汇报：', 'Report:', '報告：') : L('回答：', 'Answer:', '回答：')}\n${x.reply}${cutNote}${full}`
+    : L('（没取到回答，用 fleet_read_reply 或 fleet_read_screen 查看）', '(no answer found: see fleet_read_reply or fleet_read_screen)', '（回答を取得できません。fleet_read_reply か fleet_read_screen で確認）');
+  // its first order didn't go in and Fleet Bridge typed it again (turns.js)
+  const resent = x.resent ? L('（指令第一次没送进去，舰桥已自动重发一次。）', '(the order did not go in the first time; Fleet Bridge sent it again.)', '（最初は指示が届かなかったため、艦橋が自動で再送しました。）') + '\n' : '';
+  // the order never went in, also after Fleet Bridge typed it again
+  if (x.neverRan && x.resent)
+    return L(
+      `【舰桥通知】未执行：${x.name}（${x.agentId.slice(0, 8)}）没有接收你派的指令「${head}」：发出后它一直空闲，会话记录里没有这条指令；舰桥已自动重发一次，仍然没有进去（可能卡在舰桥认不出的对话框上，或还在加载）。请用 fleet_read_screen 看屏幕，处理后重新派。`,
+      `[Fleet notice] Not run: ${x.name} (${x.agentId.slice(0, 8)}) did not take your order "${head}": it stayed idle with no trace of it in its transcript, and Fleet Bridge's one automatic resend did not get in either (a dialog Fleet Bridge doesn't know, or still loading). See fleet_read_screen, then send it again.`,
+      `【艦橋通知】未実行：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を受け取っていません。送信後も待機のままで会話記録に指示がなく、艦橋の自動再送 1 回も届きませんでした（艦橋が認識できないダイアログ、または読み込み中の可能性）。fleet_read_screen で画面を確認し、対処してから再送してください。`,
+    );
+  // never went in, and Fleet Bridge could not type it again (turns.js / agents.js resendOrder)
+  if (x.neverRan && x.blocked) {
+    const why = {
+      dialog: L('屏幕上有对话框', 'a dialog is on its screen', '画面にダイアログがある'),
+      'busy-input': L('输入框里有别的文字', 'its input line holds other text', '入力欄に別の文字がある'),
+      'no-input': L('输入框一直没出现（还在加载，或卡在别的画面）', 'its input line never showed (still loading, or another screen)', '入力欄が表示されない（読み込み中か別の画面）'),
+    }[x.blocked] || x.blocked;
+    return L(
+      `【舰桥通知】未执行：${x.name}（${x.agentId.slice(0, 8)}）没有接收你派的指令「${head}」：发出后它一直空闲，会话记录里没有这条指令；舰桥想自动重发，但${why}，没有重发。请用 fleet_read_screen 看屏幕，处理后重新派。`,
+      `[Fleet notice] Not run: ${x.name} (${x.agentId.slice(0, 8)}) did not take your order "${head}": it stayed idle with no trace of it in its transcript, and Fleet Bridge did not type it again because ${why}. See fleet_read_screen, then send it again.`,
+      `【艦橋通知】未実行：${x.name}（${x.agentId.slice(0, 8)}）はあなたの指示「${head}」を受け取っていません。送信後も待機のままで会話記録に指示がなく、${why}ため艦橋は自動再送しませんでした。fleet_read_screen で画面を確認し、対処してから再送してください。`,
+    );
+  }
   // never ran: idle a minute with nothing of the order in its transcript (a dialog before it was cancelled)
   if (x.neverRan)
     return L(
@@ -429,9 +475,9 @@ export function doneNotice(x) {
     : '';
   const icon = s?.needs ? '🟡' : '✅';
   return L(
-    `【舰桥通知】${icon} 完成：${x.name}（${x.agentId.slice(0, 8)}）做完了你派的指令「${head}」，用时 ${mins(x.ms)}。\n${sum}${reply}`,
-    `[Fleet notice] ${icon} Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${sum}${reply}`,
-    `【艦橋通知】${icon} 完了：${x.name}（${x.agentId.slice(0, 8)}）があなたの指示「${head}」を完了（${mins(x.ms)}）。\n${sum}${reply}`,
+    `【舰桥通知】${icon} 完成：${x.name}（${x.agentId.slice(0, 8)}）做完了你派的指令「${head}」，用时 ${mins(x.ms)}。\n${resent}${sum}${reply}`,
+    `[Fleet notice] ${icon} Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${resent}${sum}${reply}`,
+    `【艦橋通知】${icon} 完了：${x.name}（${x.agentId.slice(0, 8)}）があなたの指示「${head}」を完了（${mins(x.ms)}）。\n${resent}${sum}${reply}`,
   );
 }
 

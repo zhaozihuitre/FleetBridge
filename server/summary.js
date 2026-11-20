@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DATA_DIR } from './config.js';
 import { getLang, L } from './i18n.js';
 import { historyFiles } from './collectors/history.js';
+import { pickReply } from './report.js';
 
 // What a finished turn did, in a few lines, for the notices (desktop, phone, lists, the master):
 //  1. the turn is read from the session's transcript: the last prompt and everything after it
@@ -148,6 +149,8 @@ export function lastTurn(sessionId) {
     }
   }
   turn.said = all.join('\n\n');
+  // the report rather than the last thing said (a reply to a stop hook comes after it): server/report.js
+  if (turn.reply) turn.reply = pickReply(entries.slice(start + 1)).reply || turn.reply;
   return turn;
 }
 

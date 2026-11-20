@@ -8,6 +8,7 @@ import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
 import { modelQuota } from './modelquota.js';
+import { readReply, saveReply } from './replies.js';
 import { getLang, getLightGrain, getPaper, getTheme, L, setLang, setLightGrain, setPaper, setTheme } from './i18n.js';
 import { collectHistory, historyFiles } from './collectors/history.js';
 import { searchSessions } from './search.js';
@@ -33,7 +34,7 @@ import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
 
@@ -175,18 +176,24 @@ function publish() {
   // the master hears without having to look: our agents waiting on a person (once per question),
   // and the turns it gave out that have ended, with their answers
   const owned = state.units.filter((u) => u.owned && u.agentId);
-  for (const t of endedTurns(owned, new Set(asks.map((x) => x.agentId)))) {
+  // an order that didn't go in is typed again once (turns.js; agents.js resendOrder)
+  const resend = (id, text) => resendOrder(getAgent(id), text);
+  for (const t of endedTurns(owned, new Set(asks.map((x) => x.agentId)), Date.now(), { resend })) {
     const r = turnReply(t.sessionId, t.since);
     if (r?.messaged) continue; // it already answered the master itself (SendMessage)
     const u = owned.find((x) => x.agentId === t.agentId);
     // the screen's last answer only when there's no transcript at all: it can be an older turn's
-    const { text: reply, cut } = clip(r ? r.reply : u?.lastText || '');
+    const full = r ? r.reply : u?.lastText || '';
+    const { text: reply, cut } = clip(full);
+    // the whole answer on disk too (the notice gives its path; fleet_read_reply reads it)
+    const status = t.neverRan ? 'never-ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done';
+    const file = t.neverRan ? null : saveReply({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, order: t.text, reply: full, ms: t.ms, status });
     // its summary (rules at once, the model's within 15 s): the master's notice opens with it
     const lt = lastTurn(t.sessionId);
     const turn = lt && lt.promptAt >= t.since - 5000 ? lt : { prompt: t.text, reply: r?.reply || '', said: r?.reply || '' };
     const summaryKey = `master:${t.agentId}:${t.since}`;
     if (!t.neverRan && !r?.interrupted && !r?.error && turn.reply) summarize(summaryKey, turn, { useModel: true, quotaLow: quotaLow() });
-    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
+    masterTurnDone({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, text: t.text, ms: t.ms, since: t.since, reply, cut, file, marked: !!r?.marked, resent: !!t.resent, blocked: t.blocked || '', interrupted: !!r?.interrupted, neverRan: t.neverRan, error: r?.error || '', summaryKey });
     if (t.neverRan) noticeNeverRan({ agentId: t.agentId, sessionId: t.sessionId, name: getAgent(t.agentId)?.name || t.name, project: u?.project, text: t.text, since: t.since });
   }
   notifyMaster(asks);
@@ -534,6 +541,19 @@ async function handleRequest(req, res) {
     const a = getAgent(new URL(req.url, 'http://localhost').searchParams.get('id') || '');
     if (!a) return send(res, 404, { error: 'unknown_agent' });
     return send(res, 200, { lines: screenLines(a), alive: a.alive });
+  }
+  // an agent's full answer (the master's fleet_read_reply): a saved one (turn 0 = latest), else, with
+  // none saved yet (a turn the master didn't give), the transcript's last turn
+  if (req.method === 'GET' && req.url.startsWith('/api/agents/reply?')) {
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const a = getAgent(q.get('id') || '');
+    if (!a) return send(res, 404, { error: 'unknown_agent' });
+    const saved = readReply(a.id, q.get('turn') || 0);
+    if (saved) return send(res, 200, { source: 'file', ...saved });
+    if (Number(q.get('turn') || 0) > 0) return send(res, 404, { error: 'no_such_turn' });
+    const lt = lastTurn(a.sessionId);
+    if (!lt?.reply) return send(res, 404, { error: 'no_reply' });
+    return send(res, 200, { source: 'transcript', text: `## Order\n\n${lt.prompt}\n\n## Reply\n\n${lt.reply}\n`, turn: 0, count: 0, ended: lt.ended });
   }
   if (req.method === 'POST' && req.url === '/api/agents/action') {
     const body = await readBody(req);

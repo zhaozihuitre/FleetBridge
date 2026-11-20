@@ -86,6 +86,24 @@ const TOOLS = [
     },
   },
   {
+    name: 'fleet_read_reply',
+    description: "Read an agent's full answer to an order, not cut and not limited to the screen: the report of a turn you gave it (also saved as a file, whose path the 【舰桥通知】 gives). turn 0 (default) = the latest, 1 = the one before, …; with no saved answer, the last turn of its transcript. agent = id, name or project.",
+    inputSchema: { type: 'object', properties: { agent: { type: 'string' }, turn: { type: 'integer', minimum: 0 } }, required: ['agent'] },
+    async run({ agent, turn = 0 }) {
+      const { ours } = await fleet();
+      const x = resolve(ours, agent);
+      let r;
+      try {
+        r = await api(`/api/agents/reply?id=${encodeURIComponent(x.a.id)}&turn=${Number(turn) || 0}`);
+      } catch (e) {
+        if (!/^no_/.test(e.message)) throw e;
+        return `${x.name} [${x.a.id.slice(0, 8)}]: ${e.message === 'no_such_turn' ? `no saved answer #${turn}` : 'no answer found'}`;
+      }
+      const where = r.source === 'file' ? `${r.file} (turn ${r.turn} of ${r.count} saved)` : `its transcript's last turn${r.ended ? '' : ' (still going on)'}`;
+      return `${x.name} [${x.a.id.slice(0, 8)}] full answer, from ${where}:\n\n${r.text}`;
+    },
+  },
+  {
     name: 'fleet_send',
     description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
