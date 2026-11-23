@@ -4605,6 +4605,39 @@
       "created": "2026-11-23 13:28",
       "updated": "2026-11-23 13:28",
       "notes": []
+    },
+    {
+      "id": "C-095",
+      "type": "change",
+      "title": "Ctrl+V 粘贴文件、文件夹和截图：插入完整路径",
+      "summary": "资源管理器里复制的文件或文件夹，用 Ctrl+V 粘贴到终端或指令框时，按拖入的规则插入路径；截图存成 PNG 再插入路径；Claude Code 终端里的 Ctrl+V 现在也能粘贴文本",
+      "detail": "**背景**：用户反馈「ctrl v，也能粘贴才好用」。实测（Electron 45，真实按键）：\n- 终端面板里，xterm 把 Ctrl+V 当作 ^V（`\\x16`）发给程序，不触发浏览器粘贴。Claude Code 收到 ^V 什么也不做（它在 Windows 上粘贴图片用的是 Alt+V），所以文本、文件、截图都粘不进去。\n- 指令框（textarea）里，文本粘贴正常；复制的文件在 paste 事件里能拿到真实路径，但页面没有处理；截图只是内存里的 image.png。\n- Ctrl+Shift+V / Shift+Insert 在终端里能粘贴文本，但带不了文件。\n\n**改动内容**：\n- 终端用 `attachCustomKeyEventHandler` 把 Ctrl+V 交给浏览器粘贴，按剪贴板内容分别处理（`web/filedrop.js` 的 `pasteKind` / `pasteTarget`）：\n  - 文件或文件夹：插入路径，规则和拖入一致；\n  - 截图：调用 `POST /api/paste-image`，存到 `<数据目录>/pastes/`，再插入路径；\n  - 文本：程序开启了 bracketed paste（Claude Code）就按粘贴处理，否则照旧发 ^V（PowerShell 由 PSReadLine 自己粘贴）；\n  - 剪贴板为空：发 ^V。\n- 指令框按同样规则插入到光标处。\n- WS 连接时，服务端根据 headless 屏幕补发 `\\x1b[?2004h`，因为 512KB 回放里可能已经没有 Claude Code 开启 bracketed paste 的序列。\n\n**原因**：和拖入保持一致，只给路径，由 Claude Code 自己读文件；不改变 Ctrl+C、Ctrl+Shift+V、Alt+V 和 shell 里的 ^V。\n\n**影响范围**：只改了 web 和 server，就地更新即可生效，不需要安装包。\n\n**注意事项**：\n- 截图每次保存时清理（超过 7 天的删除，最多保留 200 张）。\n- 浏览器访问时，文件拿不到路径会给提示；截图可以粘贴，因为存在服务端这台电脑上。\n",
+      "status": "done",
+      "files": [
+        "web/filedrop.js",
+        "web/terminal.js",
+        "server/pasteimg.js",
+        "server/index.js",
+        "web/i18n.js",
+        "test/filedrop.test.mjs",
+        "test/pasteimg.test.mjs"
+      ],
+      "tags": [
+        "终端",
+        "拖入文件",
+        "粘贴"
+      ],
+      "sections": [
+        "features",
+        "api",
+        "data"
+      ],
+      "refs": [
+        "0.9.80"
+      ],
+      "created": "2026-11-23 13:35",
+      "updated": "2026-11-23 13:35",
+      "notes": []
     }
   ]
 }

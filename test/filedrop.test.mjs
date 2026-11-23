@@ -129,3 +129,95 @@ test('an order box: paths at its cursor, an input event for the page; the page g
   assert.equal(stray.prevented, true, 'the window does not open the file in place of the page');
   assert.match(p.hint(), /拖到终端/);
 });
+
+// ---- pasting (Ctrl+V): files copied in Explorer, a screenshot, text ----
+const { pasteKind, isCtrlV, pasteTarget } = await import('../web/filedrop.js');
+const clip = ({ text = '', files = [] } = {}) => ({ files, getData: (t) => (t === 'text/plain' ? text : '') });
+const pev = (cd) => {
+  const e = { clipboardData: cd, prevented: false, stopped: false };
+  e.preventDefault = () => (e.prevented = true);
+  e.stopPropagation = () => (e.stopped = true);
+  return e;
+};
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test('pasteKind: files give their paths, text stays text (even beside an image), a screenshot is an image', () => {
+  const get = (f) => f.path || '';
+  assert.deepEqual(pasteKind(clip({ files: [{ path: 'C:\\a b\\c.txt' }, { path: 'D:\\dir' }] }), get), { kind: 'paths', text: '"C:\\a b\\c.txt" D:\\dir', missing: 0 });
+  assert.deepEqual(pasteKind(clip({ text: 'hello' }), get), { kind: 'text' });
+  assert.deepEqual(pasteKind(clip({ text: 'A1\tB1', files: [{ type: 'image/png' }] }), get), { kind: 'text' }, 'a spreadsheet copy: its text');
+  const shot = { type: 'image/png', name: 'image.png' };
+  assert.deepEqual(pasteKind(clip({ files: [shot] }), get), { kind: 'image', file: shot });
+  assert.deepEqual(pasteKind(clip({ files: [{ type: 'text/plain' }] }), null), { kind: 'nopath', count: 1 }, 'a browser: no paths');
+  assert.deepEqual(pasteKind(clip(), get), { kind: 'none' });
+  assert.deepEqual(pasteKind(null, get), { kind: 'none' });
+});
+
+test("isCtrlV: Ctrl+V alone; not Ctrl+Shift+V, Alt+V (Claude Code's image paste), AltGr or Ctrl+C", () => {
+  assert.equal(isCtrlV({ ctrlKey: true, code: 'KeyV', key: 'v' }), true);
+  assert.equal(isCtrlV({ ctrlKey: true, code: 'KeyV', key: 'Process' }), true, 'with the IME on');
+  assert.equal(isCtrlV({ ctrlKey: true, shiftKey: true, code: 'KeyV', key: 'V' }), false);
+  assert.equal(isCtrlV({ altKey: true, code: 'KeyV', key: 'v' }), false);
+  assert.equal(isCtrlV({ ctrlKey: true, altKey: true, code: 'KeyV', key: 'v' }), false);
+  assert.equal(isCtrlV({ ctrlKey: true, code: 'KeyC', key: 'c' }), false);
+});
+
+test('pasteTarget: paths put in, text and empty pastes left alone, a screenshot saved and its path put in', async () => {
+  const p = page({ pathForFile: (f) => f.path || '' });
+  const box = el();
+  const got = [];
+  const plain = [];
+  let starts = 0;
+  const undo = pasteTarget(box, { insert: (t) => got.push(t), plain: (e, k) => plain.push(k), start: () => starts++ });
+  const t = pev(clip({ text: 'hello' }));
+  box.fire('paste', t);
+  assert.equal(t.prevented, false, 'text pastes as before');
+  const f = pev(clip({ files: [{ path: 'C:\\My Docs\\a.pdf' }] }));
+  box.fire('paste', f);
+  assert.equal(f.prevented, true);
+  assert.deepEqual(got, ['"C:\\My Docs\\a.pdf"']);
+  box.fire('paste', pev(clip()));
+  assert.deepEqual(plain, ['text', 'none']);
+  const sent = [];
+  globalThis.fetch = async (url, o) => (sent.push([url, o.method, o.body.name]), { ok: true, json: async () => ({ ok: true, path: 'C:\\Users\\me\\.claude-ops\\pastes\\paste-1.png' }) });
+  const s = pev(clip({ files: [{ type: 'image/png', name: 'image.png' }] }));
+  box.fire('paste', s);
+  assert.equal(s.prevented, true);
+  await tick();
+  assert.deepEqual(sent, [['/api/paste-image', 'POST', 'image.png']]);
+  assert.equal(got[1], 'C:\\Users\\me\\.claude-ops\\pastes\\paste-1.png');
+  globalThis.fetch = async () => ({ ok: false, status: 413, json: async () => ({ error: 'too large' }) });
+  box.fire('paste', pev(clip({ files: [{ type: 'image/png' }] })));
+  await tick();
+  assert.match(p.hint(), /too large/);
+  assert.equal(starts, 5);
+  undo();
+  box.fire('paste', pev(clip({ files: [{ path: 'C:\\x' }] })));
+  assert.equal(got.length, 2, 'undone');
+});
+
+test('pasted files in a browser or under an old shell: nothing put in, a hint says why', () => {
+  let p = page(undefined);
+  const got = [];
+  const box = el();
+  pasteTarget(box, { insert: (t) => got.push(t) });
+  box.fire('paste', pev(clip({ files: [{ type: 'application/pdf' }] })));
+  assert.match(p.hint(), /浏览器.*粘贴/);
+  p = page({ win() {} });
+  const box2 = el();
+  pasteTarget(box2, { insert: (t) => got.push(t) });
+  box2.fire('paste', pev(clip({ files: [{ type: 'application/pdf' }] })));
+  assert.match(p.hint(), /粘贴文件的路径.*0\.9\.79/);
+  assert.deepEqual(got, []);
+});
+
+test("an order box: a pasted file's path at its cursor, text pasted as before", () => {
+  page({ pathForFile: (f) => f.path });
+  const field = el({ value: '看一下', selectionStart: 3, selectionEnd: 3, focus() {}, setSelectionRange() {}, dispatchEvent() {} });
+  dropIntoField(field);
+  field.fire('paste', pev(clip({ files: [{ path: 'C:\\r.pdf' }] })));
+  assert.equal(field.value, '看一下 C:\\r.pdf ');
+  const t = pev(clip({ text: 'x' }));
+  field.fire('paste', t);
+  assert.equal(t.prevented, false);
+});

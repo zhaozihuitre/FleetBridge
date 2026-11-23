@@ -1,6 +1,9 @@
 // Files dragged in (documents, pictures, folders) give their full local paths where they are dropped: a
 // terminal pane (the master's too) gets them on its input line as a paste, never with Enter; an order box
 // gets them at its cursor. Nothing is uploaded or copied: Claude Code in the terminal reads the files itself.
+// Files copied in Explorer and pasted (Ctrl+V) give their paths the same way; an image with no file of its
+// own (a screenshot) is kept as a PNG by the server (server/pasteimg.js) and its path goes in. Text pastes
+// as it always did.
 //
 // The path comes from the desktop shell's preload (webUtils.getPathForFile: Electron took File.path away).
 // A browser has no such thing, and a shell from before 0.9.79 doesn't give it: then a hint says so, the drop
@@ -64,6 +67,36 @@ export function dropSupport(bridge) {
   return bridge ? 'old-shell' : 'browser';
 }
 
+/**
+ * What a paste carries, by the clipboard's data: 'paths' (files with local paths: text is their paths),
+ * 'text' (plain text: pasted as usual, even beside an image, as from a spreadsheet), 'image' (an image with
+ * no file: a screenshot), 'nopath' (files whose paths can't be had: a browser, an old shell), or 'none'.
+ */
+export function pasteKind(cd, getPath) {
+  if (!cd) return { kind: 'none' };
+  const files = Array.from(cd.files || []);
+  let text = '';
+  try {
+    text = cd.getData('text/plain') || '';
+  } catch {
+    text = '';
+  }
+  if (files.length) {
+    const { paths, missing } = getPath ? collectPaths(files, getPath) : { paths: [], missing: files.length };
+    if (paths.length) return { kind: 'paths', text: joinPaths(paths), missing };
+    if (text) return { kind: 'text' };
+    const file = files.find((f) => /^image\//.test(f.type || ''));
+    if (file) return { kind: 'image', file };
+    return { kind: 'nopath', count: files.length };
+  }
+  return { kind: text ? 'text' : 'none' };
+}
+
+/** Whether a key event is Ctrl+V alone (not Ctrl+Shift+V, not AltGr, not Alt+V: Claude Code's image paste). */
+export function isCtrlV(e) {
+  return Boolean(e && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && (e.code === 'KeyV' || String(e.key).toLowerCase() === 'v'));
+}
+
 // ---- the page side ----
 
 const T = { L: (s, ...a) => (a.length ? s.replace(/\{(\d+)\}/g, (_, i) => String(a[i] ?? '')) : s) };
@@ -100,19 +133,62 @@ export function setDropText(L) {
   if (typeof L === 'function') T.L = L;
 }
 
-/** The dropped files' text, or null after telling why there is none. */
-function pathsOf(dt) {
+/** The shell's path getter, or null after telling why there is none (a browser, a shell before 0.9.79). */
+function pathGetter(paste) {
   const bridge = window.opsBridge;
   const kind = dropSupport(bridge);
-  if (kind === 'browser') {
-    dropHint(T.L('浏览器里拿不到文件的本地路径：请在舰桥桌面窗口里拖入，或手动输入路径'));
-    return null;
-  }
-  if (kind === 'old-shell') {
-    dropHint(T.L('这个舰桥外壳还不能取拖入文件的路径，装上 0.9.79 或更新的安装包后可用'));
-    return null;
-  }
-  const { paths, missing } = collectPaths(dt.files, (f) => bridge.pathForFile(f));
+  if (kind === 'ok') return (f) => bridge.pathForFile(f);
+  if (kind === 'browser') dropHint(paste ? T.L('浏览器里拿不到剪贴板里文件的本地路径：请在舰桥桌面窗口里粘贴，或手动输入路径') : T.L('浏览器里拿不到文件的本地路径：请在舰桥桌面窗口里拖入，或手动输入路径'));
+  else dropHint(paste ? T.L('这个舰桥外壳还不能取粘贴文件的路径，装上 0.9.79 或更新的安装包后可用') : T.L('这个舰桥外壳还不能取拖入文件的路径，装上 0.9.79 或更新的安装包后可用'));
+  return null;
+}
+
+/** The server keeps a pasted image as a file; its full path. */
+async function saveImage(file) {
+  const r = await fetch('/api/paste-image', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.path) throw new Error(j.error || `HTTP ${r.status}`);
+  return j.path;
+}
+
+/**
+ * Makes an element take pasted files and images: insert(text) puts their paths in. Text, and a paste with
+ * nothing in it, are left to the element as before; plain(event, kind) is told of them first and may take
+ * them. start() is called on every paste, before anything else.
+ * @returns {() => void} undo
+ */
+export function pasteTarget(el, { insert, plain, start } = {}) {
+  if (!el) return () => {};
+  const onPaste = (e) => {
+    start?.();
+    const cd = e.clipboardData;
+    const bridge = window.opsBridge;
+    const getPath = dropSupport(bridge) === 'ok' ? (f) => bridge.pathForFile(f) : null;
+    const k = pasteKind(cd, getPath);
+    if (k.kind === 'text' || k.kind === 'none') return plain?.(e, k.kind);
+    e.preventDefault();
+    e.stopPropagation();
+    if (k.kind === 'paths') {
+      insert(k.text);
+      if (k.missing) dropHint(T.L('{0} 个不是本地文件，已跳过', k.missing));
+    } else if (k.kind === 'nopath') {
+      if (pathGetter(true)) dropHint(T.L('剪贴板里的不是本地文件，取不到路径'));
+    } else if (k.kind === 'image') {
+      saveImage(k.file).then(
+        (p) => insert(quotePath(p)),
+        (err) => dropHint(T.L('粘贴的图片没能保存：{0}', err.message)),
+      );
+    }
+  };
+  el.addEventListener('paste', onPaste, true);
+  return () => el.removeEventListener('paste', onPaste, true);
+}
+
+/** The dropped files' text, or null after telling why there is none. */
+function pathsOf(dt) {
+  const getPath = pathGetter(false);
+  if (!getPath) return null;
+  const { paths, missing } = collectPaths(dt.files, getPath);
   if (!paths.length) {
     dropHint(T.L('拖入的不是本地文件，取不到路径'));
     return null;
@@ -169,9 +245,10 @@ export function dropTarget(el, insert) {
   };
 }
 
-/** An order box (textarea / input) taking drops: the paths at its cursor, focused after. */
+/** An order box (textarea / input) taking drops and pasted files: the paths at its cursor, focused after. */
 export function dropIntoField(field) {
-  return dropTarget(field, (text) => {
+  if (!field) return () => {};
+  const put = (text) => {
     const r = insertText(field.value, field.selectionStart, field.selectionEnd, text);
     field.value = r.value;
     field.focus();
@@ -181,7 +258,10 @@ export function dropIntoField(field) {
       // some inputs have no selection
     }
     field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  };
+  const undrop = dropTarget(field, put);
+  const unpaste = pasteTarget(field, { insert: put });
+  return () => (undrop(), unpaste());
 }
 
 /**
