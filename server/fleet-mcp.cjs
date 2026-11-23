@@ -147,7 +147,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_send',
-    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
+    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. The agent does not see your conversation with the user: for a task, follow the order template of your guide (what the user said, quoted word for word, goal, scope, acceptance, what the user must do themselves, report format); a small order goes as it is, without the template. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
     async run({ agents, text, mode = 'auto' }) {
       const { ours } = await fleet();
@@ -271,7 +271,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_spawn',
-    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order. resume = a session id from fleet_projects to continue that session instead.',
+    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order (written like a fleet_send order: the order template for a task). resume = a session id from fleet_projects to continue that session instead.',
     inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string' }, resume: { type: 'string' } } },
     async run({ cwd, name, prompt, resume }) {
       const r = await api('/api/agents', { cwd, name, prompt, resume, via: 'master' });
