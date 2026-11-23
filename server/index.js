@@ -39,6 +39,7 @@ import { autoTrusts, setTrustSettings, trustSettings } from './trust.js';
 import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
+import { readRaw, savePastedImage } from './pasteimg.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, quotaBackNotice, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
 import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, answerTrust, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
@@ -516,6 +517,17 @@ async function handleRequest(req, res) {
   const origin = req.headers.origin;
   if (!req.fleetWeb && origin && origin !== `http://127.0.0.1:${config.port}` && origin !== `http://localhost:${config.port}`) return send(res, 403, { error: 'forbidden' });
 
+  // an image pasted into a terminal or an order box (a screenshot, no file of its own): kept as a file,
+  // its path goes where it was pasted (server/pasteimg.js)
+  if (req.method === 'POST' && req.url === '/api/paste-image') {
+    const buf = await readRaw(req);
+    if (!buf) return send(res, 413, { error: 'too large' });
+    try {
+      return send(res, 200, { ok: true, path: savePastedImage(buf) });
+    } catch (e) {
+      return send(res, 400, { error: e.message });
+    }
+  }
   if (req.method === 'GET' && req.url === '/api/state') {
     if (!state) publish(); // first request can arrive before the initial refresh finishes
     return send(res, 200, state);
@@ -886,6 +898,9 @@ export function agentSocket(req, socket, head) {
   if (!agent) return socket.destroy();
   wss.handleUpgrade(req, socket, head, (ws) => {
     ws.send(sizeMsg(agent)); // its size first, so the replay is drawn at the right width
+    // the program takes bracketed pastes (Claude Code turns it on as it starts): said first, the replay is
+    // only the last of the output and may no longer hold that, and a pasted text goes by it (web/terminal.js)
+    if (agent.screen?.modes?.bracketedPasteMode) ws.send('\x1b[?2004h');
     ws.send(agent.buffer); // replay the screen so far
     agent.clients.add(ws);
     ws.on('message', (raw) => {

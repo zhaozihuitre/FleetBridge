@@ -5,7 +5,7 @@ import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
 import { L } from './i18n.js';
 import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 import { onTermTheme, termTheme } from './theme.js';
-import { dropTarget } from './filedrop.js';
+import { dropTarget, isCtrlV, pasteTarget } from './filedrop.js';
 
 // The 16 colors come from the theme (web/theme.js): our agents run Claude Code with the dark-ansi
 // theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from them. Open terminals
@@ -186,9 +186,43 @@ export function createTerminal(host, id, opts = {}) {
   // text as a paste: typed in as-is, without triggering the program's key handling
   const paste = (text) => send(`\x1b[200~${text}\x1b[201~`);
   // files dragged onto the screen: their paths on its input line, as a paste (no Enter: the user sends it)
-  const undrop = opts.drop === false ? () => {} : dropTarget(box, (text) => {
+  const putPaths = (text) => {
     paste(`${text} `);
     term.focus();
+  };
+  const undrop = opts.drop === false ? () => {} : dropTarget(box, putPaths);
+  // Ctrl+V: xterm would send ^V, which Claude Code ignores (its image paste is Alt+V), so files copied in
+  // Explorer or a screenshot never got in. Now the browser pastes: files give their paths, an image its
+  // saved PNG's path (web/filedrop.js), text is pasted as text where the program takes pastes (bracketed
+  // paste: Claude Code); anywhere else ^V goes as before (a PowerShell prompt reads the clipboard itself
+  // on it). Ctrl+Shift+V, Shift+Insert, Ctrl+C and the selection are xterm's as before.
+  let ctrlV = null; // ^V to send if no paste comes of this Ctrl+V
+  let fromCtrlV = false; // the paste under way came of Ctrl+V
+  term.attachCustomKeyEventHandler((e) => {
+    if (!isCtrlV(e)) return true;
+    if (e.type === 'keydown') {
+      clearTimeout(ctrlV);
+      ctrlV = setTimeout(() => {
+        ctrlV = null;
+        send('\x16');
+      }, 300);
+    }
+    return false;
+  });
+  const unpaste = pasteTarget(box, {
+    insert: putPaths,
+    start: () => {
+      fromCtrlV = Boolean(ctrlV);
+      clearTimeout(ctrlV);
+      ctrlV = null;
+    },
+    plain: (e, kind) => {
+      if (!fromCtrlV) return; // Ctrl+Shift+V, Shift+Insert: xterm pastes, as it always did
+      if (kind === 'text' && term.modes.bracketedPasteMode) return; // xterm pastes the text
+      e.preventDefault();
+      e.stopPropagation();
+      send('\x16');
+    },
   });
 
   return {
@@ -202,6 +236,8 @@ export function createTerminal(host, id, opts = {}) {
     },
     dispose() {
       undrop();
+      unpaste();
+      clearTimeout(ctrlV);
       ro.disconnect();
       dpr?.removeEventListener('change', onDpr);
       ws.close();

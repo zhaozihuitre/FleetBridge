@@ -25,6 +25,7 @@
 | `hook.js` | 脚本 | 程序启动时从 `server/hook.js` 复制过来 |
 | `agent-settings.json` | JSON | 我方 agent 的 `--settings`（关掉状态栏） |
 | `config.json` | JSON（可选） | 覆盖默认配置 |
+| `pastes/paste-<yyyymmdd>-<hhmmss>-<随机>.png` | 图片 | 粘贴进来的截图或图片（`server/pasteimg.js`），插入的就是这个路径。每次保存时清理：超过 7 天的删除，最多保留 200 张 |
 | `replies/<agent id>/<yyyymmdd-hhmmss>.md` | Markdown | 主控派的每个回合的完整回答（每个 agent 保留 50 份），`fleet_read_reply` 读取 |
 | `events.jsonl` | 每行 `{at, type, …}` | 自我改善的事件日志：通知（完成 / 中断 / 未执行，含是否截断、回答长度）、读屏、读全文、授权等待时长（信任对话框记为 `permit.wait` 的 `kind: trust`，舰桥自动回答的记为 `trust.auto`）、自动重发、手动纠正、回答授权、分析与实施的步骤。只记类型、次数、时长、agent 名和指令开头，不记整段回答；超过约 4 MB 丢掉较早的一半；自我改善关闭时不写 |
 | `self-improve.json` | JSON | 自我改善的开关：`enabled`、`llm`（模型分析）、`model`、`hour`/`minute`（每天分析时间）、`minTurns`、`days`（统计范围）、`push`、`repo` |

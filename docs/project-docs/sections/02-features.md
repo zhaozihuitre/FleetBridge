@@ -222,6 +222,26 @@ flowchart LR
 - 只处理带文件的拖动（`dataTransfer.types` 含 `Files`）。选中文字、粘贴、滚动和拖动面板都不受影响。文件拖到页面其他地方时不会再让窗口打开这个文件、把页面换掉，而是提示拖到终端或输入框。
 - 实现见 `web/filedrop.js`（各页共用，`web/terminal.js` 给每个终端接上，`web/app.js` 给输入框接上），`desktop/preload.cjs`（`pathForFile`），`desktop/main.cjs`（弹出窗口也加载 preload）。
 
+### 粘贴文件和截图（Ctrl+V，0.9.80）
+
+- 在资源管理器里复制文件或文件夹（一个或多个），按 **Ctrl+V** 粘贴到终端面板、总指令台输入框或「首个指令」里。规则和拖入一样：**只插入完整路径**，有空格时加双引号，多个之间用空格分隔，**不回车**。
+- 剪贴板里是**截图或图片数据**、没有对应文件时（Win+Shift+S 截的图、从网页复制的图片），服务端把它存成 PNG，再插入这个路径。
+  - 存放位置：数据目录下的 `pastes` 文件夹。安装版是 `%USERPROFILE%\.claude-ops\pastes\paste-<日期>-<时间>-<随机>.png`。
+  - 清理：每次保存新图片时，删除超过 7 天的，最多保留最新的 200 张。只删 `paste-*` 图片。
+- **普通文本**照常粘贴。
+  - Claude Code 的终端里，现在 Ctrl+V 能粘贴文本了。以前 xterm 把 Ctrl+V 当作 ^V 发给程序，Claude Code 不处理，所以按了没反应。
+  - 是否按粘贴处理，看程序有没有开启 bracketed paste。Claude Code 会开启，按粘贴处理。普通 PowerShell 终端没有开启，仍然发 ^V，由 PSReadLine 自己读剪贴板，和以前一样。
+  - 剪贴板为空时也照旧发 ^V。
+- 这些按键的行为不变：Ctrl+C、选中复制、Ctrl+Shift+V / Shift+Insert（浏览器的纯文本粘贴，只带文本，带不了文件），以及 Claude Code 自己的 Alt+V（粘贴图片）。舰桥没有右键粘贴菜单，这次也没有加。
+- 剪贴板里同时有文本和图片时（例如从 Excel 复制单元格），按文本粘贴。
+- 用浏览器访问、或外壳早于 0.9.79 时，拿不到文件的本地路径：不插入内容，在页面底部提示，和拖入一样。截图不依赖本地路径，所以浏览器里也能粘贴，图片存在运行舰桥的这台电脑上。
+- 终端回放只包含最后 512KB 输出，Claude Code 开启 bracketed paste 的序列可能已经不在里面。所以服务端在回放开头补上这个状态，新打开的面板和弹出窗口也能正确判断。
+- 实现见：
+  - `web/filedrop.js`（`pasteKind` / `pasteTarget`）；
+  - `web/terminal.js`（把 Ctrl+V 交给浏览器粘贴）；
+  - `server/pasteimg.js` 与 `POST /api/paste-image`。
+- 只改了页面和服务端，**就地更新即可生效，不需要重装**。
+
 ## 总指令台
 
 - 位于指挥中心最左侧。

@@ -13,6 +13,7 @@
 | POST | `/api/resume` | 在 Windows Terminal 里 `claude --resume` | 同源 |
 | POST | `/api/snooze` | 某任务稍后提醒 | 同源 |
 | POST | `/api/agents` | 出击 / 接管我方 agent | 同源 |
+| POST | `/api/paste-image` | 请求体是图片的原始字节（PNG / JPEG / GIF / WebP / BMP，最大 25MB），存到 `<数据目录>/pastes/`，返回 `{ ok, path }`；不是图片返回 400，过大返回 413 | 同源 / 手机 |
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
 | GET/POST | `/api/trust` | 自动信任的目录：`{ auto, dirs }`。POST 可带 `auto`（布尔）、`dirs`（数组或每行一个路径的文本，替换整个列表）、`add` / `remove`（一个路径）；返回清理后的设置（只留绝对路径，去掉盘符根目录和重复项）。其他设备 POST 返回 403 `computer_only` | 同源 |
 | GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |
@@ -59,7 +60,7 @@
 
 ## WS /ws/agents/{id}
 
-- 服务端 → 客户端：原始终端输出（字符串）；连接时先回放最多 512KB 屏幕缓冲。
+- 服务端 → 客户端：原始终端输出（字符串）；连接时先回放最多 512KB 屏幕缓冲。如果程序开启了 bracketed paste，回放前先发 `\x1b[?2004h`（回放里可能已经没有这个序列）。
 - 客户端 → 服务端：`{"type":"input","data":"..."}`、`{"type":"resize","cols":120,"rows":32}`。
 
 ## GET /api/state 主要字段
