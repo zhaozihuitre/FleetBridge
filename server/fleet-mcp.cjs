@@ -147,17 +147,17 @@ const TOOLS = [
   },
   {
     name: 'fleet_send',
-    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. The agent does not see your conversation with the user: for a task, follow the order template of your guide (what the user said, quoted word for word, goal, scope, acceptance, what the user must do themselves, report format); a small order goes as it is, without the template. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
-    inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] } }, required: ['agents', 'text'] },
-    async run({ agents, text, mode = 'auto' }) {
+    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. The agent does not see your conversation with the user: for a task, follow the order template of your guide (what the user said, quoted word for word, goal, scope, acceptance, what the user must do themselves, report format); a small order goes as it is, without the template. readonly: true for an investigation where nothing may be changed: Fleet Bridge adds the limits to the order itself (no changes to code or configuration, no commit or push, no deploy or release, no changes to live data), so do not write them out; leave it off when the agent is to change something. Agents already have a standing rule not to write secrets (keys, tokens, passwords) verbatim in their reports: no need to repeat it, and say so in the order when the user really needs the value. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
+    inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] }, readonly: { type: 'boolean' } }, required: ['agents', 'text'] },
+    async run({ agents, text, mode = 'auto', readonly }) {
       const { ours } = await fleet();
       const list = agents?.length === 1 && /^[#@]?all$/i.test(String(agents[0])) ? ours.filter((x) => x.status !== 'shell') : (agents || []).map((r) => resolve(ours, r));
       if (!list.length) throw new Error('no agents to send to');
       const out = [];
       for (const x of list) {
         const queue = mode === 'queue' || (mode === 'auto' && (x.status === 'working' || x.status === 'needs-approval' || x.status === 'needs-answer' || x.a.queue?.some((q) => !q.held))); // orders on hold are not ahead of this one
-        const r = await api('/api/agents/action', { id: x.a.id, action: queue ? 'queue' : 'text', text, via: 'master' });
-        out.push(`${x.name}: ${r.ok ? (queue ? 'queued' : 'sent') : 'failed'}`);
+        const r = await api('/api/agents/action', { id: x.a.id, action: queue ? 'queue' : 'text', text, readonly: readonly === true, via: 'master' });
+        out.push(`${x.name}: ${r.ok ? (queue ? 'queued' : 'sent') : 'failed'}${r.ok && readonly === true ? ' (read-only limits added)' : ''}`);
       }
       return out.join('\n');
     },
@@ -289,11 +289,11 @@ const TOOLS = [
   },
   {
     name: 'fleet_spawn',
-    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order (written like a fleet_send order: the order template for a task). resume = a session id from fleet_projects to continue that session instead.',
-    inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string' }, resume: { type: 'string' } } },
-    async run({ cwd, name, prompt, resume }) {
-      const r = await api('/api/agents', { cwd, name, prompt, resume, via: 'master' });
-      return `started: id ${r.id}`;
+    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order (written like a fleet_send order: the order template for a task; readonly: true adds the read-only limits to it, as in fleet_send). resume = a session id from fleet_projects to continue that session instead.',
+    inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string' }, resume: { type: 'string' }, readonly: { type: 'boolean' } } },
+    async run({ cwd, name, prompt, resume, readonly }) {
+      const r = await api('/api/agents', { cwd, name, prompt, resume, readonly: readonly === true, via: 'master' });
+      return `started: id ${r.id}${prompt && readonly === true ? ' (read-only limits added to its first order)' : ''}`;
     },
   },
 ];

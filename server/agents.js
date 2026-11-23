@@ -11,6 +11,7 @@ import { L } from './i18n.js';
 import * as host from './ptyclient.js';
 import { BIN_DIR, browserCommand } from './preview.js';
 import { REPORT_HINT } from './report.js';
+import { SECRET_HINT } from './constraints.js';
 
 const require = createRequire(import.meta.url);
 const BUFFER_MAX = 512 * 1024; // screen history replayed to a newly opened terminal panel
@@ -220,6 +221,14 @@ const PROMPT = /^[❯>](?!\s*\d\.)/;
 const OPEN_HINT =
   'You run inside Fleet Bridge. To show the user a local HTML or Markdown file, an image, or a localhost page (e.g. a dev server), run `fleet-open <path-or-url>` (it is on PATH): it opens in Fleet Bridge, next to the terminals, and reloads when the files change. Do not start the system browser for these (no `start`, `Invoke-Item` or `open`). Outside http(s) links passed to fleet-open go to the system browser.';
 const PROMPT_MARK = /^[❯>]\s*/;
+/**
+ * What Fleet Bridge adds to the system prompt of an agent it starts: where pages go; for the agents the
+ * master gives orders to, how to mark the final report (server/report.js); for all of them, the master
+ * too, that secrets are not written out (server/constraints.js).
+ */
+export function systemHint(kind) {
+  return kind === 'master' ? `${OPEN_HINT} ${SECRET_HINT}` : `${OPEN_HINT} ${REPORT_HINT} ${SECRET_HINT}`;
+}
 const agents = new Map(); // sessionId -> agent
 let onChange = () => {};
 let promptSent = () => {};
@@ -363,8 +372,8 @@ export function spawnAgent({ cwd, name, resume, prompt, kind, extraArgs = [], se
   if (DEV) name = DEV_PREFIX + String(name || path.basename(cwd)).replace(DEV_PREFIX, '');
   if (name) args.push('--name', String(name).slice(0, 60));
   // where pages go: the command center, not the system browser
-  // and, for the agents the master gives orders to, how to mark the final report (server/report.js)
-  args.push('--append-system-prompt', kind === 'master' ? OPEN_HINT : `${OPEN_HINT} ${REPORT_HINT}`);
+  // and the standing rules (systemHint above)
+  args.push('--append-system-prompt', systemHint(kind));
   // settingsFile: its own (a self-improvement development agent: ours plus what it may never do)
   const settings = settingsFile || agentSettingsFile();
   if (settings) args.push('--settings', settings);

@@ -21,6 +21,7 @@ import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { dequeue, dismissQuota, dispatch, enqueue, orphanQueues, queueOf, quotaStops, quotaWatch, reconcile, release } from './queue.js';
+import { readOnlyOrder } from './constraints.js';
 import { clip, endedTurns, masterTurn, noteOrder, transcriptOf, turnOver, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
@@ -399,7 +400,9 @@ function orderTarget(a) {
 }
 
 /** One action for one or more of our agents; shared by the command center and the phone page. */
-function agentAction({ id, action, text, key, choice, index, held, yes, remember, via = 'cc' }) {
+function agentAction({ id, action, text, key, choice, index, held, yes, remember, readonly, via = 'cc' }) {
+  // a read-only order (fleet_send readonly): the limits go after it, here, so the log and the queue have what was sent
+  if (readonly === true && (action === 'text' || action === 'queue') && typeof text === 'string') text = readOnlyOrder(text);
   const ids = Array.isArray(id) ? id : [id];
   const results = ids.map((one) => {
     const a = getAgent(one);
@@ -551,7 +554,9 @@ async function handleRequest(req, res) {
     return send(res, 200, await resumeSession(h.cwd, h.sessionId));
   }
   if (req.method === 'POST' && req.url === '/api/agents') {
-    const { cwd, name, prompt, resume, shell, via } = await readBody(req);
+    const body = await readBody(req);
+    const { cwd, name, resume, shell, via } = body;
+    const prompt = body.readonly === true && body.prompt ? readOnlyOrder(body.prompt) : body.prompt; // fleet_spawn readonly
     try {
       let agent;
       if (shell) {

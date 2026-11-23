@@ -4576,6 +4576,37 @@
       "created": "2026-11-23 13:16",
       "updated": "2026-11-23 13:16",
       "notes": []
+    },
+    {
+      "id": "C-094",
+      "type": "change",
+      "title": "长期约束：密钥不进汇报的默认规则，主控派单的只读调查开关（改善提案 P-008）",
+      "summary": "舰桥启动的 agent（含主控）系统提示里加默认规则：回答和汇报不原样写出密钥、token、密码，指令明确要原值时除外；fleet_send、fleet_spawn 加 readonly 参数，后端在指令末尾附上不改、不提交不 push、不部署的限制",
+      "detail": "**背景**：「只读、不改代码、不部署、不 push、不输出密钥」几乎写在每条派给 mdlinkapp 的调查单里（11-20、11-23 共三条），仍然出现过原样写出 X-Api-Key 的情况。\n\n**改动内容**：\n- `server/constraints.js`（新）：`SECRET_HINT`（密钥规则）、`readOnlyNote` / `readOnlyOrder`（只读调查的限制文字，三种语言，以「【只读调查】」开头，不重复加）。\n- `server/agents.js`：系统提示由 `systemHint(kind)` 组成，所有我方 agent（含主控）都带 `SECRET_HINT`；主控仍然不带汇报标记块的约定。\n- `server/index.js`：`/api/agents/action` 的 `text`、`queue` 和 `/api/agents` 的 `prompt` 接受 `readonly: true`，在后端把限制附到指令末尾，记录和队列里是加完后的全文。\n- `server/fleet-mcp.cjs`：`fleet_send`、`fleet_spawn` 加 `readonly` 参数，工具说明写明用法和密钥规则。\n- `server/master.js`：主控说明加两条（只读调查、密钥），上一版默认留作 `GUIDE_V10`。\n\n**放开的口子**：密钥规则只管写出来的文字，读和用不受限；指令里明确要原值时不适用。只读限制只在带 `readonly: true` 的那一条指令上。\n\n**影响范围**：agent 和主控重新启动后生效；用户改过的主控说明不会被替换（工具说明里有同样的话）。两者都是给模型的约定，不是技术上的拦截：舰桥不过滤回答，也没有收紧 agent 的权限。指挥中心输入框和出击对话框没有只读开关。\n\n**测试**：`test/constraints.test.mjs`（6 个），`test/guide.test.mjs` 更新。\n",
+      "status": "done",
+      "files": [
+        "server/constraints.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "test/constraints.test.mjs",
+        "test/guide.test.mjs"
+      ],
+      "tags": [
+        "主控",
+        "改善提案"
+      ],
+      "sections": [
+        "features",
+        "api"
+      ],
+      "refs": [
+        "P-008"
+      ],
+      "created": "2026-11-23 13:34",
+      "updated": "2026-11-23 13:34",
+      "notes": []
     }
   ]
 }
