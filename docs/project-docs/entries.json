@@ -4638,6 +4638,33 @@
       "created": "2026-11-23 13:35",
       "updated": "2026-11-23 13:35",
       "notes": []
+    },
+    {
+      "id": "T-013",
+      "type": "todo",
+      "title": "改善提案以 main 为基线，安装前要包含已装的改动",
+      "summary": "新提案的基线取自 findRepo 选中的检出的 HEAD（最近会话的目录，可能是旧提案的 worktree）；安装是从提案自己的 worktree 就地更新，基线旧了会把已装的功能冲掉",
+      "detail": "**要做什么**：\n- 开发分支的基线固定取 main 分支（或 `self-improve.json` 的 `repo` 指向的主仓库的 main），不要用「最近会话目录」的 HEAD。\n- 安装（`startUpdate` 从 worktree 就地更新）之前，检查这个分支是否包含正在运行的版本所含的提交；不包含就拒绝，或者先合并 main。\n\n**为什么暂缓**：这次只做合并和更新，用户要求不改提案系统。\n\n**现状**：\n- `findRepo` 的候选依次是：设置里的 `repo`（目前为空）、运行目录（不是 git 检出）、历史会话的目录（按最近排序）。所以 P-003、P-005、P-010 依次以上一个提案的 worktree 为基线。\n- 2026-11-23 合并后，main = fa02f49，包含 P-002、P-003、P-005、P-010 和 Ctrl+V。此时会选中 E:\\project\\FleetBridge（HEAD = main），但只是因为它恰好是最近的会话目录。\n- P-008 已构建，基线是 82f203f（p-005），不含 P-010 和 Ctrl+V。照原样安装会把这两项冲掉。安装前要先 rebase 或合并到 main，再验收一次。\n\n**触发条件**：批准 P-011、P-007 之前，或安装 P-008 之前。临时办法：把 `self-improve.json` 的 `repo` 设为 E:\\project\\FleetBridge，并让主仓库停在 main。\n",
+      "status": "open",
+      "files": [
+        "server/insights/implement.js",
+        "server/insights/improve.js",
+        "server/index.js"
+      ],
+      "tags": [
+        "自我改善",
+        "提案"
+      ],
+      "sections": [
+        "flows"
+      ],
+      "refs": [
+        "fa02f49"
+      ],
+      "created": "2026-11-23 14:24",
+      "updated": "2026-11-23 14:24",
+      "notes": [],
+      "priority": "P1"
     }
   ]
 }
