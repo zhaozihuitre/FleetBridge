@@ -105,7 +105,7 @@ function kTokens(n) {
 
 /* ---------- header ---------- */
 
-const ERROR_TEXT = { rate_limited: L('接口限流，稍后自动重试'), token_expired: L('登录过期，打开一次 Claude Code 即可') };
+const ERROR_TEXT = { rate_limited: L('接口限流，稍后自动重试'), http_403: L('接口拒绝（403），稍后自动重试'), token_expired: L('登录过期，打开一次 Claude Code 即可') };
 
 // The API's limit list (5h, weekly, per-model weekly); caches from older versions only had two windows.
 function usageLimits(u) {
@@ -143,6 +143,11 @@ function renderEnergy() {
         </div>`;
       })
       .join('');
+  }
+  // per-model weekly limits (Fable…) come only from the usage API: never read, it says so instead of nothing
+  if (limits.length && u?.api && !u.api.at && !limits.some((l) => String(l.key).includes(':'))) {
+    const why = u.api.error ? ERROR_TEXT[u.api.error] || u.api.error : L('未连上');
+    $('energy').insertAdjacentHTML('beforeend', `<div class="energy box cut permodel" title="${esc(L('按模型的周额度（如 Fable）只能从额度接口读到，状态栏只给 5 小时和本周所有模型。接口：{0}', why))}"><div class="row"><span class="label"><span class="lk">RESERVE · </span>${L('本周 · 按模型')}</span></div><div class="row"><span class="stale">${esc(L('读不到（额度接口 {0}）', why))}</span></div></div>`);
   }
   // whose quota: the organization's name on the boxes' top edge; the other organizations after them
   if (u?.org) $('energy').innerHTML = `<div class="energy-group" style="--oc:${orgColor(u.org.id)}">${orgLegend(u)}${$('energy').innerHTML}</div>`;
@@ -822,11 +827,12 @@ function quotaStat(u) {
   const low = 100 - used <= state.thresholds.energyLowPct;
   const color = low ? 'var(--red)' : q.active ? 'var(--amber)' : 'var(--cyan)';
   const line = (l) => `${l.label} · ${L('已用 {0}%', Math.round(l.usedPct))} · ${l.resetsAt ? L('{0} 重置', when(l.resetsAt)) : L('未开始')}`;
-  const tip = [L('{0} 用的额度：', (u.model || '').replace('claude-', '')), ...q.all.map(line), q.asOf ? L('另一个组织的额度，截至 {0}', when(q.asOf)) : ''].filter(Boolean).join('\n');
+  const own = QT.ownText(q.ownNote);
+  const tip = [L('{0} 用的额度：', (u.model || '').replace('claude-', '')), ...q.all.map(line), own, q.ownNote?.reason === 'unread' ? L('按模型的周额度只能从额度接口读到；状态栏只给 5 小时和本周所有模型') : '', q.asOf ? L('另一个组织的额度，截至 {0}', when(q.asOf)) : ''].filter(Boolean).join('\n');
   // every limit its model counts against, each with when it resets (the one holding it first, bright)
   const others = (q.all || []).filter((l) => l.key !== q.key);
   const row = (l, main) => `<span class="ql${main ? ' main' : ''}"><b>${esc(l.label)} ${Math.round(Math.min(100, Math.max(0, l.usedPct)))}%</b> · <span${l.resetsAt ? ` data-reset-text="${l.resetsAt}"` : ''}>${esc(QT.resetText(l.resetsAt))}</span></span>`;
-  return `<div class="stat quota" style="--kc:${color}" title="${esc(tip)}"><div class="k"><span>${L('额度')} · ${esc(q.label)}</span><span class="mono">${Math.round(used)}%${q.resetsAt ? ` · <span data-reset="${q.resetsAt}">${dg(dur(q.resetsAt - Date.now()))}</span>` : ''}</span></div>${seg(used, 20, color)}<div class="v">${row(q, true)}${others.map((l) => row(l, false)).join('')}${q.asOf ? `<span class="ql">${L('截至 {0}', when(q.asOf))}</span>` : ''}</div></div>`;
+  return `<div class="stat quota" style="--kc:${color}" title="${esc(tip)}"><div class="k"><span>${L('额度')} · ${esc(q.label)}</span><span class="mono">${Math.round(used)}%${q.resetsAt ? ` · <span data-reset="${q.resetsAt}">${dg(dur(q.resetsAt - Date.now()))}</span>` : ''}</span></div>${seg(used, 20, color)}<div class="v">${row(q, true)}${others.map((l) => row(l, false)).join('')}${own ? `<span class="ql none">${esc(own)}</span>` : ''}${q.asOf ? `<span class="ql">${L('截至 {0}', when(q.asOf))}</span>` : ''}</div></div>`;
 }
 
 function repoRow(r) {

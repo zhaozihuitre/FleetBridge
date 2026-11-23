@@ -4701,6 +4701,38 @@
       "created": "2026-11-23 13:34",
       "updated": "2026-11-23 13:34",
       "notes": []
+    },
+    {
+      "id": "I-049",
+      "type": "issue",
+      "title": "Fable 等按模型的周额度不显示：额度接口一直 403",
+      "summary": "按模型的周额度只有 /api/oauth/usage 的 limits[] 才有，状态栏只给 5 小时和本周所有模型；本机该接口一直 403，所以从来没有 Fable 一项，界面又不说明。改为 403 也退避，读不到时明确显示「读不到（额度接口 http_403）」，接口读到但模型没有自己的额度时显示「无单独额度」",
+      "detail": "**现象**：用户「fleet 怎么不显示 fable 使用状况」。额度栏只有「5 小时」「本周 · 所有模型」，用 Fable 5.2 的终端在 fleet_status 和卡片上也只有这两项。\n\n**根因**：\n- 按模型的周额度只在 `api.anthropic.com/api/oauth/usage` 的 `limits[]` 里（`kind: weekly_scoped`，`scope.model.display_name: \"Fable\"`，`percent`，`resets_at`）。`server/collectors/usage.js limitsOf()` 本来就按这个列表生成 `weekly_scoped:<名>`，没有写死模型名。\n- 本机这个接口一直返回 403：`~/.claude-ops/usage-cache.json` 为 `{\"ok\":false,\"error\":\"http_403\"}`，从没有成功读数（也没有 `usage-orgs.json`）。账号为 Team 套餐，令牌带 `user:profile` 权限。\n- 额度于是全部来自状态栏（`statusline-usage.json`）。Claude Code 2.1.330 传给状态栏的 `rate_limits` 只有 `five_hour`、`seven_day`（网关下另有 `spend_limit`），没有按模型的项。它自己 `/usage` 的「Current week (Fable)」也来自同一个接口（`limits[]`，按允许列表过滤）。\n- Claude Code 把这个接口的 403 当成限流，退避后再问；我们以前 403 不退避，每 3 分钟照问。\n- 界面在缺这一项时什么都不说，看起来像「漏显示」。\n\n**解决**：\n- `usage.js`：403 也按 2、4、8…最长 30 分钟退避。\n- `modelquota.js`：`modelName()` 从模型 id 推出名字；`modelQuota` 多一个 `ownNote`：接口从没读到 → `unread`（带错误），读到过但这个模型没有自己的额度 → `none`。\n- `index.js`：`state.usage.api = { at, error }`。\n- 界面：顶栏多一个「本周 · 按模型　读不到（额度接口 …）」框；终端卡片多一行；手机页悬停和 `fleet_status` 都说明原因。\n\n**如何避免**：新数据源缺某一项时要在界面上说明，不要留空。\n",
+      "status": "resolved",
+      "files": [
+        "server/modelquota.js",
+        "server/collectors/usage.js",
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "web/app.js",
+        "web/m.js",
+        "web/quotafmt.js",
+        "web/i18n.js",
+        "test/modelquota.test.mjs"
+      ],
+      "tags": [
+        "额度"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "0.9.82"
+      ],
+      "created": "2026-11-23 16:39",
+      "updated": "2026-11-23 16:39",
+      "notes": [],
+      "count": 1
     }
   ]
 }

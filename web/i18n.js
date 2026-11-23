@@ -26,6 +26,7 @@ const EN = {
   // time
   '{0}天': '{0}d', '刚刚': 'just now', '{0} 分钟前': '{0} min ago', '{0} 小时前': '{0} h ago', '{0} 天前': '{0} days ago',
   // quota
+  '本周 · {0}：读不到（额度接口 {1}）': 'Week · {0}: not known (usage API {1})', '未连上': 'not reached', '本周 · {0}：无单独额度': 'Week · {0}: no limit of its own', '按模型的周额度只能从额度接口读到；状态栏只给 5 小时和本周所有模型': 'Per-model weekly limits come only from the usage API; the status line gives the 5-hour and all-models ones', '按模型的周额度（如 Fable）只能从额度接口读到，状态栏只给 5 小时和本周所有模型。接口：{0}': 'Per-model weekly limits (such as Fable) come only from the usage API; the status line gives the 5-hour and all-models ones. API: {0}', '本周 · 按模型': 'Week · per model', '读不到（额度接口 {0}）': 'Not known (usage API {0})', '接口拒绝（403），稍后自动重试': 'Refused (403), retrying later',
   '接口限流，稍后自动重试': 'Rate limited, retrying later', '登录过期，打开一次 Claude Code 即可': 'Login expired, open Claude Code once',
   '5 小时': '5 hours', '本周 · 所有模型': 'Week · all models', '额度': 'Quota', '读取失败：': 'Read failed: ', '读取中…': 'Loading…',
   ' 重试': ' retry', '缓存 {0}': 'cached {0}', '当前起作用的限额': 'The limit currently in effect', '已用': 'used', '重置 ': 'resets ',
@@ -384,6 +385,7 @@ const JA = {
   // time
   '{0}天': '{0}日', '刚刚': 'たった今', '{0} 分钟前': '{0} 分前', '{0} 小时前': '{0} 時間前', '{0} 天前': '{0} 日前',
   // quota
+  '本周 · {0}：读不到（额度接口 {1}）': '今週 · {0}：取得できません（利用枠 API {1}）', '未连上': '未接続', '本周 · {0}：无单独额度': '今週 · {0}：個別の枠なし', '按模型的周额度只能从额度接口读到；状态栏只给 5 小时和本周所有模型': 'モデル別の週枠は利用枠 API からのみ取得できます。ステータスラインは 5 時間と全モデルの枠だけです', '按模型的周额度（如 Fable）只能从额度接口读到，状态栏只给 5 小时和本周所有模型。接口：{0}': 'モデル別の週枠（Fable など）は利用枠 API からのみ取得できます。ステータスラインは 5 時間と全モデルの枠だけです。API：{0}', '本周 · 按模型': '今週 · モデル別', '读不到（额度接口 {0}）': '取得できません（利用枠 API {0}）', '接口拒绝（403），稍后自动重试': '拒否されました（403）、あとで再試行',
   '接口限流，稍后自动重试': 'レート制限中、あとで自動再試行', '登录过期，打开一次 Claude Code 即可': 'ログイン期限切れ。Claude Code を一度開いてください',
   '5 小时': '5 時間', '本周 · 所有模型': '今週 · 全モデル', '额度': '利用枠', '读取失败：': '読み込み失敗：', '读取中…': '読み込み中…',
   ' 重试': ' 再試行', '缓存 {0}': 'キャッシュ {0}', '当前起作用的限额': '現在適用中の制限', '已用': '使用済み', '重置 ': 'リセット ',

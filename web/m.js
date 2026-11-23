@@ -153,7 +153,7 @@ function quotaTag(u) {
   const q = u?.quota;
   if (!q) return '';
   const low = 100 - q.usedPct <= (state.thresholds?.energyLowPct ?? 10);
-  const tip = q.all.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt ? ' · ' + QT.resetText(l.resetsAt) : ''}`).join('\n');
+  const tip = [...q.all.map((l) => `${l.label} ${Math.round(l.usedPct)}%${l.resetsAt ? ' · ' + QT.resetText(l.resetsAt) : ''}`), QT.ownText(q.ownNote)].filter(Boolean).join('\n');
   return `<span class="mq${low ? ' low' : q.active ? ' on' : ''}" title="${esc(tip)}">${esc(shortLabel(q))} ${Math.round(q.usedPct)}%${q.resetsAt ? ' · ' + esc(QT.resetText(q.resetsAt)) : ''}</span>`;
 }
 

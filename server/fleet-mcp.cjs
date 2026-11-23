@@ -21,6 +21,14 @@ const ago = (t) => {
   const s = Math.max(0, Math.round((Date.now() - t) / 1000));
   return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`;
 };
+// a model without a weekly limit of its own (server/modelquota.js ownNote): it has none, or it is not known
+// (per-model limits come only from the usage API; the status line gives the 5-hour and all-models ones)
+const ownLimit = (q) =>
+  !q?.ownNote
+    ? ''
+    : q.ownNote.reason === 'unread'
+      ? `; ${q.ownNote.name} weekly limit of its own: not known (the usage API answers ${q.ownNote.error || 'nothing'}; only the 5-hour and all-models limits are read, from the status line)`
+      : `; ${q.ownNote.name}: no weekly limit of its own`;
 
 // Our agents (we can type into them) with what their session says about them.
 async function fleet() {
@@ -65,7 +73,7 @@ const TOOLS = [
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
         if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}${o.hint ? ` (${o.hint})` : ''}`).join(' | ')}${a.waiting.trust ? ' · answer with fleet_answer choice "trust"' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
-        if (u?.model) out.push(`  model: ${u.model}${u.quota ? ` · quota ${u.quota.label} ${Math.round(u.quota.usedPct)}% used${u.quota.active ? ' (gating now)' : ''}, ${u.quota.resetsAt ? 'resets ' + new Date(u.quota.resetsAt).toLocaleString('zh-CN', { hour12: false }) : 'not started'}${u.quota.asOf ? ' (other organization, last read ' + new Date(u.quota.asOf).toLocaleString('zh-CN', { hour12: false }) + ')' : ''}` : ''}`);
+        if (u?.model) out.push(`  model: ${u.model}${u.quota ? ` · quota ${u.quota.label} ${Math.round(u.quota.usedPct)}% used${u.quota.active ? ' (gating now)' : ''}, ${u.quota.resetsAt ? 'resets ' + new Date(u.quota.resetsAt).toLocaleString('zh-CN', { hour12: false }) : 'not started'}${u.quota.asOf ? ' (other organization, last read ' + new Date(u.quota.asOf).toLocaleString('zh-CN', { hour12: false }) + ')' : ''}${ownLimit(u.quota)}` : ''}`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
         if (u?.lastText) out.push(`  last reply: ${short(u.lastText, 300)}`);
         return out.join('\n');

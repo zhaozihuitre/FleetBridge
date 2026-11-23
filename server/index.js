@@ -170,6 +170,8 @@ function publish() {
     // signed in now, if not the one read yet (a /login since the last reading)
     signedIn: orgNow && readOrg && orgNow !== readOrg ? orgInfo(orgNow) : null,
     others,
+    // the usage API itself (per-model limits come only from it): its last good reading, its error now
+    api: usage ? { at: usage.fetchedAt || null, error: usage.ok === false ? usage.error || null : null } : null,
   };
   // queues whose terminal is gone are held, and pass to the session once it runs again (server/queue.js);
   // not before the PTY host has said which terminals it still runs
@@ -186,7 +188,7 @@ function publish() {
       const org = orgInfo(orgOfUnit(u));
       // the quota its model runs on (its organization's reading) and when that resets
       const other = org && readOrg && org.id !== readOrg ? others.find((x) => x.org.id === org.id) : null;
-      const quota = other ? modelQuota(u.model, other.limits, { asOf: other.fetchedAt }) : org && readOrg && org.id !== readOrg ? null : modelQuota(u.model, view?.limits);
+      const quota = other ? modelQuota(u.model, other.limits, { asOf: other.fetchedAt }) : org && readOrg && org.id !== readOrg ? null : modelQuota(u.model, view?.limits, { api: view?.api });
       // seenAt: when you last opened its terminal (a turn ended after it: "done, not looked at yet")
       return { ...u, owned: Boolean(agentId), agentId, seenAt: seenAt(u.sessionId), permission: u.permission && { ...u.permission, prompt }, org: org && { id: org.id, name: org.name }, quota, limit: u.limit && { ...u.limit, org: orgInfo(orgAt(u.limit.at))?.name || null } };
     }),

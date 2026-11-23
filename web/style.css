@@ -828,6 +828,7 @@ html.web [data-win] { display: none; }
 .energy-group > .energy { border-top-color: color-mix(in srgb, var(--oc) 60%, transparent); }
 .energy-other { opacity: 0.9; }
 .energy-other .other-pct { font-family: var(--display); font-size: 13px; color: var(--text); }
+.energy.permodel { opacity: 0.85; }
 
 /* the fleet logo (index.html / m.html): the escorts orbit with SMIL (stopped by theme.js under "reduce motion"),
    the flames pulse here */
@@ -956,6 +957,7 @@ html.web [data-win] { display: none; }
 .unit .stat.quota .ql b { font-weight: 500; color: var(--soft); }
 .unit .stat.quota .ql.main b { color: var(--kc, var(--cyan)); }
 .unit .stat.quota .ql.main { color: var(--text); }
+.unit .stat.quota .ql.none { color: var(--muted, var(--soft)); font-style: italic; }
 /* the master's panel: the tightest quota and when it resets */
 .master-bar .master-quota { margin-left: 10px; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .master-bar .master-quota.on { color: var(--amber); }

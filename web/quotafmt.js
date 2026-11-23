@@ -29,7 +29,10 @@ export function quotaText(L) {
   };
   /** One limit in a line: "5 小时 69% · 13:10 重置" (a label as the server gives it). */
   const limitLine = (l, now = Date.now()) => `${l.label} ${Math.round(Math.min(100, Math.max(0, Number(l.usedPct) || 0)))}% · ${resetText(l.resetsAt, now)}`;
-  return { when, resetText, limitLine };
+  /** A model without a limit of its own (server/modelquota.js ownNote): it has none, or the usage API, the only
+   * source of per-model limits, could not be read ("本周 · Fable 5.2：读不到（额度接口 http_403）"). */
+  const ownText = (n) => (!n ? '' : n.reason === 'unread' ? L('本周 · {0}：读不到（额度接口 {1}）', n.name, n.error || L('未连上')) : L('本周 · {0}：无单独额度', n.name));
+  return { when, resetText, limitLine, ownText };
 }
 
 /** The limit holding things back now: the one gating requests (active), else the most used. */

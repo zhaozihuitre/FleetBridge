@@ -83,7 +83,8 @@ const LIMIT_LABEL = { session: ['5 小时', '5 hours', '5 時間'], weekly_all: 
 /**
  * The quota as our agents' status line last saw it (see agents.js), merged over the API reading
  * when it is newer: it is current whenever one of our agents works, and is never rate limited.
- * It carries the 5-hour and weekly limits only; per-model ones keep the API's last value.
+ * It carries the 5-hour and weekly limits only (Claude Code 2.1.330's status line input: rate_limits.five_hour,
+ * .seven_day); per-model ones (e.g. Fable) keep the API's last value, and without one there are none.
  */
 export function withStatusline(usage, file) {
   let s;
@@ -188,7 +189,9 @@ export async function collectUsage(force = false) {
     saveCache();
     await readOthers(p?.orgId);
   } catch (e) {
-    if (e.message === 'rate_limited') {
+    // a 403 is how this endpoint also turns a token away for a while: Claude Code itself (2.1.330) takes it
+    // as rate limited and asks again only later. Asking every 3 minutes regardless kept it refused.
+    if (e.message === 'rate_limited' || e.message === 'http_403') {
       // 2, 4, 8 … up to 30 minutes between attempts until the API lets us back in
       backoffMs = Math.min(backoffMs ? backoffMs * 2 : 2 * 60_000, 30 * 60_000);
       backoffUntil = Date.now() + backoffMs;
