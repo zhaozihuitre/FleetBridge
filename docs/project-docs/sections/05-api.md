@@ -34,6 +34,7 @@
 | `cwd` | string | 新会话的文件夹（必须存在） |
 | `name` | string? | 呼号（会话名，`--name`） |
 | `prompt` | string? | 启动后自动发送的首个指令 |
+| `readonly` | boolean? | `true` = 在首个指令末尾附上只读调查的限制（`server/constraints.js` 的 `readOnlyOrder`，主控 `fleet_spawn` 的 `readonly`）；没有 `prompt` 时不起作用 |
 | `resume` | string? | 接管的会话 ID，必须来自后端自己扫描的存档；给了 `resume` 就忽略 `cwd` |
 
 返回 `{ ok: true, id }`。错误：`400 {error}`（文件夹不存在、未知会话、终端组件不可用），`409`（该会话正在外部终端运行）。
@@ -46,7 +47,7 @@
 
 | action | 额外参数 | 作用 |
 |---|---|---|
-| `text` | `text` | 以 bracketed paste 输入后回车 |
+| `text` | `text`；`readonly`?: `true` | 以 bracketed paste 输入后回车。`readonly: true`（主控 `fleet_send` 的 `readonly`）在指令末尾附上只读调查的限制，`queue` 同样支持 |
 | `key` | `key`: `esc` / `ctrl-c` / `enter` | 发送按键 |
 | `answer` | `choice`: 选项编号或 `esc` | 回答屏幕上的授权框、选择框。信任对话框的 1 / 2 按选项本身回答（1 = No, exit，2 = Yes, I trust this folder），不看它们在屏幕上的上下顺序 |
 | `trust` | `yes`?: 默认 `true`；`remember`?: `true` | 回答「是否信任此文件夹」：`yes: false` 选 No, exit。屏幕上没有信任对话框时返回 `false`；3 秒内重复调用不再按键。`remember: true`（只对本机指挥中心发来的生效）把这个 agent 的文件夹加入自动信任的目录并打开开关 |

@@ -28,13 +28,23 @@ test('investigate-and-fix orders name what the user must do; small orders go wit
   assert.match(GUIDE, /小指令免模板/);
 });
 
-test('the rest of the guide is as before: the template is only added', () => {
-  const before = OLD_GUIDES[8].split('\n'); // the 0.9.79 default, the last one without the template
-  const now = GUIDE.split('\n').filter((l) => !l.startsWith('- 收工：')); // a later line of its own (P-010, test/wrapup.test.mjs)
+// the defaults in turn: OLD_GUIDES[8] the 0.9.79 one (no template), [9] with the template (P-002), [10] with
+// wrap-up (P-010); the current one adds the read-only switch and the secrets rule (P-008)
+test('the rest of the guide is as before: the template, wrap-up, then the read-only switch and the secrets rule (P-008), are only added', () => {
+  const before = OLD_GUIDES[8].split('\n');
+  const now = GUIDE.split('\n');
   for (const line of before) assert.ok(now.includes(line), line);
-  const added = now.filter((l) => !before.includes(l));
-  assert.equal(added.length, 10);
+  const later = /^- (收工|只读调查|密钥)：/; // lines of their own (P-010: test/wrapup.test.mjs; P-008: below)
+  const added = now.filter((l) => !before.includes(l) && !later.test(l));
+  assert.equal(added.length, 10); // the template (P-002): as it came in, OLD_GUIDES[9]
+  assert.deepEqual(added, OLD_GUIDES[9].split('\n').filter((l) => !before.includes(l)));
   assert.ok(added.every((l) => /^ {0,2}- /.test(l)));
+  const withWrapup = OLD_GUIDES[10].split('\n');
+  assert.ok(withWrapup.some((l) => l.startsWith('- 收工：')));
+  const p8 = now.filter((l) => !withWrapup.includes(l));
+  assert.equal(p8.length, 2);
+  assert.match(p8[0], /^- 只读调查：.*readonly: true.*要 agent 动手改的任务不要带/);
+  assert.match(p8[1], /^- 密钥：.*不原样输出.*需要原值/);
 });
 
 test('a missing guide is written', () => {
@@ -45,7 +55,7 @@ test('a missing guide is written', () => {
 });
 
 test('every older default is replaced by the current guide', () => {
-  assert.ok(OLD_GUIDES.length >= 9);
+  assert.ok(OLD_GUIDES.length >= 10);
   assert.ok(!OLD_GUIDES.includes(GUIDE));
   assert.equal(new Set(OLD_GUIDES).size, OLD_GUIDES.length);
   OLD_GUIDES.forEach((old, i) => {

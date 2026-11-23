@@ -133,5 +133,8 @@ test('the master knows the tool: allowed without asking, in its guide, and the o
   const { GUIDE, OLD_GUIDES } = await import('../server/master.js');
   assert.match(GUIDE, /收工：.*fleet_close.*不要给每个终端逐条派「\/exit」/);
   assert.ok(!OLD_GUIDES.includes(GUIDE));
-  assert.ok(OLD_GUIDES.includes(GUIDE.replace(/^- 收工：.*\n/m, '')), 'the default before this one is known as old');
+  // the defaults around it are known as old: without wrap-up (before P-010), and with it but without P-008's lines
+  const noP8 = GUIDE.replace(/^- (只读调查|密钥)：.*\n/gm, '');
+  assert.ok(OLD_GUIDES.includes(noP8.replace(/^- 收工：.*\n/m, '')), 'the default before this one is known as old');
+  assert.ok(OLD_GUIDES.includes(noP8), 'the wrap-up default (before P-008) is known as old');
 });
