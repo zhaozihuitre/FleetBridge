@@ -4576,6 +4576,35 @@
       "created": "2026-11-23 13:16",
       "updated": "2026-11-23 13:16",
       "notes": []
+    },
+    {
+      "id": "C-094",
+      "type": "change",
+      "title": "收工：一键结束空闲终端，忙碌的跳过（改善提案 P-010）",
+      "summary": "活动终端页加「结束空闲」，主控加 fleet_close：一次结束多个空闲终端，作战中、等回应、有排队指令或还没汇报的跳过并说明原因，结束前先确认。",
+      "detail": "**背景**：11-20 06:23 同一分钟里，主控给 4 个终端逐条派了「/exit」来收工，清理动作占了 4 条派单。指挥中心只有「全部结束」，不区分空闲和忙碌。\n\n**改动内容**\n- 新增 `server/wrapup.js`：判断哪些终端可以结束。只有待命且没有欠着的事的才结束；作战中、等授权 / 等回答、启动中、15 秒内刚收到指令或正在输入、队列里还有指令、主控派的指令还没汇报的，跳过并给出原因。\n- 新增 `POST /api/agents/wrapup`（`ids` 可选、`dry` 只预览）。每次调用先重新读取会话状态再判断，不信任调用方之前看到的列表。\n- 活动终端页顶部加「■ 结束空闲」：先预览，确认框列出会结束的和跳过的（含原因），确认后才结束。\n- 主控新增工具 `fleet_close`（已加入免询问列表）：不带 `confirm` 只列出，带 `confirm: true` 才结束；可指定多个 agent。主控指南加一条「收工」，原默认指南记为旧版（会被自动替换，用户改过的不动）。\n- `noteOrder` 记下 `orderedAt`，状态里的 `agents[]` 多了 `orderedAt`。\n\n**原因**：收工从多条指令变成一次点击 / 一次工具调用，同时避免误关还在工作的终端。\n\n**影响范围**：`server/wrapup.js`、`server/index.js`、`server/fleet-mcp.cjs`、`server/master.js`、`server/turns.js`、`web/app.js`、`web/i18n.js`。原有的「全部结束」和单个终端的「结束」不变。\n\n**注意事项**：忙碌的终端不能用收工结束，要结束它仍用终端标题栏的「结束」或「全部结束」。结果还没看过的空闲终端会被结束（确认框里有标注），会话记录保留，可从存档继续。\n",
+      "status": "done",
+      "files": [
+        "server/wrapup.js",
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "web/app.js",
+        "test/wrapup.test.mjs"
+      ],
+      "tags": [
+        "收工",
+        "终端",
+        "主控"
+      ],
+      "sections": [
+        "features",
+        "api"
+      ],
+      "refs": [],
+      "created": "2026-11-23 13:28",
+      "updated": "2026-11-23 13:28",
+      "notes": []
     }
   ]
 }

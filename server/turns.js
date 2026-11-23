@@ -52,6 +52,7 @@ function save() {
 export function noteOrder(agent, by, text, now = Date.now()) {
   if (!agent || agent.kind === 'shell' || agent.kind === 'master') return;
   agent.orderBy = by;
+  agent.orderedAt = now; // wrap-up (server/wrapup.js): too fresh to show as working yet
   // someone stepping in on a turn of the master's, or right after it (self-improvement statistics:
   // the master's order wasn't enough)
   const mine = turns.get(agent.id);

@@ -214,6 +214,27 @@ const TOOLS = [
     },
   },
   {
+    name: 'fleet_close',
+    description: 'Wrap up: end several idle agents in ONE call (their Claude Code exits; the sessions are kept and can be resumed later with fleet_spawn resume). Use this instead of sending "/exit" to each. Only agents that are idle with nothing owed are ended; one that is working, waiting on an approval or an answer, starting, just got an order, has queued orders, or has not reported your order back yet is skipped and listed with the reason (never forced). agents = ids / names / projects, or omit (or ["idle"] / ["all"]) for every idle agent. Without confirm it only lists what would be ended and what would be skipped; call it with confirm: true once the user asked for these to be closed.',
+    inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, confirm: { type: 'boolean' } } },
+    async run({ agents, confirm }) {
+      const every = !agents?.length || (agents.length === 1 && /^[#@]?(all|idle)$/i.test(String(agents[0])));
+      let ids;
+      if (!every) {
+        const { ours } = await fleet();
+        ids = agents.map((r) => resolve(ours, r).a.id);
+      }
+      const r = await api('/api/agents/wrapup', { ...(ids ? { ids } : {}), dry: confirm !== true, via: 'master' });
+      const why = { working: 'working', 'needs-approval': 'waiting on an approval', 'needs-answer': 'waiting on an answer', starting: 'still starting', 'just-ordered': 'just got an order', queued: 'has queued orders', unreported: 'its report on your order has not reached you yet', gone: 'not running', 'not-claude': 'not a Claude agent' };
+      const one = (x) => `${x.name} [${String(x.id).slice(0, 8)}]`;
+      const done = r.dry ? r.close : r.closed;
+      const out = [done.length ? `${r.dry ? 'would end' : 'ended'} (${done.length}): ${done.map((x) => one(x) + (x.unseen ? ' (its last answer was not looked at yet)' : '')).join(', ')}` : r.dry ? 'nothing to end: no idle agent' : 'ended none'];
+      if (r.skip.length) out.push(`skipped (${r.skip.length}): ${r.skip.map((x) => `${one(x)}: ${why[x.reason] || x.reason}`).join('; ')}`);
+      if (r.dry && done.length) out.push('Nothing was ended yet. Call again with confirm: true once the user asked for it.');
+      return out.join('\n');
+    },
+  },
+  {
     name: 'fleet_ui',
     description: [
       'Drive the Fleet Bridge command center window the user is looking at, and see what it shows. Every call returns the current view (tab, page, terminals open in the split, ...). Actions:',

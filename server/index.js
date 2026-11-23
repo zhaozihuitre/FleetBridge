@@ -39,6 +39,7 @@ import { autoTrusts, setTrustSettings, trustSettings } from './trust.js';
 import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
+import { wrapupPlan } from './wrapup.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, quotaBackNotice, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
 import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, answerTrust, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
@@ -190,7 +191,7 @@ function publish() {
     history: history.map((h) => ({ ...h, pid: running.get(h.sessionId) ?? null, owned: bySession.has(h.sessionId), agentId: bySession.get(h.sessionId) || null })),
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
-    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null })), // the master has its own column
+    agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null, orderedAt: orderedAt(a.id) })), // the master has its own column
     // orders queued for a terminal that is gone and not opened again: listed, to be dropped or taken up
     orphanQueues: hostReady ? orphanQueues(all) : [],
     agentSupport: agentSupport(),
@@ -226,7 +227,7 @@ function publish() {
     queueMasterNote(quotaBackNotice({ ...d, name }));
   }
   state.quotaStops = quotaStops();
-  state.agents = state.agents.map((a) => ({ ...a, queue: queueOf(a.id) })); // as it is after this round
+  state.agents = state.agents.map((a) => ({ ...a, queue: queueOf(a.id), orderedAt: orderedAt(a.id) })); // as it is after this round
   // the master hears without having to look: our agents waiting on a person (once per question),
   // and the turns it gave out that have ended, with their answers
   const owned = state.units.filter((u) => u.owned && u.agentId);
@@ -398,6 +399,9 @@ function orderTarget(a) {
   return { agentId: a.id, name: a.name || u?.name || u?.title || null, project: path.basename(a.cwd || '') || null };
 }
 
+// When an agent last got an order, or was last typed into: for a moment after, it may not show as working yet.
+const orderedAt = (id) => Math.max(getAgent(id)?.orderedAt || 0, getAgent(id)?.typedAt || 0) || null;
+
 /** One action for one or more of our agents; shared by the command center and the phone page. */
 function agentAction({ id, action, text, key, choice, index, held, yes, remember, via = 'cc' }) {
   const ids = Array.isArray(id) ? id : [id];
@@ -463,6 +467,27 @@ function agentAction({ id, action, text, key, choice, index, held, yes, remember
     return false;
   });
   return { ok: results.some(Boolean), results };
+}
+
+/**
+ * Wrap-up (improvement P-010): ends our idle terminals in one go, or the idle ones of a selection (ids).
+ * A terminal that is working, waiting on a person, starting, or still owes something (queued orders, a
+ * report to the master) is passed over and named with the reason. dry: only says what would happen, for
+ * the confirmation. Judged on a fresh reading each time, never on what the caller saw before.
+ */
+function wrapup({ ids, dry, via = 'cc' } = {}) {
+  publish(); // read the sessions again: a turn started since the last poll must not be ended
+  const plan = wrapupPlan({ agents: state?.agents || [], units: state?.units || [], only: Array.isArray(ids) ? ids.map(String) : null });
+  if (dry) return { ok: true, dry: true, ...plan };
+  const closed = [];
+  for (const x of plan.close) {
+    const a = getAgent(x.id);
+    if (!a?.alive || a.kind === 'master') continue;
+    endAgent(a);
+    closed.push(x);
+  }
+  if (closed.length) logEvent('agents.wrapup', { n: closed.length, skipped: plan.skip.length, via });
+  return { ok: closed.length > 0, closed, skip: plan.skip };
 }
 
 // UI commands for the command center page, sent as a named SSE event; the page runs it and posts
@@ -723,6 +748,11 @@ async function handleRequest(req, res) {
   if (req.method === 'POST' && req.url === '/api/agents/action') {
     const body = await readBody(req);
     return send(res, 200, agentAction(req.fleetWeb ? { ...body, via: 'web' } : body)); // orders from another device are marked as such
+  }
+  // wrap-up: our idle terminals ended in one go, the busy ones passed over (server/wrapup.js)
+  if (req.method === 'POST' && req.url === '/api/agents/wrapup') {
+    const body = await readBody(req);
+    return send(res, 200, wrapup(req.fleetWeb ? { ...body, via: 'web' } : body));
   }
   // phone access (on / off, new key, QR): only from this computer
   if (req.url === '/api/mobile') return send(res, 200, req.method === 'POST' ? await setMobile(await readBody(req)) : await mobileInfo());

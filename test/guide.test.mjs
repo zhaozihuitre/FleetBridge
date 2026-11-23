@@ -29,8 +29,8 @@ test('investigate-and-fix orders name what the user must do; small orders go wit
 });
 
 test('the rest of the guide is as before: the template is only added', () => {
-  const before = OLD_GUIDES.at(-1).split('\n');
-  const now = GUIDE.split('\n');
+  const before = OLD_GUIDES[8].split('\n'); // the 0.9.79 default, the last one without the template
+  const now = GUIDE.split('\n').filter((l) => !l.startsWith('- 收工：')); // a later line of its own (P-010, test/wrapup.test.mjs)
   for (const line of before) assert.ok(now.includes(line), line);
   const added = now.filter((l) => !before.includes(l));
   assert.equal(added.length, 10);

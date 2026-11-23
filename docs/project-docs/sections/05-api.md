@@ -14,6 +14,7 @@
 | POST | `/api/snooze` | 某任务稍后提醒 | 同源 |
 | POST | `/api/agents` | 出击 / 接管我方 agent | 同源 |
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
+| POST | `/api/agents/wrapup` | 收工：一次结束空闲的我方终端。`{ ids?, dry?, via? }`：`ids` 只考虑这几个（不填 = 全部存活的 Claude 终端），`dry: true` 只返回判断结果。`dry` 时返回 `{ ok, dry, close:[{id,name,project,unseen}], skip:[{id,name,project,reason}] }`，否则 `{ ok, closed:[…], skip:[…] }`。`reason`：`working / needs-approval / needs-answer / starting / just-ordered / queued / unreported / gone / not-claude`。每次调用都重新读取会话状态后判断 | 同源 |
 | GET/POST | `/api/trust` | 自动信任的目录：`{ auto, dirs }`。POST 可带 `auto`（布尔）、`dirs`（数组或每行一个路径的文本，替换整个列表）、`add` / `remove`（一个路径）；返回清理后的设置（只留绝对路径，去掉盘符根目录和重复项）。其他设备 POST 返回 403 `computer_only` | 同源 |
 | GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |
 | GET | `/api/agents/reply?id=&turn=` | 我方 agent 某一轮的完整回答（主控 `fleet_read_reply`）。返回 `{ source: 'file', file, text, turn, count }`；没有保存过时返回 `{ source: 'transcript', text, ended }`。错误：`unknown_agent`、`no_such_turn`、`no_reply`（均 404） | 同源 |
@@ -74,6 +75,6 @@
 | `comms[]` | 最近 60 条事件 |
 | `operator` | 领航员 `mood` 与 `lines[]` |
 | `history[]` | 存档会话：`sessionId, cwd, project, title, lastPrompt, updatedAt, pid, owned, agentId` |
-| `agents[]` | 我方 agent：`id, sessionId, pid, name, cwd, alive, exitCode, startedAt` |
+| `agents[]` | 我方 agent：`id, sessionId, pid, name, cwd, alive, exitCode, startedAt`，以及 `queue`、`masterTurn`、`waiting`、`orderedAt`（最近一次收到指令或被输入的时间，收工判断用） |
 | `agentSupport` | `{ ok, error }`：node-pty 与 `claude` 是否可用 |
 | `thresholds` | 阈值配置 |

@@ -563,6 +563,28 @@ $('cmd-form').addEventListener('submit', async (e) => {
   closeSuggest();
 });
 
+// Wrap-up: the server says which terminals are idle with nothing owed (server/wrapup.js); the dialog names them
+// and the ones passed over, and the server judges again when it ends them (one that started working meanwhile stays).
+const skipWhy = (r) =>
+  ({ working: L('作战中'), 'needs-approval': L('等你授权'), 'needs-answer': L('等你回答'), starting: L('启动中'), 'just-ordered': L('刚收到指令'), queued: L('有排队的指令'), unreported: L('还没向主控汇报') })[r] || r;
+async function endIdle() {
+  const plan = await post('/api/agents/wrapup', { dry: true });
+  const skipped = (plan.skip || []).map((x) => L('— {0}：跳过（{1}）', x.name, skipWhy(x.reason)));
+  if (!plan.close?.length) return ask({ title: L('没有空闲的终端可以结束'), message: skipped.length ? L('下面这些终端还有事没做完，不会被结束：') : '', detail: skipped, ok: L('知道了') });
+  const yes = await ask({
+    danger: true,
+    title: L('结束 {0} 个空闲终端？', plan.close.length),
+    message: L('这些 agent 的进程会退出。会话记录保留，之后可以在部队页或存档里接着用。') + (skipped.length ? L('还有事没做完的终端会跳过。') : ''),
+    detail: [...plan.close.map((x) => '◆ ' + x.name + (x.unseen ? L(' · 结果还没看过') : '')), ...skipped],
+    ok: L('结束空闲'),
+  });
+  if (!yes) return;
+  const r = await post('/api/agents/wrapup', { ids: plan.close.map((x) => x.id) });
+  for (const x of r.closed || []) if (panes.has(x.id)) closePane(x.id);
+  const kept = (r.skip || []).length;
+  toast(kept ? L('已结束 {0} 个终端，{1} 个刚开始工作，已跳过', (r.closed || []).length, kept) : L('已结束 {0} 个终端', (r.closed || []).length));
+}
+
 // Held orders (message box and Orders tab): send them on after all, or drop them. True when the click was one.
 function heldAction(e) {
   const rq = e.target.closest('[data-requeue]');
@@ -1153,7 +1175,7 @@ function renderPage() {
   else if (ui.tab === 'units') html = `<div class="units" style="grid-template-columns: repeat(${unitCols($('page').clientWidth || 900)}, minmax(0, 1fr)); grid-template-rows: repeat(${unitRows($('page').clientHeight || 600)}, minmax(0, 1fr))">${items.map(unitCard).join('')}</div>`;
   else if (ui.tab === 'agents')
     html = items.length
-      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
+      ? `<div class="quests"><div class="agents-head"><span>${L('{0} 个活动终端 · {1} 个已在分屏', list.length, list.filter((a) => panes.has(a.id)).length)}</span><span class="agents-acts"><button class="btn" data-open-all>${L('⧉ 全部打开')}</button><button class="btn ghost danger" data-end-idle title="${L('结束空闲的我方终端；作战中、等你回应、有排队指令或还没汇报的会跳过（会话记录保留）')}">${L('■ 结束空闲')}</button><button class="btn ghost danger" data-end-all title="${L('结束所有我方终端（会话记录保留）')}">${L('■ 全部结束')}</button></span></div>${items.map(agentRow).join('')}</div>`
       : emptyBlock('empty', L('还没有我方终端。点「＋ 出击」，或在部队页的卡片上点「▶ 出击」。'), `<button class="btn" data-empty-deploy>${L('＋ 出击')}</button>`);
   else if (ui.tab === 'orders') html = ordersPage();
   else if (ui.tab === 'notices') html = noticesPage();
@@ -2011,6 +2033,8 @@ $('page').addEventListener('click', (e) => {
     const id = ua.dataset.unqueueAll;
     return ask({ danger: true, title: L('清空「{0}」的队列？', agentLabel(id).name), message: L('排队中的指令都不会再发出，记录里会标为已移除。'), ok: L('清空') }).then((yes) => yes && post('/api/agents/action', { id, action: 'unqueue' }));
   }
+  // wrap-up (improvement P-010): the idle terminals ended in one go, after a confirmation that names them
+  if (e.target.closest('[data-end-idle]')) return endIdle();
   // end every terminal of ours, after a confirmation; sessions stay and can be continued later
   if (e.target.closest('[data-end-all]')) {
     const live = liveAgents();
