@@ -458,12 +458,44 @@ export function trustPrompt(agent) {
   return {
     kind: 'question',
     trust: true,
-    text: `Claude Code 第一次打开这个文件夹，问是否信任它：${folder}\n（选 2 信任后才能工作；选 1 会退出）`,
+    folder,
+    text: L(
+      `Claude Code 第一次打开这个文件夹，问是否信任它：${folder}
+（选 2 信任后才能工作；选 1 会退出）`,
+      `Claude Code opens this folder for the first time and asks whether to trust it: ${folder}
+(2 trusts it and work can begin; 1 exits)`,
+      `Claude Code がこのフォルダーを初めて開き、信頼するか尋ねています：${folder}
+（2 で信頼して作業開始、1 は終了）`,
+    ),
+    // what each choice does, said with it wherever it is shown (the labels alone got "1" picked: it exits)
     options: [
-      { key: '1', label: 'No, exit', current: no >= 0 && /^\s*[❯›>▸]/.test(lines[no]) },
-      { key: '2', label: 'Yes, I trust this folder', current: /^\s*[❯›>▸]/.test(lines[yes]) },
+      { key: '1', label: 'No, exit', line: no, current: no >= 0 && /^\s*[❯›>▸]/.test(lines[no]), hint: L('不信任：Claude Code 直接退出，这个 agent 结束', 'not trusted: Claude Code exits and this agent ends', '信頼しない：Claude Code が終了し、この agent も終わる') },
+      { key: '2', label: 'Yes, I trust this folder', line: yes, current: /^\s*[❯›>▸]/.test(lines[yes]), yes: true, hint: L('信任：继续启动，开始工作', 'trusted: it goes on starting and can work', '信頼する：起動を続けて作業できる') },
     ],
   };
+}
+
+/**
+ * Answers the folder-trust dialog by what the choice says, not by its number: yes = "Yes, I trust this
+ * folder", otherwise "No, exit". False when no trust dialog is showing. A second call within a few seconds
+ * (a double click, two windows) presses nothing more.
+ */
+export function answerTrust(agent, yes = true) {
+  if (!agent?.alive) return false;
+  const t = trustPrompt(agent);
+  if (!t) return false;
+  if (agent.trustAnsweredAt && Date.now() - agent.trustAnsweredAt < 3000) return true;
+  const o = t.options.find((x) => Boolean(x.yes) === Boolean(yes));
+  if (!o) return false;
+  agent.trustAnsweredAt = Date.now();
+  // the cursor goes to that choice's line, wherever it is on the screen (above or below the other), then Enter
+  // (no cursor read: it starts on the choice listed first)
+  const shown = t.options.filter((x) => x.line >= 0).sort((x, y) => x.line - y.line);
+  const cur = t.options.find((x) => x.current && x.line >= 0) || shown[0];
+  if (o.line < 0 || !cur) return false;
+  if (o.line !== cur.line) agent.term.write(o.line > cur.line ? KEYS.down : KEYS.up);
+  setTimeout(() => agent.alive && agent.term.write(KEYS.enter), 150);
+  return true;
 }
 
 /**
@@ -690,8 +722,11 @@ export function inputEmpty(agent) {
 /** Answer a permission dialog by its option number (1 = yes); Esc rejects. */
 export function answerPrompt(agent, choice) {
   if (!agent?.alive) return false;
-  // the trust dialog and the unnumbered pickers take the arrow keys and Enter, not digits
-  const trust = trustPrompt(agent) || (!permissionPrompt(agent) && !menuOptions(agent).length && pickerPrompt(agent));
+  // the trust dialog's numbers are ours (1 = No, exit; 2 = Yes): answered by which choice that is
+  const tp = trustPrompt(agent);
+  if (tp && /^[12]$/.test(choice)) return answerTrust(agent, Boolean(tp.options.find((o) => o.key === choice)?.yes));
+  // the unnumbered pickers take the arrow keys and Enter, not digits
+  const trust = tp || (!permissionPrompt(agent) && !menuOptions(agent).length && pickerPrompt(agent));
   if (trust && /^\d$/.test(choice) && Number(choice) >= 1 && Number(choice) <= trust.options.length) {
     const want = Number(choice) - 1;
     const at = trust.options.findIndex((o) => o.current);

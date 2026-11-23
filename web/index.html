@@ -158,6 +158,7 @@
 <section class="ph-page" data-ph-page="notify" hidden>
 <p class="ph-note">一轮做完时，通知（桌面、手机、「通知」页）里的结论和「需要你」怎么得来。</p>
 <fieldset class="nt-opts"><legend>总结方式</legend><label><input type="checkbox" id="nt-model"> 我方终端用 Haiku 总结回答（失败或超过 15 秒改用规则截取）</label><label><input type="checkbox" id="nt-ext"> 外部会话也用 Haiku 总结（会占用额度）</label></fieldset>
+<fieldset class="nt-opts tr-opts"><legend>文件夹信任</legend><p class="ph-note">Claude Code 第一次在一个文件夹里启动时会问「是否信任此文件夹」。选 Yes 才开始工作，选 No 会直接退出。舰桥新开的 agent 停在这里时，消息框和「我方终端」页里有「✓ 信任」按钮。</p><label><input type="checkbox" id="tr-auto"> 在下面这些目录（含子目录）里新开 agent 时，自动回答「信任」</label><textarea id="tr-dirs" rows="3" spellcheck="false" placeholder="每行一个文件夹的完整路径" aria-label="自动信任的目录"></textarea><small id="tr-state"></small><small>只填你自己的工作目录：信任一个文件夹，等于允许 Claude Code 按那个文件夹里的设置运行 hook 和 MCP 服务。默认关闭；盘符根目录不接受。</small></fieldset>
 </section>
 <section class="ph-page ph-voice" data-ph-page="voice" hidden>
 <p class="ph-note">用这台电脑自带的语音读出通知（Windows 的本地语音，不经过任何外部服务），舰桥的小窗开着时才会读。你正在看的那个终端不读；同一个终端一分半内不重复；同时到来的合并成一句。手机上的播报在手机页右上角单独打开。</p>

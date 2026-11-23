@@ -750,6 +750,10 @@ html[data-theme="light"] .box, html[data-theme="light"] .unit, html[data-theme="
 
 /* notice options in the phone / push dialog */
 .nt-opts { margin: 12px 0 0; padding: 8px 12px 10px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--soft); }
+.tr-opts .ph-note { margin: 0; }
+.tr-opts textarea { width: 100%; min-height: 58px; resize: vertical; padding: 6px 8px; background: var(--x-050a12); border: 1px solid var(--line-hi); color: var(--text); font-family: 'Cascadia Mono', Consolas, monospace; font-size: 12px; }
+.tr-opts textarea:disabled { opacity: .5; }
+.tr-opts small { color: var(--muted); font-size: 12px; }
 .nt-opts legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
 .nt-opts label { display: flex; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; } /* (.deploy label stacks its children: not these) */
 .phone .ph-opt { flex-direction: row; }

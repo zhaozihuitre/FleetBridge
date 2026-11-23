@@ -345,6 +345,25 @@ function renderOperator() {
       <div class="msg-head"><b>${esc(op.name)}</b>${l.unit ? `<span>→ ${esc(l.unit.project)}</span>` : ''}<i>${k.label || ''}</i>${l.at ? `<time title="${esc(new Date(l.at).toLocaleString(locale, { hour12: false }))}">${clock(l.at, Date.now() - l.at > 86_400_000)}</time>` : ''}</div>
       <div class="msg-text">${text}</div>${acts}</div>`;
   });
+  // New agents stopped on Claude Code's "trust this folder?" dialog (no session yet, so no reminder of their
+  // own): answered right here by what the choice does, one click each, or all of them at once.
+  const trusts = (state.agents || []).filter((a) => a.alive && a.waiting?.trust);
+  const trustMsgs = trusts.map((a) => {
+    const id = esc(a.id);
+    const folder = a.waiting.folder || a.cwd || '';
+    return `<div class="msg in" style="--mc:var(--red)">
+      <div class="msg-head"><b>${esc(op.name)}</b><span>→ ${esc(agentLabel(a.id).name)}</span><i>TRUST</i>${a.waiting.at ? `<time>${clock(a.waiting.at)}</time>` : ''}</div>
+      <div class="msg-text">${esc(L('{0} 停在「是否信任此文件夹」上：Claude Code 第一次在这个文件夹里启动时会问。信任后它才开始工作；不信任它会直接退出。', agentLabel(a.id).name))}</div>
+      <pre class="msg-prompt">${esc(folder)}</pre>
+      <div class="msg-answers"><button type="button" class="yes" data-trust="${id}">${L('✓ 信任此文件夹，继续')}</button>${
+        LOCAL ? `<button type="button" data-trust="${id}" data-remember="1" title="${esc(L('把这个文件夹加入「自动信任的目录」并打开自动信任：以后舰桥在它（含子目录）里新开 agent 不再问。可在「Web 访问 · 手机」的「通知总结」页里改'))}">${L('✓ 信任，以后这个目录不再问')}</button>` : ''
+      }<button type="button" class="no" data-trust="${id}" data-no="1">${L('不信任（Claude Code 会退出，agent 结束）')}</button></div>
+      <div class="msg-acts"><button type="button" data-msg-term="${id}">${L('▶ 打开终端')}</button></div></div>`;
+  });
+  if (trusts.length > 1)
+    trustMsgs.unshift(`<div class="msg in" style="--mc:var(--red)"><div class="msg-head"><b>${esc(op.name)}</b><i>TRUST</i></div>
+      <div class="msg-text">${esc(L('{0} 个新开的 agent 都在等「是否信任此文件夹」：{1}', trusts.length, trusts.map((a) => agentLabel(a.id).name).join('、')))}</div>
+      <div class="msg-answers"><button type="button" class="yes" data-trust="${esc(trusts.map((a) => a.id).join(','))}">${L('✓ 全部信任（{0} 个）', trusts.length)}</button></div></div>`);
   const outgoing = sentLog
     .slice(0, 8)
     .reverse()
@@ -352,7 +371,7 @@ function renderOperator() {
   const queued = (state.agents || [])
     .filter((a) => a.alive && a.queue?.length)
     .flatMap((a) => a.queue.map((q, i) => `<div class="msg out queued"><div class="msg-text">${esc(q.text)}</div><div class="msg-meta">→ ${esc(agentLabel(a.id).name)} · #${i + 1}<button type="button" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></div></div>`));
-  const html = incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '') + (queued.length ? `<div class="msg-sep">${L('排队中')}</div>` + queued.join('') : '');
+  const html = trustMsgs.join('') + incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '') + (queued.length ? `<div class="msg-sep">${L('排队中')}</div>` + queued.join('') : '');
   if (renderOperator.last !== html) {
     const box = $('msg-box');
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
@@ -456,11 +475,26 @@ async function sendToTargets(body, label, ids) {
   $('msg-box').scrollTop = $('msg-box').scrollHeight;
 }
 
+// The folder-trust dialog of one or more new agents, answered by what the button says (the server finds the
+// choice on the screen: no number to get wrong). "Remember" also lists the folder as trusted without asking.
+function answerTrust(btn) {
+  btn.disabled = true;
+  const ids = btn.dataset.trust.split(',').filter(Boolean);
+  const yes = !btn.dataset.no;
+  return post('/api/agents/action', { id: ids.length > 1 ? ids : ids[0], action: 'trust', yes, remember: Boolean(btn.dataset.remember) }).then((r) =>
+    toast(!r.results?.some(Boolean) ? L('回应失败：agent 可能已经退出') : !yes ? L('已选不信任：Claude Code 退出') : btn.dataset.remember ? L('已信任，并记住了这个目录') : L('已信任文件夹，agent 继续启动')),
+  );
+}
+
 $('msg-box').addEventListener('click', (e) => {
   const go = e.target.closest('[data-msg-go]');
   if (go) return goLine(Number(go.dataset.msgGo));
   const uq = e.target.closest('[data-unqueue]');
   if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
+  const mt = e.target.closest('[data-msg-term]');
+  if (mt) return openTerm(mt.dataset.msgTerm);
+  const tr = e.target.closest('[data-trust]');
+  if (tr) return answerTrust(tr);
   const an = e.target.closest('[data-answer]');
   if (an) {
     an.disabled = true;
@@ -912,7 +946,7 @@ function agentRow(a) {
   const u = state.units.find((x) => x.agentId === a.id);
   const s = stateOf(u, { agent: a });
   const c = s.color;
-  const text = u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u?.lastText || L('（还没有汇报）');
+  const text = !u && a.waiting?.trust ? L('等你回答：是否信任此文件夹 {0}', a.waiting.folder || a.cwd || '') : u?.permission ? L('请求授权：') + (u.permission.message || '') : u?.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u?.lastText || L('（还没有汇报）');
   const pct = u?.contextPct == null ? '--' : Math.round(u.contextPct) + '%';
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}" data-flash="${esc(a.id)}" data-st="${s.key}">
@@ -920,7 +954,7 @@ function agentRow(a) {
     <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
     <div class="side"><span class="mono">${L('负载 {0}', pct)}</span>${a.startedAt ? `<span class="ran">${L('已运行 {0}', waitText(Date.now() - a.startedAt))}</span>` : ''}<div>
-      ${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
+      ${!u && a.waiting?.trust ? `<button class="btn" data-trust="${esc(a.id)}" title="${esc(L('回答「Yes, I trust this folder」：它继续启动。不信任请打开终端选 No, exit（会退出）'))}">${L('✓ 信任')}</button>` : ''}${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
   </article>`;
 }
 
@@ -1953,6 +1987,8 @@ $('page').addEventListener('click', (e) => {
   if (s) snoozeLine(s.dataset.snooze);
   const r = e.target.closest('[data-resume]');
   if (r) resume(r.dataset.resume);
+  const tr = e.target.closest('[data-trust]');
+  if (tr) return answerTrust(tr);
   const t = e.target.closest('[data-term]');
   if (t) openTerm(t.dataset.term);
   const tk = e.target.closest('[data-takeover]');
@@ -2085,6 +2121,22 @@ function renderNotify(n) {
   $('nt-ext').checked = Boolean(n.modelExternal);
   $('nt-ext').disabled = !n.model;
 }
+// Folders whose "trust this folder?" dialog Fleet Bridge answers itself (server/trust.js): off until you turn
+// it on, and only the folders listed here (and what is below them)
+function renderTrust(t) {
+  if (!t || t.error) return;
+  $('tr-auto').checked = Boolean(t.auto);
+  if (document.activeElement !== $('tr-dirs')) $('tr-dirs').value = (t.dirs || []).join('\n');
+  $('tr-dirs').disabled = !LOCAL;
+  $('tr-auto').disabled = !LOCAL;
+  $('tr-state').textContent = !LOCAL ? L('只能在装舰桥的这台电脑上改') : t.auto && !t.dirs?.length ? L('还没有目录：现在不会自动信任任何文件夹') : t.auto ? L('自动信任 {0} 个目录（含子目录）', t.dirs.length) : L('已关闭：每次都在消息框里问你');
+}
+$('tr-auto').addEventListener('change', async (e) => renderTrust(await post('/api/trust', { auto: e.target.checked })));
+$('tr-dirs').addEventListener('change', async (e) => {
+  const t = await post('/api/trust', { dirs: e.target.value });
+  if (!t.error) e.target.value = (t.dirs || []).join('\n'); // what was kept: absolute paths, no drive roots, no repeats
+  renderTrust(t);
+});
 // The "语音播报" page: the voice settings (server/voice.js), the voices this machine has (local ones only), a
 // sample read out with them ("试听")
 let voice = null;
@@ -2141,6 +2193,7 @@ $('phone-btn').addEventListener('click', async () => {
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
   renderNotify(await fetch('/api/notify').then((r) => r.json()));
+  renderTrust(await fetch('/api/trust').then((r) => r.json()));
   renderVoice(await fetch('/api/voice').then((r) => r.json()));
 });
 $('pu-toggle').addEventListener('click', async () => {
@@ -2183,6 +2236,7 @@ async function askWebSetup() {
   renderPhone(await fetch('/api/mobile').then((r) => r.json()));
   renderPush(await fetch('/api/push').then((r) => r.json()));
   renderNotify(await fetch('/api/notify').then((r) => r.json()));
+  renderTrust(await fetch('/api/trust').then((r) => r.json()));
   $('ph-pin').focus();
 }
 $('ph-pin-gen').addEventListener('click', async () => {

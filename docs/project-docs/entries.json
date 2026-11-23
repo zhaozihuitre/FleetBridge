@@ -4505,6 +4505,44 @@
       "created": "2026-11-23 12:49",
       "updated": "2026-11-23 12:49",
       "notes": []
+    },
+    {
+      "id": "C-092",
+      "type": "change",
+      "title": "「是否信任此文件夹」：一键信任、自动信任的目录、通知里写明选项后果（改善提案 P-003）",
+      "summary": "新开的 agent 停在信任对话框时，指挥中心有一键「信任」按钮；可设置自动信任的目录（默认关闭）；给主控的通知合并成一条并写明选 No 会退出。",
+      "detail": "- 现象：新开的 agent 停在 Claude Code 的「是否信任此文件夹」上时，指挥中心里没有可点的按钮；给主控的通知只列出「1. No, exit / 2. Yes, I trust this folder」，主控按习惯选 1，agent 直接退出。\n- 一键回答：消息框顶部的 TRUST 消息和「我方终端」页的行上有「✓ 信任」按钮，几个 agent 同时在等时有「✓ 全部信任」。`/api/agents/action` 新增 `action: \"trust\"`（`yes`、`remember`）。\n- 按选项的文字回答：`answerTrust`（`server/agents.js`）在屏幕上找到要选的那一项，把光标移过去再回车，不靠编号，也不受两个选项上下顺序的影响；`answer` 的 1 / 2、主控的 `fleet_answer` 都走这里。3 秒内重复调用不再按键。\n- 自动信任的目录（`server/trust.js`，`<数据目录>/trust.json`，默认关闭）：开关加目录列表，舰桥新开的 agent 在列表里的目录或其子目录中启动时自动回答信任。只接受绝对路径，不接受盘符根目录，按真实路径和整段路径比较；只能在本机改（`/api/trust`，其他设备 403），主控不能改。设置在「Web 访问 · 手机」›「通知总结」页的「文件夹信任」。\n- 主控通知：信任对话框合并成一条（`trustNotice`），写明两个选项的后果，并让主控用 `fleet_answer` 的 `choice: \"trust\"`；`fleet_status` 和手机页的选项按钮也带上后果说明。\n- 事件：信任对话框的等待记为 `permit.wait`（`kind: trust`），自动回答的记为 `trust.auto`。\n- 没做：桌面小窗和手机推送对「启动中、等信任」的 agent 仍然不单独提醒（它还没有会话）；手机页只能进到该终端的屏幕后点选项。\n- 测试：`test/trust.test.mjs` 共 10 个。\n",
+      "status": "done",
+      "files": [
+        "server/trust.js",
+        "server/agents.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs",
+        "web/app.js",
+        "web/status.js",
+        "web/index.html",
+        "web/style.css",
+        "web/i18n.js",
+        "test/trust.test.mjs"
+      ],
+      "tags": [
+        "授权",
+        "信任",
+        "主控",
+        "改善提案"
+      ],
+      "sections": [
+        "features",
+        "api",
+        "data"
+      ],
+      "refs": [
+        "P-003"
+      ],
+      "created": "2026-11-23 13:01",
+      "updated": "2026-11-23 13:01",
+      "notes": []
     }
   ]
 }

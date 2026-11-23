@@ -35,11 +35,12 @@ import { resumeSession } from './launch.js';
 import { focusProcess } from './focus.js';
 import { buildState, snooze } from './state.js';
 import { markSeen, seenAt } from './seen.js';
+import { autoTrusts, setTrustSettings, trustSettings } from './trust.js';
 import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
 import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
-import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
+import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, answerTrust, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
 
@@ -74,6 +75,7 @@ function offlineCards(sessions) {
 let state = null;
 const promptSeen = new Map(); // agent id -> when its current permission dialog was first seen
 const promptAsked = new Map(); // agent id -> { at, text, agent } of the dialog it shows (self-improvement statistics)
+const trustAsked = new Map(); // agent id -> { at, agent, text, auto } of the folder-trust dialog it shows
 function promptSince(id) {
   if (!promptSeen.has(id)) promptSeen.set(id, Date.now());
   return promptSeen.get(id);
@@ -99,6 +101,7 @@ function publish() {
   const prompts = new Map();
   const asks = [];
   const starting = new Map(); // agent id -> the trust dialog it waits on (no session, so no unit, yet)
+  const trustShown = new Set();
   for (const s of sessions) {
     const id = byPid.get(s.pid) || bySession.get(s.sessionId);
     // a permission dialog, or any other question with a numbered menu (AskUserQuestion, plan approval)
@@ -124,9 +127,28 @@ function publish() {
     if (!ag.alive || ag.kind !== 'claude' || seen.has(ag.id) || byPid.has(ag.pid) || [...bySession.values()].includes(ag.id) && sessions.some((x) => x.sessionId === ag.sessionId)) continue;
     const prompt = trustPrompt(getAgent(ag.id));
     if (prompt) {
+      trustShown.add(ag.id);
+      if (!trustAsked.has(ag.id)) trustAsked.set(ag.id, { at: Date.now(), agent: ag.name || path.basename(ag.cwd), text: `trust folder ${path.basename(ag.cwd)}` });
+      // a folder you listed to be trusted without asking (server/trust.js): answered yes, once; if the
+      // dialog is still there a little later, it is asked after all
+      if (autoTrusts(ag.cwd)) {
+        const a = getAgent(ag.id);
+        if (!a.trustAnsweredAt) {
+          trustAsked.get(ag.id).auto = true;
+          answerTrust(a, true);
+          continue;
+        }
+        if (Date.now() - a.trustAnsweredAt < 5000) continue;
+      }
       asks.push({ agentId: ag.id, name: ag.name || path.basename(ag.cwd), project: path.basename(ag.cwd), prompt });
-      starting.set(ag.id, prompt);
+      starting.set(ag.id, { ...prompt, at: trustAsked.get(ag.id).at });
     }
+  }
+  // trust dialogs that are gone: how long each waited, and whether Fleet Bridge answered it itself
+  for (const [id, was] of trustAsked) {
+    if (trustShown.has(id)) continue;
+    trustAsked.delete(id);
+    logEvent(was.auto ? 'trust.auto' : 'permit.wait', { agent: was.agent, agentId: id, kind: 'trust', text: was.text, waitMs: Date.now() - was.at });
   }
   const merged = withStatusline(usage, STATUSLINE_USAGE);
   const orgNow = currentOrg();
@@ -357,14 +379,14 @@ function orderTarget(a) {
 }
 
 /** One action for one or more of our agents; shared by the command center and the phone page. */
-function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
+function agentAction({ id, action, text, key, choice, index, yes, remember, via = 'cc' }) {
   const ids = Array.isArray(id) ? id : [id];
   const results = ids.map((one) => {
     const a = getAgent(one);
     if (!a) return false;
     // a person (the phone page, the input box) at this terminal: it is being answered, not waiting
-    if (via !== 'master' && ['text', 'key', 'answer'].includes(action)) a.keyAt = Date.now();
-    if (['text', 'key', 'answer'].includes(action)) a.answeredAt = Date.now(); // by anyone, the master too: a question asked again after this is a new one
+    if (via !== 'master' && ['text', 'key', 'answer', 'trust'].includes(action)) a.keyAt = Date.now();
+    if (['text', 'key', 'answer', 'trust'].includes(action)) a.answeredAt = Date.now(); // by anyone, the master too: a question asked again after this is a new one
     if (action === 'text' && typeof text === 'string' && text.trim()) {
       const ok = sendText(a, text);
       if (ok && a.kind !== 'shell' && a.kind !== 'master') {
@@ -377,6 +399,15 @@ function agentAction({ id, action, text, key, choice, index, via = 'cc' }) {
     if (action === 'answer') {
       logEvent('tool.answer', { agent: a.name || '', agentId: a.id, choice: String(choice), via });
       return answerPrompt(a, String(choice));
+    }
+    // the folder-trust dialog, answered by what the choice says ("trust" / "don't"), never by a number.
+    // remember: this folder joins the ones trusted without asking (only from this computer's command center:
+    // not the master, not another device)
+    if (action === 'trust') {
+      const ok = answerTrust(a, yes !== false);
+      logEvent('tool.answer', { agent: a.name || '', agentId: a.id, choice: yes !== false ? 'trust' : 'no-trust', via });
+      if (ok && yes !== false && remember === true && via === 'cc' && a.cwd) setTrustSettings({ auto: true, add: a.cwd });
+      return ok;
     }
     if (action === 'queue' && typeof text === 'string' && text.trim()) {
       enqueue(a.id, text.trim(), via);
@@ -663,6 +694,12 @@ async function handleRequest(req, res) {
   if (req.url === '/api/push') return send(res, 200, req.method === 'POST' ? await setPush(await readBody(req)) : await pushInfo());
   if (req.method === 'POST' && req.url === '/api/push/test') return send(res, 200, await testPush(webUrl()));
   // notice summaries: by the model (our agents; outside sessions optional) or by rules only
+  // folders whose trust dialog is answered without asking (server/trust.js): on / off, the list
+  if (req.url === '/api/trust') {
+    if (req.method !== 'POST') return send(res, 200, trustSettings());
+    if (req.fleetWeb) return send(res, 403, { error: 'computer_only' }); // which folders are trusted is decided on the computer
+    return send(res, 200, setTrustSettings(await readBody(req)));
+  }
   if (req.url === '/api/notify') return send(res, 200, req.method === 'POST' ? setNotifySettings(await readBody(req)) : notifySettings());
   // Review / commit / push: only repos the git collector found (live and offline projects).
   if (req.url.startsWith('/api/git/')) {
@@ -971,12 +1008,7 @@ export async function start({ onListening } = {}) {
     // its new worktree folder asks to be trusted: ours, so yes
     trustIfAsked: (id) => {
       const a = getAgent(id);
-      const t = a && trustPrompt(a);
-      const yes = t?.options.find((o) => /yes|trust|proceed/i.test(o.label));
-      if (yes && !a.trustAnsweredAt) {
-        a.trustAnsweredAt = Date.now();
-        answerPrompt(a, yes.key);
-      }
+      if (a && !a.trustAnsweredAt) answerTrust(a, true);
     },
     masterNote: (text) => queueMasterNote(text),
     push: (m) => pushMessage({ ...m, click: webUrl?.() || undefined }),
@@ -985,7 +1017,9 @@ export async function start({ onListening } = {}) {
   timers.push(setInterval(publish, config.intervals.sessions), setInterval(() => refreshUsage(), config.intervals.usage), setInterval(refreshGit, config.intervals.git));
   await startMobile({ action: (b) => agentAction(b), web: webRequest, socket: (req, socket, head) => agentSocket(req, socket, head), changed: () => publish(), screen: (id) => {
     const a = getAgent(id);
-    return { html: screenHtml(a?.screen), menu: a ? menuOptions(a) : [] };
+    // the folder-trust dialog has no numbers on screen: its two choices, each with what it does
+    const trust = a ? trustPrompt(a) : null;
+    return { html: screenHtml(a?.screen), menu: trust ? trust.options.map((o) => ({ key: o.key, label: `${o.label}（${o.hint}）`, current: o.current })) : a ? menuOptions(a) : [] };
   } });
   startedUp = true;
   console.log(`FLEET//BRIDGE  ${url}`);

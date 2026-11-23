@@ -14,6 +14,7 @@
 | POST | `/api/snooze` | 某任务稍后提醒 | 同源 |
 | POST | `/api/agents` | 出击 / 接管我方 agent | 同源 |
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
+| GET/POST | `/api/trust` | 自动信任的目录：`{ auto, dirs }`。POST 可带 `auto`（布尔）、`dirs`（数组或每行一个路径的文本，替换整个列表）、`add` / `remove`（一个路径）；返回清理后的设置（只留绝对路径，去掉盘符根目录和重复项）。其他设备 POST 返回 403 `computer_only` | 同源 |
 | GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |
 | GET | `/api/agents/reply?id=&turn=` | 我方 agent 某一轮的完整回答（主控 `fleet_read_reply`）。返回 `{ source: 'file', file, text, turn, count }`；没有保存过时返回 `{ source: 'transcript', text, ended }`。错误：`unknown_agent`、`no_such_turn`、`no_reply`（均 404） | 同源 |
 | GET | `/api/proposals[?id=]` | 改善提案列表（`{ proposals, improve }`），或一条的全部内容（`{ proposal, allowed, improve }`，`allowed` 是当前状态可做的决定） | 同源 / 手机 |
@@ -45,6 +46,8 @@
 |---|---|---|
 | `text` | `text` | 以 bracketed paste 输入后回车 |
 | `key` | `key`: `esc` / `ctrl-c` / `enter` | 发送按键 |
+| `answer` | `choice`: 选项编号或 `esc` | 回答屏幕上的授权框、选择框。信任对话框的 1 / 2 按选项本身回答（1 = No, exit，2 = Yes, I trust this folder），不看它们在屏幕上的上下顺序 |
+| `trust` | `yes`?: 默认 `true`；`remember`?: `true` | 回答「是否信任此文件夹」：`yes: false` 选 No, exit。屏幕上没有信任对话框时返回 `false`；3 秒内重复调用不再按键。`remember: true`（只对本机指挥中心发来的生效）把这个 agent 的文件夹加入自动信任的目录并打开开关 |
 | `kill` | — | 结束进程 |
 | `remove` | — | 从列表移除已退出的 agent |
 

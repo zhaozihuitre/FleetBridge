@@ -53,7 +53,8 @@ export function stateKey(u, o = {}) {
   if (a && a.alive === false) return crashed(a) ? 'error' : 'exited';
   if (a?.kind === 'shell') return 'shell';
   if (u?.offline) return 'offline';
-  if (!u) return a ? 'boot' : 'offline';
+  // (one of ours stopped on Claude Code's folder-trust dialog has no session yet: it waits on an answer)
+  if (!u) return a ? (a.waiting ? 'question' : 'boot') : 'offline';
   const w = waitingKind(u);
   if (w) return w;
   if (u.status === 'busy') return 'busy';
@@ -78,7 +79,7 @@ export function lampDetail(key, u, a) {
     case 'permit':
       return { text: L('要授权：') + (p?.message || L('需要你确认')), since: p?.at };
     case 'question':
-      return { text: L('在问：') + (p?.message || p?.prompt?.text?.split('\n')[0] || L('需要你选择')), since: p?.at };
+      return { text: L('在问：') + (p?.message || p?.prompt?.text?.split('\n')[0] || a?.waiting?.text?.split('\n')[0] || L('需要你选择')), since: p?.at ?? a?.waiting?.at };
     case 'error':
       if (u?.limit) return { text: L('额度到限：') + u.limit.text, since: u.limit.at };
       if (u?.apiError) return { text: L('API 出错：') + u.apiError.text, since: u.apiError.at };

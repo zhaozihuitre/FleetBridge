@@ -63,7 +63,7 @@ const TOOLS = [
         const by = { master: 'you (master)', cc: 'the user (input box)', phone: 'the user (phone)', terminal: 'the user (typed in its terminal)' }[a.orderBy];
         const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
-        if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}`).join(' | ')}`);
+        if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}${o.hint ? ` (${o.hint})` : ''}`).join(' | ')}${a.waiting.trust ? ' · answer with fleet_answer choice "trust"' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.model) out.push(`  model: ${u.model}${u.quota ? ` · quota ${u.quota.label} ${Math.round(u.quota.usedPct)}% used${u.quota.active ? ' (gating now)' : ''}, ${u.quota.resetsAt ? 'resets ' + new Date(u.quota.resetsAt).toLocaleString('zh-CN', { hour12: false }) : 'not started'}${u.quota.asOf ? ' (other organization, last read ' + new Date(u.quota.asOf).toLocaleString('zh-CN', { hour12: false }) + ')' : ''}` : ''}`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
@@ -164,11 +164,16 @@ const TOOLS = [
   },
   {
     name: 'fleet_answer',
-    description: "Answer the permission dialog or question an agent is waiting on (needs-approval / needs-answer), by option number from fleet_status 'options' or the 【舰桥通知】 notice (unnumbered pickers, such as the model / usage-credits choice after a resume, are numbered 1, 2, … from the top). For permission dialogs usually 1 = yes, 2 = yes and don't ask again, 3 = no. Only after the user agreed, unless the answer is plainly harmless.",
+    description: "Answer the permission dialog or question an agent is waiting on (needs-approval / needs-answer), by option number from fleet_status 'options' or the 【舰桥通知】 notice (unnumbered pickers, such as the model / usage-credits choice after a resume, are numbered 1, 2, … from the top). For permission dialogs usually 1 = yes, 2 = yes and don't ask again, 3 = no. The folder-trust dialog of a new agent ('Do you trust this folder?') is different: there 1 = No, exit (Claude Code quits and the agent ends) and 2 = Yes, I trust this folder; answer it with choice \"trust\" (picks Yes whatever its number) when the folder is one the user asked for. Only after the user agreed, unless the answer is plainly harmless.",
     inputSchema: { type: 'object', properties: { agent: { type: 'string' }, choice: { type: 'string' } }, required: ['agent', 'choice'] },
     async run({ agent, choice }) {
       const { ours } = await fleet();
       const x = resolve(ours, agent);
+      // "trust": the folder-trust dialog, answered by what the choice says rather than by its number
+      if (/^(trust|yes,? i trust.*|信任)$/i.test(String(choice).trim())) {
+        const t = await api('/api/agents/action', { id: x.a.id, action: 'trust', yes: true, via: 'master' });
+        return `${x.name}: ${t.results?.[0] ? 'folder trusted, it goes on starting' : 'failed (no folder-trust dialog showing)'}`;
+      }
       const r = await api('/api/agents/action', { id: x.a.id, action: 'answer', choice: String(choice), via: 'master' });
       return `${x.name}: ${r.ok ? `answered ${choice}` : 'failed (no prompt showing?)'}`;
     },

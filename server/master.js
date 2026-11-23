@@ -461,9 +461,25 @@ export function answering(x) {
   return Boolean(free && free.label.trim() && !FREE.test(free.label.trim()));
 }
 
+/**
+ * New agents stopped on Claude Code's "trust this folder?" dialog, in one notice however many they are:
+ * who, which folder, what each choice does, and the one call that answers it (fleet_answer, choice "trust":
+ * by what it says, so "1" = "No, exit" is not picked by habit).
+ */
+export function trustNotice(list) {
+  const who = list.map((x) => `- ${x.name}（${x.agentId.slice(0, 8)}）：${x.prompt.folder || x.project || ''}`).join('\n');
+  const whoEn = list.map((x) => `- ${x.name} (${x.agentId.slice(0, 8)}): ${x.prompt.folder || x.project || ''}`).join('\n');
+  const n = list.length;
+  return L(
+    `【舰桥通知】${n} 个新开的 agent 停在 Claude Code 的「是否信任此文件夹」上（第一次在一个文件夹里启动时会问），在等回答：\n${who}\n选项含义：信任（Yes, I trust this folder）= 继续启动、开始工作；不信任（No, exit）= Claude Code 直接退出，这个 agent 就结束了。\n要信任：对${n > 1 ? '每个' : '这个'} agent 调 fleet_answer，choice 填 "trust"（不要填 1：1 是 No, exit）。文件夹是用户让你开的就直接信任并告诉用户；拿不准先问用户。`,
+    `[Fleet notice] ${n} new agent${n > 1 ? 's are' : ' is'} stopped on Claude Code's "Do you trust this folder?" dialog (asked the first time it starts in a folder), waiting for an answer:\n${whoEn}\nWhat the choices do: trust (Yes, I trust this folder) = it goes on starting and can work; don't (No, exit) = Claude Code exits and the agent ends.\nTo trust: call fleet_answer for ${n > 1 ? 'each agent' : 'it'} with choice "trust" (not 1: 1 is No, exit). If the user asked for this folder, trust it and say so; if unsure, ask the user first.`,
+    `【艦橋通知】新しい agent ${n} 個が Claude Code の「このフォルダーを信頼しますか」で止まり、回答を待っています（フォルダーで初めて起動するときに聞かれます）：\n${who}\n選択肢の意味：信頼する（Yes, I trust this folder）= 起動を続けて作業開始；信頼しない（No, exit）= Claude Code が終了し、agent も終わります。\n信頼するには：${n > 1 ? '各' : 'その'} agent に fleet_answer を choice "trust" で呼ぶ（1 は不可：1 は No, exit）。ユーザーが指定したフォルダーならそのまま信頼して伝え、迷うなら先にユーザーに確認。`,
+  );
+}
+
 function notice(x) {
   const kind = x.prompt.kind === 'permission' ? L('授权', 'a permission', '承認') : L('回答', 'an answer', '回答');
-  const opts = x.prompt.options.map((o) => `${o.key}. ${o.label}`).join(' / ');
+  const opts = x.prompt.options.map((o) => `${o.key}. ${o.label}${o.hint ? `（${o.hint}）` : ''}`).join(' / ');
   const text = unwrap(x.prompt.text).slice(0, 1200);
   return L(
     `【舰桥通知】${x.name}（${x.agentId.slice(0, 8)}）在等${kind}：${text || '（见选项）'} ｜ 选项：${opts}`,
@@ -670,11 +686,15 @@ export function notifyMaster(asks) {
   const later = finished.filter((x) => !ready(x));
   finished.splice(0, finished.length, ...later);
   const told = notes.splice(0, notes.length);
-  const parts = [...done.map(doneNotice), ...fresh.map(notice), ...told.map((n) => n.text)];
+  // the folder-trust dialogs of new agents go as one notice, with what the choices do
+  const trusts = fresh.filter((x) => x.prompt.trust);
+  const others = fresh.filter((x) => !x.prompt.trust);
+  const parts = [...done.map(doneNotice), ...(trusts.length ? [trustNotice(trusts)] : []), ...others.map(notice), ...told.map((n) => n.text)];
   const tail = [];
   if (done.length) tail.push(L('把结果汇总告诉用户', 'sum the results up for the user', '結果をまとめてユーザーに伝える'));
   if (told.length && !done.length && !fresh.length) tail.push(L('按通知里说的转告用户', 'tell the user as the notice says', '通知の内容をユーザーに伝える'));
-  if (fresh.length) tail.push(L('用 fleet_answer 按编号回答，该由用户决定的先问用户', 'answer with fleet_answer by number, asking the user first when it is theirs to decide', 'fleet_answer で番号を指定して回答。ユーザーが決めるべきものは先に確認'));
+  if (trusts.length && !others.length) tail.push(L('信任文件夹用 fleet_answer，choice 填 "trust"', 'trust a folder with fleet_answer, choice "trust"', 'フォルダーの信頼は fleet_answer、choice "trust"'));
+  if (others.length) tail.push(L('用 fleet_answer 按编号回答，该由用户决定的先问用户', 'answer with fleet_answer by number, asking the user first when it is theirs to decide', 'fleet_answer で番号を指定して回答。ユーザーが決めるべきものは先に確認'));
   const body = [...parts, L(`（舰桥自动发送：${tail.join('；')}。）`, `(Sent by Fleet Bridge: ${tail.join('; ')}.)`, `（艦橋が自動送信：${tail.join('。')}。）`)].join('\n\n');
   if (!sendText(m, body)) {
     finished.unshift(...done);
