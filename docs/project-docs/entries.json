@@ -4449,6 +4449,36 @@
       "updated": "2026-11-20 15:22",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-090",
+      "type": "change",
+      "title": "拖入文件：在终端和输入框里插入文件的完整路径",
+      "summary": "文件或文件夹拖到终端面板（含主控、弹出窗口）、总指令台输入框或首个指令框时，插入完整路径（有空格加引号、多个用空格分隔），不上传；浏览器或旧外壳会给出提示",
+      "detail": "**背景**：用户希望把文档、图片拖进舰桥，交给终端里的 Claude Code 去读，只需要路径。\n\n**改动内容**：\n- `web/filedrop.js`：纯函数部分负责引号（`quotePath`）、拼接（`joinPaths`）、取路径（`collectPaths`）、插入光标处（`insertText`）、判断支持情况（`dropSupport`）；页面部分负责拖放目标（`dropTarget`，高亮）、输入框（`dropIntoField`）、整页防护（`guardPage`）和提示（`dropHint`）。\n- 终端：用 bracketed paste 写到输入行，后面带一个空格，不回车。\n- `desktop/preload.cjs` 新增 `pathForFile`，内部调用 `webUtils.getPathForFile`；`desktop/main.cjs` 的弹出窗口也加载 preload。\n\n**原因**：Electron 32 起去掉了 `File.path`，只有 preload 里的 `webUtils` 能取到路径。\n\n**影响范围**：只处理带 `Files` 的拖动，选中、粘贴、滚动和拖动面板都不受影响。文件拖到页面其他地方，窗口不再打开文件、把页面换掉。\n\n**注意事项**：preload 和 main.cjs 属于外壳，**只有装了 0.9.79 安装包才能取到路径**。只做就地更新时，页面会提示「需要新安装包」，整页防护也已经生效。测试：`test/filedrop.test.mjs` 共 7 个；另外在 Electron 45 里用真实 preload 验证过（CDP 放入真实文件后合成 drop），文件、带空格的路径和文件夹都正确。\n",
+      "status": "done",
+      "files": [
+        "web/filedrop.js",
+        "web/terminal.js",
+        "web/app.js",
+        "web/term.js",
+        "desktop/preload.cjs",
+        "desktop/main.cjs",
+        "test/filedrop.test.mjs"
+      ],
+      "tags": [
+        "终端",
+        "外壳"
+      ],
+      "sections": [
+        "features"
+      ],
+      "refs": [
+        "v0.9.79"
+      ],
+      "created": "2026-11-23 11:27",
+      "updated": "2026-11-23 11:27",
+      "notes": []
     }
   ]
 }

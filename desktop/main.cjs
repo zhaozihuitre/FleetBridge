@@ -296,7 +296,7 @@ function openMain(term) {
   // ⧉ pop-out terminals open as their own windows; web links (repo pages) go to the default browser
   mainWin.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(`${baseUrl}/term`))
-      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, icon: ICON, autoHideMenuBar: true, backgroundColor: '#050a12' } };
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 720, icon: ICON, autoHideMenuBar: true, backgroundColor: '#050a12', webPreferences: { preload: path.join(__dirname, 'preload.cjs') } } }; // the preload: files dropped on it give their paths
     if (/^https:\/\//.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });

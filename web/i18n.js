@@ -342,6 +342,7 @@ const EN = {
   '拒绝的理由（会记下，以后不再提同类）': 'Why not (kept: nothing like it is proposed again)',
   '备注（可空）': 'Note (optional)',
   '没有成功': 'Did not work',
+  "浏览器里拿不到文件的本地路径：请在舰桥桌面窗口里拖入，或手动输入路径": "A browser can't see a file's local path: drop it in the Fleet Bridge desktop window, or type the path", "这个舰桥外壳还不能取拖入文件的路径，装上 0.9.79 或更新的安装包后可用": "This Fleet Bridge shell can't read a dropped file's path yet: install 0.9.79 or later", "拖入的不是本地文件，取不到路径": "What was dropped is not a local file: no path", "{0} 个不是本地文件，已跳过": "{0} not local files, skipped", "把文件拖到终端或指令输入框里，会插入它的完整路径": "Drop files on a terminal or an order box to insert their full paths",
 };
 
 const JA = {
@@ -669,6 +670,7 @@ const JA = {
   '拒绝的理由（会记下，以后不再提同类）': '却下の理由（記録され、同種の提案はしません）',
   '备注（可空）': 'メモ（任意）',
   '没有成功': '失敗しました',
+  "浏览器里拿不到文件的本地路径：请在舰桥桌面窗口里拖入，或手动输入路径": "ブラウザではファイルのローカルパスを取得できません。艦橋のデスクトップウィンドウにドロップするか、パスを入力してください", "这个舰桥外壳还不能取拖入文件的路径，装上 0.9.79 或更新的安装包后可用": "この艦橋シェルはドロップしたファイルのパスをまだ取得できません。0.9.79 以降のインストーラーを入れると使えます", "拖入的不是本地文件，取不到路径": "ローカルファイルではないため、パスを取得できません", "{0} 个不是本地文件，已跳过": "{0} 個はローカルファイルではないためスキップしました", "把文件拖到终端或指令输入框里，会插入它的完整路径": "ファイルをターミナルか指示入力欄にドロップすると、フルパスが入ります",
 };
 
 const DICT = { en: EN, ja: JA };

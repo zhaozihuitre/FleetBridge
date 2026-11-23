@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // The only surface our pages get: no Node, just these window controls.
 contextBridge.exposeInMainWorld('opsBridge', {
@@ -13,4 +13,12 @@ contextBridge.exposeInMainWorld('opsBridge', {
   notify: (title, body, tag) => ipcRenderer.send('ops:notify', String(title), String(body), tag ? String(tag) : ''),
   onNotifyClick: (fn) => ipcRenderer.on('ops:notify-click', (_e, tag) => fn(String(tag || ''))),
   onSettings: (fn) => ipcRenderer.on('ops:settings', (_e, s) => fn(s || {})),
+  // a dropped file's full local path (Electron took File.path away; '' for one not on disk, a folder works)
+  pathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file) || '';
+    } catch {
+      return '';
+    }
+  },
 });

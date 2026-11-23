@@ -5,6 +5,7 @@ import { FitAddon } from '/lib/xterm-fit/lib/addon-fit.mjs';
 import { L } from './i18n.js';
 import { WebglAddon } from '/lib/xterm-webgl/lib/addon-webgl.mjs';
 import { onTermTheme, termTheme } from './theme.js';
+import { dropTarget } from './filedrop.js';
 
 // The 16 colors come from the theme (web/theme.js): our agents run Claude Code with the dark-ansi
 // theme, so its whole UI (accents, diffs, prompts, spinners) is drawn from them. Open terminals
@@ -182,17 +183,25 @@ export function createTerminal(host, id, opts = {}) {
   };
   watchDpr();
 
+  // text as a paste: typed in as-is, without triggering the program's key handling
+  const paste = (text) => send(`\x1b[200~${text}\x1b[201~`);
+  // files dragged onto the screen: their paths on its input line, as a paste (no Enter: the user sends it)
+  const undrop = opts.drop === false ? () => {} : dropTarget(box, (text) => {
+    paste(`${text} `);
+    term.focus();
+  });
+
   return {
     id,
     focus: () => term.focus(),
     send,
-    /** text as a paste: typed in as-is, without triggering the program's key handling */
-    paste: (text) => send(`\x1b[200~${text}\x1b[201~`),
+    paste,
     setFontSize(px) {
       term.options.fontSize = px;
       refit();
     },
     dispose() {
+      undrop();
       ro.disconnect();
       dpr?.removeEventListener('change', onDpr);
       ws.close();

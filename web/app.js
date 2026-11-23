@@ -11,6 +11,7 @@ import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 import { initSys, renderSys, sysWarnSince, sysWarnText } from './sysload.js';
 import { initProposals, loadProposals, proposalCount, proposalsPage } from './proposals.js';
 import { quotaText, tightest } from './quotafmt.js';
+import { dropIntoField, guardPage, setDropText } from './filedrop.js';
 
 const $ = (id) => document.getElementById(id);
 // Opened on this computer, or from another device over web access (a tablet, a phone, another PC):
@@ -1285,6 +1286,11 @@ async function post(url, body) {
   return res.json();
 }
 initSys({ post, toast });
+// files dragged in: their paths into the order boxes (the terminals take theirs in terminal.js)
+setDropText(L);
+guardPage();
+dropIntoField($('cmd-text'));
+dropIntoField($('dp-prompt'));
 initProposals({ post, toast, render: () => renderPage() });
 
 async function focus(pid) {

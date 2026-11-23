@@ -5,8 +5,11 @@ import { L, translateDom } from './i18n.js';
 import { followTheme } from './theme.js';
 import { stateChip, stateKey } from './status.js';
 import './tip.js';
+import { guardPage, setDropText } from './filedrop.js';
 
 translateDom();
+setDropText(L);
+guardPage(); // files go onto the terminal (terminal.js); anywhere else they'd replace the page
 
 const id = location.hash.slice(1);
 const pane = document.getElementById('pane');
