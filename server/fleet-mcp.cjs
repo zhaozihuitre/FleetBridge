@@ -61,7 +61,7 @@ const TOOLS = [
       const { st, ours } = await fleet();
       const lines = ours.map(({ a, u, status, name, project }) => {
         const by = { master: 'you (master)', cc: 'the user (input box)', phone: 'the user (phone)', terminal: 'the user (typed in its terminal)' }[a.orderBy];
-        const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
+        const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued${a.queue.some((q) => q.held) ? ` (${a.queue.filter((q) => q.held).length} on hold: queued before its session was reopened or its quota ran out; fleet_requeue once the user agrees, or fleet_unqueue)` : ''}` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
         if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}${o.hint ? ` (${o.hint})` : ''}`).join(' | ')}${a.waiting.trust ? ' · answer with fleet_answer choice "trust"' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
@@ -155,7 +155,7 @@ const TOOLS = [
       if (!list.length) throw new Error('no agents to send to');
       const out = [];
       for (const x of list) {
-        const queue = mode === 'queue' || (mode === 'auto' && (x.status === 'working' || x.status === 'needs-approval' || x.status === 'needs-answer' || x.a.queue?.length));
+        const queue = mode === 'queue' || (mode === 'auto' && (x.status === 'working' || x.status === 'needs-approval' || x.status === 'needs-answer' || x.a.queue?.some((q) => !q.held))); // orders on hold are not ahead of this one
         const r = await api('/api/agents/action', { id: x.a.id, action: queue ? 'queue' : 'text', text, via: 'master' });
         out.push(`${x.name}: ${r.ok ? (queue ? 'queued' : 'sent') : 'failed'}`);
       }
@@ -187,6 +187,19 @@ const TOOLS = [
       const x = resolve(ours, agent);
       const r = await api('/api/agents/action', { id: x.a.id, action: 'key', key, via: 'master' });
       return `${x.name}: ${r.ok ? `pressed ${key}` : 'failed'}`;
+    },
+  },
+  {
+    name: 'fleet_requeue',
+    description: "Send on the queued orders of an agent that are on hold (fleet_status: \"N on hold\"). Orders are held, not sent, when the agent's session ended and was opened again, or when its turn stopped on the quota: they may be out of date. Tell the user what they are and call this only after the user agreed; then they go out one per finished turn, as queued orders do. Drop the ones no longer wanted with fleet_unqueue first.",
+    inputSchema: { type: 'object', properties: { agent: { type: 'string' } }, required: ['agent'] },
+    async run({ agent }) {
+      const { ours } = await fleet();
+      const x = resolve(ours, agent);
+      const n = (x.a.queue || []).filter((q) => q.held).length;
+      if (!n) return `${x.name}: no orders on hold`;
+      const r = await api('/api/agents/action', { id: x.a.id, action: 'requeue', via: 'master' });
+      return `${x.name}: ${r.ok ? `${n} order(s) back in the queue` : 'failed'}`;
     },
   },
   {

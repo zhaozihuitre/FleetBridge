@@ -601,6 +601,13 @@ body.has-voice .voice-btn[hidden] { display: inline-flex; align-items: center; j
 .o-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .o-x { height: 24px; min-width: 24px; padding: 0 6px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 12px; cursor: pointer; }
 .o-x:hover { border-color: var(--red); color: var(--x-ff8fa3); }
+.o-go { height: 24px; padding: 0 10px; background: color-mix(in srgb, var(--green) 8%, transparent); border: 1px solid var(--green); color: var(--green); font-size: 12px; cursor: pointer; }
+.o-go:hover:not(:disabled) { background: color-mix(in srgb, var(--green) 18%, transparent); }
+.o-go:disabled { opacity: .5; }
+.o-held { margin-right: 8px; padding: 1px 6px; border: 1px dashed var(--amber); color: var(--amber); font-style: normal; font-size: 11px; }
+.o-group.orphan { border-left-color: var(--muted); background: transparent; }
+.o-group.orphan .o-count { color: var(--muted); }
+.o-note { padding: 6px 12px; color: var(--muted); font-size: 12px; border-bottom: 1px dashed var(--line); }
 .o-row { display: grid; grid-template-columns: 46px 128px minmax(0, 210px) 46px minmax(0, 1fr); align-items: center; gap: 12px; padding: 7px 12px; border-left: 3px solid var(--oc); background: color-mix(in srgb, var(--x-ffffff) 2%, transparent); font-size: 13px; }
 .o-row:nth-child(even) { background: color-mix(in srgb, var(--x-ffffff) 3.5%, transparent); }
 .o-row .o-kind { color: var(--oc); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

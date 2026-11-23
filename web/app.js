@@ -364,14 +364,41 @@ function renderOperator() {
     trustMsgs.unshift(`<div class="msg in" style="--mc:var(--red)"><div class="msg-head"><b>${esc(op.name)}</b><i>TRUST</i></div>
       <div class="msg-text">${esc(L('{0} 个新开的 agent 都在等「是否信任此文件夹」：{1}', trusts.length, trusts.map((a) => agentLabel(a.id).name).join('、')))}</div>
       <div class="msg-answers"><button type="button" class="yes" data-trust="${esc(trusts.map((a) => a.id).join(','))}">${L('✓ 全部信任（{0} 个）', trusts.length)}</button></div></div>`);
+  // Orders that were queued and never sent (improvement P-005): the session was opened again, or its turn
+  // stopped on the quota. They wait here for a yes: they may be out of date by now.
+  const heldMsgs = (state.agents || [])
+    .filter((a) => a.alive && a.queue?.some((q) => q.held))
+    .map((a) => {
+      const id = esc(a.id);
+      const held = a.queue.filter((q) => q.held);
+      const why = held.some((q) => q.held === 'quota') ? L('额度中断时还没发出') : L('会话重开前排队、还没发出');
+      const at = Math.max(...held.map((q) => q.heldAt || 0));
+      return `<div class="msg in" style="--mc:var(--amber)">
+      <div class="msg-head"><b>${esc(op.name)}</b><span>→ ${esc(agentLabel(a.id).name)}</span><i>QUEUE</i>${at ? `<time>${clock(at, Date.now() - at > 86_400_000)}</time>` : ''}</div>
+      <div class="msg-text">${esc(L('{0} 有 {1} 条未执行指令（{2}）。可能已经过时，确认后再发：', agentLabel(a.id).name, held.length, why))}</div>
+      <pre class="msg-prompt">${esc(held.map((q, i) => `${i + 1}. ${q.text.length > 160 ? q.text.slice(0, 160) + '…' : q.text}`).join('\n'))}</pre>
+      <div class="msg-answers"><button type="button" class="yes" data-requeue="${id}">${L('▶ 续发这 {0} 条（做完一条发下一条）', held.length)}</button><button type="button" class="no" data-drop-held="${id}">${L('丢弃这 {0} 条', held.length)}</button></div>
+      <div class="msg-acts"><button type="button" data-msg-term="${id}">${L('▶ 打开终端')}</button><button type="button" data-msg-orders="1">${L('逐条查看')}</button></div></div>`;
+    });
+  // A turn that stopped on the quota, and the quota has reset since: one click tells it to go on.
+  const backMsgs = (state.quotaStops || [])
+    .filter((s) => s.back && (state.agents || []).some((a) => a.alive && a.id === s.agentId))
+    .map((s) => {
+      const id = esc(s.agentId);
+      return `<div class="msg in" style="--mc:var(--green)">
+      <div class="msg-head"><b>${esc(op.name)}</b><span>→ ${esc(agentLabel(s.agentId).name)}</span><i>QUOTA</i><time>${clock(s.resetsAt)}</time></div>
+      <div class="msg-text">${esc(L('额度已重置：{0} 之前被额度中断的任务可以继续了。', agentLabel(s.agentId).name))}</div>
+      <div class="msg-answers"><button type="button" class="yes" data-quota-go="${id}">${L('▶ 让它从断点继续')}</button><button type="button" data-quota-skip="${id}">${L('不用了')}</button></div>
+      <div class="msg-acts"><button type="button" data-msg-term="${id}">${L('▶ 打开终端')}</button></div></div>`;
+    });
   const outgoing = sentLog
     .slice(0, 8)
     .reverse()
     .map((s) => `<div class="msg out"><div class="msg-text">${esc(s.text)}</div><div class="msg-meta">${clock(s.t)} · ${L('发给 {0} 个', s.n)}</div></div>`);
   const queued = (state.agents || [])
     .filter((a) => a.alive && a.queue?.length)
-    .flatMap((a) => a.queue.map((q, i) => `<div class="msg out queued"><div class="msg-text">${esc(q.text)}</div><div class="msg-meta">→ ${esc(agentLabel(a.id).name)} · #${i + 1}<button type="button" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></div></div>`));
-  const html = trustMsgs.join('') + incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '') + (queued.length ? `<div class="msg-sep">${L('排队中')}</div>` + queued.join('') : '');
+    .flatMap((a) => a.queue.map((q, i) => `<div class="msg out queued"><div class="msg-text">${esc(q.text)}</div><div class="msg-meta">→ ${esc(agentLabel(a.id).name)} · #${i + 1}${q.held ? ' · ' + L('待确认') : ''}<button type="button" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></div></div>`));
+  const html = trustMsgs.join('') + heldMsgs.join('') + backMsgs.join('') + incoming.join('') + (outgoing.length ? `<div class="msg-sep">${L('已发送')}</div>` + outgoing.join('') : '') + (queued.length ? `<div class="msg-sep">${L('排队中')}</div>` + queued.join('') : '');
   if (renderOperator.last !== html) {
     const box = $('msg-box');
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
@@ -495,6 +522,15 @@ $('msg-box').addEventListener('click', (e) => {
   if (mt) return openTerm(mt.dataset.msgTerm);
   const tr = e.target.closest('[data-trust]');
   if (tr) return answerTrust(tr);
+  if (heldAction(e)) return;
+  if (e.target.closest('[data-msg-orders]')) return setTab('orders');
+  const qg = e.target.closest('[data-quota-go]');
+  if (qg) {
+    qg.disabled = true;
+    return post('/api/agents/action', { id: qg.dataset.quotaGo, action: 'text', text: L('额度已重置，请从刚才被额度中断的地方继续。') }).then((r) => toast(r.ok ? L('已让它继续') : L('发送失败：agent 可能已经退出')));
+  }
+  const qs = e.target.closest('[data-quota-skip]');
+  if (qs) return post('/api/agents/action', { id: qs.dataset.quotaSkip, action: 'quota-dismiss' });
   const an = e.target.closest('[data-answer]');
   if (an) {
     an.disabled = true;
@@ -526,6 +562,23 @@ $('cmd-form').addEventListener('submit', async (e) => {
   $('cmd-text').value = '';
   closeSuggest();
 });
+
+// Held orders (message box and Orders tab): send them on after all, or drop them. True when the click was one.
+function heldAction(e) {
+  const rq = e.target.closest('[data-requeue]');
+  if (rq) {
+    rq.disabled = true;
+    post('/api/agents/action', { id: rq.dataset.requeue, action: 'requeue' }).then((r) => toast(r.ok ? L('已恢复排队，做完当前的再逐条发出') : L('续发失败：agent 可能已经退出')));
+    return true;
+  }
+  const dh = e.target.closest('[data-drop-held]');
+  if (dh) {
+    const id = dh.dataset.dropHeld;
+    ask({ danger: true, title: L('丢弃「{0}」未执行的指令？', agentLabel(id).name), message: L('这些指令不会再发出，记录里会标为已移除。'), ok: L('丢弃') }).then((yes) => yes && post('/api/agents/action', { id, action: 'unqueue', held: true }));
+    return true;
+  }
+  return false;
+}
 
 /* queue mode: orders wait in a queue and go out one per finished turn */
 let queueMode = false;
@@ -810,6 +863,8 @@ const ORDER_KIND = {
   queued: { label: () => L('已排队'), c: 'var(--amber)' },
   dispatched: { label: () => L('排队→已发出'), c: 'var(--green)' },
   removed: { label: () => L('已移除'), c: 'var(--muted)' },
+  held: { label: () => L('暂停待确认'), c: 'var(--amber)' },
+  released: { label: () => L('确认续发'), c: 'var(--green)' },
 };
 
 function orderWho(agentId, name, project) {
@@ -826,12 +881,22 @@ function ordersPage() {
         .map((a) => {
           const proj = (a.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
           const items = a.queue
-            .map((q, i) => `<li><span class="o-n">#${i + 1}</span><span class="o-text" title="${esc(q.text)}">${esc(q.text)}</span><span class="o-time">${L('排队于 {0}', clock(q.at, now - q.at > 86_400_000))} · ${ago(now - q.at)}</span><button type="button" class="o-x" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></li>`)
+            .map((q, i) => `<li><span class="o-n">#${i + 1}</span><span class="o-text" title="${esc(q.text)}">${q.held ? `<i class="o-held">${q.held === 'quota' ? L('额度中断 · 待确认') : L('会话重开 · 待确认')}</i>` : ''}${esc(q.text)}</span><span class="o-time">${L('排队于 {0}', clock(q.at, now - q.at > 86_400_000))} · ${ago(now - q.at)}</span><button type="button" class="o-x" data-unqueue="${esc(a.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></li>`)
             .join('');
-          return `<div class="o-group"><div class="o-head">→ ${orderWho(a.id, a.name, proj)}<span class="o-count">${L('{0} 条待发', a.queue.length)}</span><button type="button" class="o-x" data-unqueue-all="${esc(a.id)}" title="${L('清空这个 agent 的队列')}">${L('清空')}</button></div><ol>${items}</ol></div>`;
+          return `<div class="o-group"><div class="o-head">→ ${orderWho(a.id, a.name, proj)}<span class="o-count">${L('{0} 条待发', a.queue.length)}${a.queue.some((q) => q.held) ? ' · ' + L('{0} 条待确认', a.queue.filter((q) => q.held).length) : ''}</span>${a.queue.some((q) => q.held) ? `<button type="button" class="o-go" data-requeue="${esc(a.id)}" title="${L('这些指令是会话重开前或额度中断时排着的，可能已经过时；确认后按顺序发出，做完一条发下一条')}">${L('▶ 续发')}</button>` : ''}<button type="button" class="o-x" data-unqueue-all="${esc(a.id)}" title="${L('清空这个 agent 的队列')}">${L('清空')}</button></div><ol>${items}</ol></div>`;
         })
         .join('')
     : `<div class="o-empty">${L('没有排队的指令。打开总指挥台的「⏱ 排队」后发出的指令会在这里等，agent 每做完一条自动发下一条。')}</div>`;
+  // queues whose terminal ended and whose session is not running: taken up when it is opened again
+  const orphans = (state.orphanQueues || [])
+    .map((o) => {
+      const proj = (o.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
+      const items = o.queue
+        .map((q, i) => `<li><span class="o-n">#${i + 1}</span><span class="o-text" title="${esc(q.text)}">${esc(q.text)}</span><span class="o-time">${L('排队于 {0}', clock(q.at, now - q.at > 86_400_000))} · ${ago(now - q.at)}</span><button type="button" class="o-x" data-unqueue="${esc(o.id)}" data-index="${i}" title="${L('从队列移除')}">✕</button></li>`)
+        .join('');
+      return `<div class="o-group orphan"><div class="o-head">→ ${orderWho(o.id, o.name || proj, proj)}<span class="o-count">${L('{0} 条未执行', o.queue.length)}</span><button type="button" class="o-x" data-unqueue-all="${esc(o.id)}" title="${L('清空这个 agent 的队列')}">${L('清空')}</button></div><div class="o-note">${L('会话没在运行：重开这个会话（或在同一文件夹新开一个）后，这些指令会转给它，等你确认后续发。')}</div><ol>${items}</ol></div>`;
+    })
+    .join('');
   const log = state.orders || [];
   // fixed columns (time, what happened, to whom, from where, the order), a divider per day
   let day = '';
@@ -848,7 +913,7 @@ function ordersPage() {
         })
         .join('')
     : `<div class="o-empty">${L('还没有指令记录。')}</div>`;
-  return `<div class="orders"><section><div class="archive-head"><span class="mono">QUEUE</span><span>${L('排队中 · {0} 条', waiting.reduce((n, a) => n + a.queue.length, 0))}</span></div>${queued}</section>
+  return `<div class="orders"><section><div class="archive-head"><span class="mono">QUEUE</span><span>${L('排队中 · {0} 条', waiting.reduce((n, a) => n + a.queue.length, 0) + (state.orphanQueues || []).reduce((n, o) => n + o.queue.length, 0))}</span></div>${waiting.length || !orphans ? queued : ''}${orphans}</section>
     <section><div class="archive-head"><span class="mono">LOG</span><span>${L('指令记录 · 最近 {0} 条', log.length)}</span></div>${rows}</section></div>`;
 }
 
@@ -1115,7 +1180,7 @@ function renderPage() {
   $('n-units').closest('.tab').title = offline ? L('{0} 个运行中，后面还有 {1} 个没在运行的项目', state.units.length, offline) : '';
   $('n-agents').textContent = liveAgents().length;
   $('n-archive').textContent = (state.history || []).length;
-  $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0);
+  $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0) + (state.orphanQueues || []).reduce((n, o) => n + o.queue.length, 0);
   noticeBadge();
   loadNotices();
   // improvement proposals: the ones waiting on you, and the list fetched again when it changed
@@ -1937,7 +2002,8 @@ $('page').addEventListener('click', (e) => {
   // a notice: back to its terminal
   const nb = e.target.closest('[data-notice]');
   if (nb) return goNotice(noticeList.find((x) => x.key === nb.dataset.notice));
-  // Orders tab: take one order, or a whole queue, off
+  // Orders tab: take one order, or a whole queue, off; held orders sent on after all
+  if (heldAction(e)) return;
   const uq = e.target.closest('[data-unqueue]');
   if (uq) return post('/api/agents/action', { id: uq.dataset.unqueue, action: 'unqueue', index: Number(uq.dataset.index) });
   const ua = e.target.closest('[data-unqueue-all]');

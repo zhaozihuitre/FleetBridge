@@ -20,7 +20,7 @@ import { searchSessions } from './search.js';
 import { changes, commit, diff, pushRepo } from './gitops.js';
 import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
-import { dequeue, dispatch, enqueue, queueOf } from './queue.js';
+import { dequeue, dismissQuota, dispatch, enqueue, orphanQueues, queueOf, quotaStops, quotaWatch, reconcile, release } from './queue.js';
 import { clip, endedTurns, masterTurn, noteOrder, transcriptOf, turnOver, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
@@ -39,7 +39,7 @@ import { autoTrusts, setTrustSettings, trustSettings } from './trust.js';
 import { setViewing, setVoiceSettings, viewingNow, voiceSettings } from './voice.js';
 import { WebSocketServer } from 'ws';
 import { recordOrder, recentOrders } from './orders.js';
-import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
+import { adoptMaster, isMasterCwd, masterInfo, masterTurnDone, queueMasterNote, quotaBackNotice, masterWanted, notifyMaster, startMaster, stopMaster, trackMaster } from './master.js';
 import { CLAUDE, STATUSLINE_USAGE, agentSupport, answerPrompt, answerTrust, bindAgents, getAgent, permissionPrompt, pickerPrompt, questionPrompt, trustPrompt, screenLines, menuOptions, killAgent, endAgent, killAll, attachHost, recoverScreens, resendOrder, agentSettings, onPromptSent, listAgents, onAgentsChange, removeAgent, resizeAgent, sendKey, sendText, spawnAgent, spawnShell, writeRaw } from './agents.js';
 
 useClaude(CLAUDE); // the notices' summaries run Haiku through the same claude as our agents
@@ -73,6 +73,7 @@ function offlineCards(sessions) {
   return offlineCache.cards;
 }
 let state = null;
+let hostReady = false; // the PTY host has listed its terminals: only then is a queue's terminal known to be gone
 const promptSeen = new Map(); // agent id -> when its current permission dialog was first seen
 const promptAsked = new Map(); // agent id -> { at, text, agent } of the dialog it shows (self-improvement statistics)
 const trustAsked = new Map(); // agent id -> { at, agent, text, auto } of the folder-trust dialog it shows
@@ -167,6 +168,11 @@ function publish() {
     signedIn: orgNow && readOrg && orgNow !== readOrg ? orgInfo(orgNow) : null,
     others,
   };
+  // queues whose terminal is gone are held, and pass to the session once it runs again (server/queue.js);
+  // not before the PTY host has said which terminals it still runs
+  if (hostReady)
+    for (const h of reconcile(all))
+      for (const q of h.items) recordOrder({ kind: 'held', agentId: h.id, name: h.name, project: path.basename(h.cwd || '') || null, text: q.text, queuedAt: q.at, via: q.via || 'cc', reason: 'closed' });
   const base = buildState({ sessions, gitByCwd, usage: view });
   state = {
     ...base,
@@ -185,6 +191,8 @@ function publish() {
     // projects with nothing running: their latest session, as cards after the live units
     offline: offlineCards(sessions),
     agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null })), // the master has its own column
+    // orders queued for a terminal that is gone and not opened again: listed, to be dropped or taken up
+    orphanQueues: hostReady ? orphanQueues(all) : [],
     agentSupport: agentSupport(),
     // spoken notices: the settings, and the terminal you are looking at (not read out)
     voice: voiceSettings(),
@@ -206,7 +214,19 @@ function publish() {
       noteOrder(a, item?.via || 'cc', text); // a queued order of the master's is its turn once it goes out
     }
     return ok;
+  }, Date.now(), (id, items) => {
+    // its turn stopped on the quota: what was queued behind it waits for a go-ahead
+    for (const q of items) recordOrder({ kind: 'held', ...orderTarget(getAgent(id)), text: q.text, queuedAt: q.at, via: q.via || 'cc', reason: 'quota' });
+    logEvent('queue.held', { agent: getAgent(id)?.name || '', agentId: id, reason: 'quota', n: items.length });
   });
+  // turns stopped on the quota: once it has reset, the master is told it can send them on (after asking the user)
+  for (const d of quotaWatch(state.units.filter((u) => u.owned && u.agentId && getAgent(u.agentId)?.kind !== 'master'), gatingLimit(state.usage?.limits))) {
+    const name = getAgent(d.agentId)?.name || d.name || d.agentId.slice(0, 8);
+    logEvent('quota.back', { agent: name, agentId: d.agentId, held: d.held });
+    queueMasterNote(quotaBackNotice({ ...d, name }));
+  }
+  state.quotaStops = quotaStops();
+  state.agents = state.agents.map((a) => ({ ...a, queue: queueOf(a.id) })); // as it is after this round
   // the master hears without having to look: our agents waiting on a person (once per question),
   // and the turns it gave out that have ended, with their answers
   const owned = state.units.filter((u) => u.owned && u.agentId);
@@ -379,10 +399,16 @@ function orderTarget(a) {
 }
 
 /** One action for one or more of our agents; shared by the command center and the phone page. */
-function agentAction({ id, action, text, key, choice, index, yes, remember, via = 'cc' }) {
+function agentAction({ id, action, text, key, choice, index, held, yes, remember, via = 'cc' }) {
   const ids = Array.isArray(id) ? id : [id];
   const results = ids.map((one) => {
     const a = getAgent(one);
+    // a queue outlives its terminal: its held orders can be dropped with no agent there
+    if (!a && action === 'unqueue' && queueOf(one).length) {
+      const o = (state?.orphanQueues || []).find((x) => x.id === one);
+      for (const q of dequeue(one, Number.isInteger(index) ? index : null)) recordOrder({ kind: 'removed', agentId: one, name: o?.name || null, project: path.basename(o?.cwd || '') || null, text: q.text, queuedAt: q.at, via });
+      return true;
+    }
     if (!a) return false;
     // a person (the phone page, the input box) at this terminal: it is being answered, not waiting
     if (via !== 'master' && ['text', 'key', 'answer', 'trust'].includes(action)) a.keyAt = Date.now();
@@ -410,12 +436,22 @@ function agentAction({ id, action, text, key, choice, index, yes, remember, via 
       return ok;
     }
     if (action === 'queue' && typeof text === 'string' && text.trim()) {
-      enqueue(a.id, text.trim(), via);
+      enqueue(a.id, text.trim(), via, a);
       recordOrder({ kind: 'queued', ...orderTarget(a), text: text.trim(), via });
       return true;
     }
+    // held orders (the session was opened again, or its turn stopped on the quota) go out after all: a person
+    // said so, here or to the master
+    if (action === 'requeue') {
+      if (!a.alive) return false;
+      const items = release(a.id);
+      for (const q of items) recordOrder({ kind: 'released', ...orderTarget(a), text: q.text, queuedAt: q.at, via });
+      if (items.length) logEvent('queue.released', { agent: a.name || '', agentId: a.id, n: items.length, via });
+      return items.length > 0;
+    }
+    if (action === 'quota-dismiss') return dismissQuota(a.id);
     if (action === 'unqueue') {
-      for (const q of dequeue(a.id, Number.isInteger(index) ? index : null)) recordOrder({ kind: 'removed', ...orderTarget(a), text: q.text, queuedAt: q.at, via });
+      for (const q of dequeue(a.id, Number.isInteger(index) ? index : null, { heldOnly: held === true })) recordOrder({ kind: 'removed', ...orderTarget(a), text: q.text, queuedAt: q.at, via });
       return true;
     }
     if (action === 'kill') {
@@ -926,7 +962,7 @@ export async function detach() {
 // For keep-awake: something is working, waiting on a permission prompt, or has orders queued.
 export function fleetBusy() {
   if (!state) return false;
-  return state.units.some((u) => u.status === 'busy' || u.permission) || state.agents.some((a) => a.alive && a.queue?.length);
+  return state.units.some((u) => u.status === 'busy' || u.permission) || state.agents.some((a) => a.alive && a.queue?.some((q) => !q.held)); // held orders wait for a person, not for the machine
 }
 
 export function liveAgents() {
@@ -968,6 +1004,7 @@ export async function start({ onListening } = {}) {
     console.error('fleet-open not installed:', e.message);
   }
   const kept = await attachHost();
+  hostReady = true;
   if (kept) console.log(`pty host: took back ${kept} running terminal(s)`);
   adoptMaster();
   if (masterWanted() && agentSupport().ok) {

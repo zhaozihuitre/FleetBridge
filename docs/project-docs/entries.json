@@ -4543,6 +4543,39 @@
       "created": "2026-11-23 13:01",
       "updated": "2026-11-23 13:01",
       "notes": []
+    },
+    {
+      "id": "C-093",
+      "type": "change",
+      "title": "排队指令在会话重开、额度中断后暂停待确认，可一键续发（改善提案 P-005）",
+      "summary": "终端结束或额度中断时还没发出的排队指令不再丢失或盲发：暂停并转给重开的会话，指挥中心提示「有 N 条未执行指令」，确认后续发；额度重置后提醒用户和主控。",
+      "detail": "- 背景：队列本来就写在 `queues.json`，但按 agent id 记。会话重开后新终端的 id 不同（或舰桥重启后终端不在了），旧队列留在文件里看不见也发不出，主控只能重新整理重发；agent 停在额度上时，后面排着的指令会照样发出去撞额度。\n- 暂停（`held`）：终端结束时队列里的指令标 `closed`，一轮停在额度上时它之前排的指令标 `quota`。暂停的指令 `dispatch` 跳过；之后新排的指令不受影响。\n- 转交（`reconcile`，每次 publish）：队列的终端不在了，就找同一个会话（会话 id）重开的终端，找不到再找之后在同一文件夹新开的终端，把队列放到它前面，仍然暂停。PTY host 列出终端之前不判断（`hostReady`），原地更新时终端还在，队列照常继续。\n- 确认：消息框 QUEUE 消息和「指令」页的「▶ 续发」「丢弃」；`/api/agents/action` 新增 `requeue`、`quota-dismiss`，`unqueue` 新增 `held` 且可用于终端已不在的队列。`state.orphanQueues` 列出还没人接的队列。\n- 额度重置提醒（`quotaWatch`）：记下停在额度上的 agent 和重置时间（中断后 30 分钟内的读数），过点 1 分钟后消息框出 QUOTA 消息（「▶ 让它从断点继续」），并给主控发一条「🔄 额度已重置」通知（`quotaBackNotice`），要求先问用户。\n- 主控：新工具 `fleet_requeue`（已加入主控的允许列表，正在运行的主控第一次用会被问一次授权，重启主控后不再问）；`fleet_status` 显示暂停条数；`fleet_send` 自动模式不把暂停的指令算作排队。\n- 注意：按文件夹转交时，同一文件夹之后新开的第一个会话会接到队列（仍需确认）。读不到额度重置时间时不提醒。降级到旧版本会忽略 `held`，把暂停的指令当普通排队发出。\n- 测试：`test/queue.test.mjs` 8 个。\n",
+      "status": "done",
+      "files": [
+        "server/queue.js",
+        "server/index.js",
+        "server/master.js",
+        "server/fleet-mcp.cjs",
+        "web/app.js",
+        "web/i18n.js",
+        "web/style.css",
+        "test/queue.test.mjs"
+      ],
+      "tags": [
+        "排队",
+        "额度",
+        "主控",
+        "改善提案"
+      ],
+      "sections": [
+        "features",
+        "api",
+        "data"
+      ],
+      "refs": [],
+      "created": "2026-11-23 13:16",
+      "updated": "2026-11-23 13:16",
+      "notes": []
     }
   ]
 }

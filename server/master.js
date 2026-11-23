@@ -19,7 +19,7 @@ const MCP_CONFIG = path.join(DATA_DIR, 'master-mcp.json');
 
 // fleet tools the master may use without asking; answering another agent's permission prompt is
 // left out on purpose: that approves something on the user's behalf, so Claude Code asks first
-const ALLOWED = ['fleet_status', 'fleet_read_screen', 'fleet_read_reply', 'fleet_proposals', 'fleet_decide', 'fleet_improve_analyze', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
+const ALLOWED = ['fleet_requeue', 'fleet_status', 'fleet_read_screen', 'fleet_read_reply', 'fleet_proposals', 'fleet_decide', 'fleet_improve_analyze', 'fleet_send', 'fleet_key', 'fleet_unqueue', 'fleet_projects', 'fleet_spawn', 'fleet_ui', 'fleet_open'].map((t) => `mcp__fleet__${t}`);
 
 export const GUIDE = `# 主控 · Fleet Bridge master console
 
@@ -591,6 +591,26 @@ export function doneNotice(x) {
     `[Fleet notice] ${icon} Done: ${x.name} (${x.agentId.slice(0, 8)}) finished your order "${head}" in ${mins(x.ms)}.\n${resent}${sum}${reply}`,
     `【艦橋通知】${icon} 完了：${x.name}（${x.agentId.slice(0, 8)}）があなたの指示「${head}」を完了（${mins(x.ms)}）。\n${resent}${sum}${reply}`,
   );
+}
+
+/**
+ * The quota an agent's turn stopped on has reset (improvement P-005): the master is reminded, and asks the
+ * user before sending anything on, since what was to be done may be out of date by now.
+ */
+export function quotaBackNotice(x) {
+  const id = x.agentId.slice(0, 8);
+  const held = x.held
+    ? L(
+        `它还有 ${x.held} 条排队的指令暂停着（额度中断时没有发出）：用户确认后用 fleet_requeue 续发，不要的用 fleet_unqueue 移除。`,
+        `${x.held} queued order(s) of it are on hold (not sent when the quota stopped it): fleet_requeue sends them on once the user agrees, fleet_unqueue drops them.`,
+        `保留中のキュー指示が ${x.held} 件あります（利用枠で停止した時点で未送信）。ユーザーの確認後に fleet_requeue で再開、不要なら fleet_unqueue で削除。`,
+      )
+    : '';
+  return L(
+    `【舰桥通知】🔄 额度已重置：${x.name}（${id}）之前被额度中断的任务可以继续了。先告诉用户并确认还要不要继续（中断前的指令可能已经过时），确认后用 fleet_send 让它从断点继续。${held}`,
+    `[Fleet notice] 🔄 Quota reset: ${x.name} (${id}) can go on with the task the quota stopped. Tell the user and ask whether it should (the order may be out of date by now); once they agree, fleet_send it to continue where it stopped. ${held}`,
+    `【艦橋通知】🔄 利用枠リセット：${x.name}（${id}）は利用枠で中断したタスクを再開できます。まずユーザーに伝え、続行するか確認してください（中断前の指示は古くなっている可能性）。確認後 fleet_send で続きから再開を指示。${held}`,
+  ).trim();
 }
 
 // Done notices already typed in (the last 50, in <data>/master-told.json): one turn is reported once,

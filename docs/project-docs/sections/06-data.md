@@ -28,6 +28,7 @@
 | `replies/<agent id>/<yyyymmdd-hhmmss>.md` | Markdown | 主控派的每个回合的完整回答（每个 agent 保留 50 份），`fleet_read_reply` 读取 |
 | `events.jsonl` | 每行 `{at, type, …}` | 自我改善的事件日志：通知（完成 / 中断 / 未执行，含是否截断、回答长度）、读屏、读全文、授权等待时长（信任对话框记为 `permit.wait` 的 `kind: trust`，舰桥自动回答的记为 `trust.auto`）、自动重发、手动纠正、回答授权、分析与实施的步骤。只记类型、次数、时长、agent 名和指令开头，不记整段回答；超过约 4 MB 丢掉较早的一半；自我改善关闭时不写 |
 | `self-improve.json` | JSON | 自我改善的开关：`enabled`、`llm`（模型分析）、`model`、`hour`/`minute`（每天分析时间）、`minTurns`、`days`（统计范围）、`push`、`repo` |
+| `queues.json` | `{<agent id>: [{text, at, via?, held?, heldAt?}], _meta, _quota}` | 排队的指令（`server/queue.js`）。`held`：`closed`（终端结束）或 `quota`（额度中断），暂停待确认；`_meta[<agent id>]` = `{cwd, name, sessionId, closedAt?}`，用来在会话重开后把队列转给新终端；`_quota[<agent id>]` = `{at, resetsAt, name, told?, dismissed?}`，停在额度上还没继续的 agent，重置后提醒一次。旧版本写的文件（只有队列）照常读取 |
 | `trust.json` | `{auto, dirs[]}` | 自动信任的目录（`server/trust.js`）：`auto` 开关（默认 `false`）和目录列表（绝对路径）。舰桥新开的 agent 在其中某个目录或其子目录里遇到「是否信任此文件夹」时自动回答信任 |
 | `proposals.json` | `{seq, items[], lastAnalysis}` | 改善提案及其全部状态变化（谁、何时、做了什么）、实施信息（分支、worktree、测试、更新日志路径） |
 | `improve/P-xxx/` | git worktree | 提案的开发目录（分支 `improve/p-xxx`），`node_modules` 是指向主仓库的目录联接 |

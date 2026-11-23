@@ -48,6 +48,10 @@
 | `key` | `key`: `esc` / `ctrl-c` / `enter` | 发送按键 |
 | `answer` | `choice`: 选项编号或 `esc` | 回答屏幕上的授权框、选择框。信任对话框的 1 / 2 按选项本身回答（1 = No, exit，2 = Yes, I trust this folder），不看它们在屏幕上的上下顺序 |
 | `trust` | `yes`?: 默认 `true`；`remember`?: `true` | 回答「是否信任此文件夹」：`yes: false` 选 No, exit。屏幕上没有信任对话框时返回 `false`；3 秒内重复调用不再按键。`remember: true`（只对本机指挥中心发来的生效）把这个 agent 的文件夹加入自动信任的目录并打开开关 |
+| `queue` | `text` | 排进这个 agent 的队列，做完一轮发一条 |
+| `unqueue` | `index`?: 第几条（从 0 起），不填 = 全部；`held`?: `true` = 只移除暂停待确认的 | 从队列移除。`id` 是一个终端已经不在的队列（`orphanQueues` 里的）时也可以 |
+| `requeue` | — | 续发暂停待确认的指令（会话重开前排队的、额度中断时没发出的）：恢复成普通排队，做完一轮发一条。agent 已退出或没有暂停的指令时返回 `false` |
+| `quota-dismiss` | — | 不再提示这个 agent「额度已重置，可以继续」 |
 | `kill` | — | 结束进程 |
 | `remove` | — | 从列表移除已退出的 agent |
 
