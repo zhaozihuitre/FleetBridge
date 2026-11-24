@@ -966,3 +966,41 @@ html.web [data-win] { display: none; }
 .master-bar .master-quota.low { color: var(--red); }
 .master-bar .master-st:has(+ .master-quota:not([hidden])) { margin-right: 0; }
 .master-bar .master-quota:not([hidden]) { margin-right: auto; }
+
+/* ---- 待决定 DECIDE (web/pending.js) ---- */
+.pending { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; font-family: var(--body); }
+.pd-empty { color: var(--muted); padding: 24px 8px; line-height: 1.7; }
+.pd-banner { border: 1px solid var(--red); color: var(--red); padding: 6px 10px; background: color-mix(in srgb, var(--red) 10%, transparent); }
+.pd-item { border: 1px solid var(--line); border-left: 4px solid var(--line-hi); background: var(--panel); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.pd-item.amber { border-left-color: var(--amber); }
+.pd-item.red { border-left-color: var(--red); }
+.pd-item.stale { opacity: 0.6; }
+.pd-item.sys { background: var(--panel-deep); }
+.pd-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
+.pd-h b { color: var(--text); font-family: var(--display); letter-spacing: 1px; }
+.pd-tag { border: 1px solid var(--line); padding: 0 6px; font-size: 11px; color: var(--soft); }
+.pd-tag.dim { color: var(--muted); border-style: dashed; }
+.pd-age { margin-left: auto; }
+.pd-item.amber .pd-age { color: var(--amber); }
+.pd-item.red .pd-age { color: var(--red); font-weight: 600; }
+.pd-gone { color: var(--red); }
+.pd-q { color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.pd-sug { color: var(--green); font-size: 12px; }
+.pd-btns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pd-later { display: inline-flex; gap: 4px; }
+.pd-btn { font: inherit; font-size: 12px; padding: 2px 9px; background: transparent; color: var(--soft); border: 1px solid var(--line-hi); cursor: pointer; }
+.pd-btn:hover { color: var(--text); border-color: var(--cyan); }
+.pd-btn.p { color: var(--cyan); border-color: var(--cyan); }
+.pd-btn:disabled { opacity: 0.5; cursor: default; }
+.pd-ans { display: flex; gap: 6px; align-items: flex-start; }
+.pd-ans textarea { flex: 1; min-height: 28px; resize: vertical; font: inherit; font-size: 13px; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 4px 6px; }
+.pd-report { margin: 4px 0 0; max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 12px; color: var(--soft); background: var(--bg); border: 1px solid var(--line); padding: 8px; }
+.pd-recent { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--soft); padding: 4px 2px; border-bottom: 1px dashed var(--line); }
+.pd-recent .pd-q1 { color: var(--text); flex: 1 1 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-recent .pd-a { color: var(--green); }
+.pd-toggle { cursor: pointer; }
+.pd-chip { font: inherit; font-size: 11px; padding: 0 6px; border: 1px solid var(--amber); color: var(--amber); background: transparent; cursor: pointer; }
+.pending-chip { font: inherit; font-size: 12px; padding: 2px 8px; border: 1px solid var(--amber); color: var(--amber); background: transparent; cursor: pointer; white-space: nowrap; }
+.pending-chip.red, .pd-chip.red { border-color: var(--red); color: var(--red); }
+.tab .n.red { background: var(--red); color: var(--bg); }
+.n-pd { color: var(--cyan); font-size: 12px; }

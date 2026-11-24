@@ -52,7 +52,7 @@ let history = (() => {
 })();
 let saveTimer = null;
 function remember(n) {
-  const keep = ['key', 'kind', 'at', 'agentId', 'sessionId', 'name', 'project', 'owned', 'org', 'title', 'result', 'needs'];
+  const keep = ['key', 'kind', 'at', 'agentId', 'sessionId', 'name', 'project', 'owned', 'org', 'title', 'result', 'needs', 'pending'];
   history.push(Object.fromEntries(keep.filter((k) => n[k] != null && n[k] !== '').map((k) => [k, n[k]])));
   history = history.slice(-HISTORY_MAX);
   clearTimeout(saveTimer);
@@ -158,7 +158,16 @@ export function updateNotices(units, quests, prompts, o = {}) {
     }
     if (kind === 'interrupted') [result, needs] = [turn.lastTool ? L('停在：', 'Stopped at: ', '停止位置：') + turn.lastTool : result, L('等你的新指示。', 'Waiting for what to do instead.', '次の指示を待っています。')];
     if (!title) title = clipSentence(turn.prompt, 40);
-    add({ key, kind, ...who, org, title, result, needs, by, order: clipSentence(turn.prompt, 60) });
+    // what our terminal's report needs of you goes on the 待决定 list (server/pending.js): the notice says which ids
+    let pending;
+    if (u.owned && u.agentId && (kind === 'done' || kind === 'ask') && o.onTurn) {
+      try {
+        pending = o.onTurn({ u, turn, needs: s.summary.needs || '' });
+      } catch (e) {
+        console.error('pending list: report not read', e.message);
+      }
+    }
+    add({ key, kind, ...who, org, title, result, needs, by, order: clipSentence(turn.prompt, 60), ...(pending?.length ? { pending } : {}) });
   }
   // quota low
   for (const q of quests) if (q.kind === 'ALERT') prime(q.key, () => ({ kind: 'alert', name: L('额度', 'Quota', '利用枠'), title: q.title, result: q.goal || '', needs: '' }));

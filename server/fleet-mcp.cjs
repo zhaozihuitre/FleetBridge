@@ -34,6 +34,22 @@ const ownLimit = (q) =>
 const sharedWith = (sh) => `${sh.roots.join(', ')} with: ${sh.with.map((o) => o.name + (o.outside ? ' (outside session)' : '')).join(', ')}`;
 const SPLIT_TEMPLATE = '【分工】本指令只动：<文件或目录>；不要动：<谁正在改的文件或目录>；提交：由 <谁> 负责，只提交自己改的文件';
 
+/** When a snoozed item comes back: ms since epoch, "+2h" / "+30m" / "+1d", "tomorrow 9:00", "18:00". */
+function whenOf(v, now = Date.now()) {
+  const s = String(v ?? '').trim();
+  if (/^\d{10,}$/.test(s)) return Number(s);
+  let m = s.match(/^\+(\d+(?:\.\d+)?)\s*(m|min|h|d)$/i);
+  if (m) return now + Number(m[1]) * { m: 60_000, min: 60_000, h: 3_600_000, d: 86_400_000 }[m[2].toLowerCase()];
+  m = s.match(/^(tomorrow|明天)?\s*(\d{1,2})[:：](\d{2})$/i);
+  if (m) {
+    const d = new Date(now);
+    d.setHours(Number(m[2]), Number(m[3]), 0, 0);
+    if (m[1] || d.getTime() <= now) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  throw new Error('until: ms since epoch, "+2h", "+30m", "tomorrow 9:00" or "18:00"');
+}
+
 // Our agents (we can type into them) with what their session says about them.
 async function fleet() {
   const st = await api('/api/state');
@@ -79,12 +95,16 @@ const TOOLS = [
         if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}${o.hint ? ` (${o.hint})` : ''}`).join(' | ')}${a.waiting.trust ? ' · answer with fleet_answer choice "trust"' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
         if (u?.model) out.push(`  model: ${u.model}${u.quota ? ` · quota ${u.quota.label} ${Math.round(u.quota.usedPct)}% used${u.quota.active ? ' (gating now)' : ''}, ${u.quota.resetsAt ? 'resets ' + new Date(u.quota.resetsAt).toLocaleString('zh-CN', { hour12: false }) : 'not started'}${u.quota.asOf ? ' (other organization, last read ' + new Date(u.quota.asOf).toLocaleString('zh-CN', { hour12: false }) + ')' : ''}${ownLimit(u.quota)}` : ''}`);
+        const waits = st.pending?.byAgent?.[a.id];
+        if (waits) out.push(`  pending decisions: ${waits} (fleet_pending)`);
         if (u?.lastPrompt) out.push(`  last order: ${short(u.lastPrompt, 200)}`);
         if (u?.lastText) out.push(`  last reply: ${short(u.lastText, 300)}`);
         return out.join('\n');
       });
       const outside = st.units.filter((u) => !u.owned).map((u) => `- ${u.name || u.project} · ${u.status} · ${u.cwd} (outside Fleet Bridge: read-only)`);
-      return [`Our agents (${ours.length}):`, ...(lines.length ? lines : ['(none: use fleet_spawn)']), ...(outside.length ? ['', `Outside sessions (${outside.length}):`, ...outside] : [])].join('\n');
+      const pv = st.pending;
+      const waiting = pv?.count ? [`Pending decisions (待决定): ${pv.count}${pv.red ? `, ${pv.red} over 24h` : ''}${pv.oldestAt ? `, oldest ${ago(pv.oldestAt)}` : ''}: fleet_pending lists them`, ''] : [];
+      return [...waiting, `Our agents (${ours.length}):`, ...(lines.length ? lines : ['(none: use fleet_spawn)']), ...(outside.length ? ['', `Outside sessions (${outside.length}):`, ...outside] : [])].join('\n');
     },
   },
   {
@@ -232,6 +252,66 @@ const TOOLS = [
       const x = resolve(ours, agent);
       const r = await api('/api/agents/action', { id: x.a.id, action: 'unqueue', index: Number.isInteger(index) ? index : undefined, via: 'master' });
       return `${x.name}: ${r.ok ? 'removed' : 'failed'}`;
+    },
+  },
+  {
+    name: 'fleet_pending',
+    description: 'The 待决定 (pending decisions) list: what the user still has to decide or do, kept until it is answered, so nothing is lost when several projects run at once. Items come from the agents\' reports (their "needs the user" section, put on the list by Fleet Bridge), from dialogs nobody answered for 2 minutes, from your own questions (fleet_pending_add), and Fleet Bridge\'s own (proposals to approve or install, orders on hold, a folder-trust dialog). Use it when the user asks what is waiting on them ("待办", "还有什么要我定"); end your answers with one line "待决定 N 条（最旧 X 小时）" (none: nothing). status: open (default), snoozed, recent (answered or dropped in the last week).',
+    inputSchema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'snoozed', 'recent'] }, project: { type: 'string' } } },
+    async run({ status = 'open', project } = {}) {
+      const v = await api('/api/pending');
+      const p = String(project || '').toLowerCase();
+      const pick = (x) => !p || String(x.project || '').toLowerCase().includes(p) || String(x.agentName || '').toLowerCase().includes(p);
+      const age = (t) => ago(t) || '0s';
+      const line = (x) => {
+        const who = [x.project, x.agentName && x.agentName !== x.project ? x.agentName : ''].filter(Boolean).join(' / ') || '-';
+        const src = { report: 'report', dialog: 'dialog on screen', master: 'your question', auto: 'auto' }[x.source] || x.source;
+        const out = [`- ${x.id} [${who}] waiting ${age(x.at)} · ${src}${x.kind === 'do' ? ' · to do' : ''}${x.seen > 1 ? ` · asked ${x.seen}x` : ''}${x.stale ? ' · not asked again in its later report' : ''}`, `  ${short(x.text, 300)}`];
+        if (x.options?.length) out.push(`  options: ${x.options.map((o) => `${o.key}. ${o.label}`).join(' / ')}`);
+        if (x.suggestion) out.push(`  suggested: ${x.suggestion}`);
+        if (x.status === 'snoozed') out.push(`  snoozed until ${new Date(x.snoozeUntil).toLocaleString('zh-CN', { hour12: false })}`);
+        if (x.answer && status === 'recent') out.push(`  ${x.status}: ${short(x.answer.text || x.answer.option || '', 200)} (${x.answer.delivered})`);
+        return out.join('\n');
+      };
+      const SYS = { approve: 'proposal waiting for approval (fleet_proposals / fleet_decide)', install: 'proposal built, waiting to be installed (ask the user, then fleet_decide install)', held: 'orders on hold (fleet_requeue once the user agrees, or fleet_unqueue)', trust: 'folder-trust dialog (fleet_answer)' };
+      const list = (status === 'snoozed' ? v.snoozed : status === 'recent' ? v.recent : v.open).filter(pick);
+      const sys = status === 'open' ? (v.system || []).filter(pick) : [];
+      const head = `pending decisions: ${v.count} open${v.red ? `, ${v.red} waiting over 24h` : ''}${v.oldestAt ? `, oldest ${age(v.oldestAt)}` : ''}${v.snoozed?.length ? ` · ${v.snoozed.length} snoozed` : ''}`;
+      const body = list.map(line).join('\n');
+      const own = sys.map((x) => `- ${x.id} [${x.project || x.agentName || '-'}] waiting ${age(x.at)} · ${SYS[x.sys] || x.sys}\n  ${short(x.text, 200)}`).join('\n');
+      return [head, body || (status === 'open' ? '(no open items)' : '(none)'), own ? 'Fleet Bridge\'s own:\n' + own : ''].filter(Boolean).join('\n');
+    },
+  },
+  {
+    name: 'fleet_pending_add',
+    description: 'Put a question you ask the user on the 待决定 list, so it is not lost under later messages: one question per call, with its options and your suggestion when you have them. Returns its id (e.g. Q-12): write it in your answer to the user, and use it with fleet_pending_resolve. The same open question again is merged, not added twice. agent: the terminal the question is about (its answer can go to it); project: the project when there is no terminal. Questions in the agents\' reports are put on the list by Fleet Bridge itself: do not add those again. kind: "decide" (a choice or a yes / no) or "do" (something the user has to do: scan a code, type a code…).',
+    inputSchema: { type: 'object', properties: { text: { type: 'string' }, options: { type: 'array', items: { type: 'string' } }, suggestion: { type: 'string' }, agent: { type: 'string' }, project: { type: 'string' }, kind: { type: 'string', enum: ['decide', 'do'] } }, required: ['text'] },
+    async run({ text, options, suggestion, agent, project, kind }) {
+      let id = null;
+      if (agent) {
+        const { ours } = await fleet();
+        id = resolve(ours, agent).a.id;
+      }
+      const r = await api('/api/pending', { action: 'add', text, options, suggestion, agent: id, project, kind, via: 'master' });
+      return r.merged ? `${r.id}: already on the list (merged)` : `${r.id}: on the list`;
+    },
+  },
+  {
+    name: 'fleet_pending_resolve',
+    description: 'Close or change an item of the 待决定 list by its id. action "answered": the user\'s answer (answer, and/or option = an option key) is recorded and sent on to whoever asked: a terminal gets the question with the answer as an order (now when idle, queued when busy), a dialog is answered by the option; forward: false only records it. "dropped": the user will not do it (a reason in answer is sent on to the terminal). "snooze": until (ms since epoch, or "+2h" / "+30m" / "tomorrow 9:00") it leaves the open list. "reopen": back to open (a wrong match). Only call it for what the user actually answered; when unsure which item an answer belongs to, ask the user first. The result says how the answer went out: sent / queued / not-sent (its terminal is gone: tell the user).',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, action: { type: 'string', enum: ['answered', 'dropped', 'snooze', 'reopen'] }, answer: { type: 'string' }, option: { type: 'string' }, forward: { type: 'boolean' }, until: { type: 'string' } }, required: ['id', 'action'] },
+    async run({ id, action, answer, option, forward, until }) {
+      const act = { answered: 'answer', dropped: 'drop', snooze: 'snooze', reopen: 'reopen' }[action];
+      if (!act) throw new Error('action: answered / dropped / snooze / reopen');
+      const body = { id, action: act, text: answer || '', option: option ?? null, via: 'master' };
+      if (forward === false) body.forward = false;
+      if (act === 'snooze') body.until = whenOf(until);
+      const r = await api('/api/pending', body).catch((e) => ({ ok: false, error: e.message }));
+      if (!r.ok) throw new Error(`${id}: ${r.error || 'failed'}`);
+      if (act === 'snooze') return `${r.item.id}: snoozed until ${new Date(r.item.snoozeUntil).toLocaleString('zh-CN', { hour12: false })}`;
+      if (act === 'reopen') return `${r.item.id}: open again`;
+      const how = { sent: 'sent to its terminal', queued: 'queued for its terminal (busy now)', master: 'noted for you', 'not-sent': forward === false ? 'recorded only' : 'recorded, NOT sent: its terminal is gone or the dialog is no longer on screen; tell the user' }[r.delivered] || r.delivered;
+      return `${r.item.id}: ${r.item.status} · ${how}`;
     },
   },
   {

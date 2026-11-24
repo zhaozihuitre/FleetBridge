@@ -34,16 +34,17 @@ test('the rest of the guide is as before: the template, wrap-up, then the read-o
   const before = OLD_GUIDES[8].split('\n');
   const now = GUIDE.split('\n');
   for (const line of before) assert.ok(now.includes(line), line);
-  const later = /^- (收工|只读调查|密钥|共用仓库)：/; // lines of their own (P-010: test/wrapup.test.mjs; P-008: below)
+  const later = /^- (收工|只读调查|密钥|共用仓库|待决定)：/; // lines of their own (P-010: test/wrapup.test.mjs; P-008: below)
   const added = now.filter((l) => !before.includes(l) && !later.test(l));
   assert.equal(added.length, 10); // the template (P-002): as it came in, OLD_GUIDES[9]
   assert.deepEqual(added, OLD_GUIDES[9].split('\n').filter((l) => !before.includes(l)));
   assert.ok(added.every((l) => /^ {0,2}- /.test(l)));
   const withWrapup = OLD_GUIDES[10].split('\n');
   assert.ok(withWrapup.some((l) => l.startsWith('- 收工：')));
-  // [11] is the P-008 default; the current one adds only the shared working tree line (P-007: test/shared.test.mjs)
+  // [11] is the P-008 default; then the shared working tree line (P-007: test/shared.test.mjs) and the 待决定 line
+  // (test/pending.test.mjs)
   const withP8 = OLD_GUIDES[11].split('\n');
-  assert.deepEqual(now.filter((l) => !withP8.includes(l)).map((l) => l.slice(0, 7)), ['- 共用仓库：']);
+  assert.deepEqual(now.filter((l) => !withP8.includes(l)).map((l) => l.slice(0, l.indexOf('：') + 1)), ['- 共用仓库：', '- 待决定：']);
   const p8 = withP8.filter((l) => !withWrapup.includes(l));
   assert.equal(p8.length, 2);
   assert.match(p8[0], /^- 只读调查：.*readonly: true.*要 agent 动手改的任务不要带/);

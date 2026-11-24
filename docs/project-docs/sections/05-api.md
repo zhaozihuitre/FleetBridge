@@ -15,6 +15,9 @@
 | POST | `/api/agents` | 出击 / 接管我方 agent | 同源 |
 | POST | `/api/paste-image` | 请求体是图片的原始字节（PNG / JPEG / GIF / WebP / BMP，最大 25MB），存到 `<数据目录>/pastes/`，返回 `{ ok, path }`；不是图片返回 400，过大返回 413 | 同源 / 手机 |
 | POST | `/api/agents/action` | 给一个或多个我方 agent 发指令、按键、结束、移除 | 同源 |
+| GET | `/api/pending` | 待决定清单（`server/pending.js` 的 `pendingView`，也在 `/api/state` 的 `pending` 里）：`{ open, snoozed, recent, system, count, red, amber, oldestAt, redList, byAgent, damaged }`。`count` 是未答的加舰桥自己的（稍后的不算）；条目里不带汇报原文和操作记录 | 同源 |
+| GET | `/api/pending?id=Q-12` | 一条的全部内容：含 `refs[].report`（那一轮的汇报原文）和 `history`；没有返回 404 | 同源 |
+| POST | `/api/pending` | `{ action, … }`：`add`（`text`，可选 `options`（字符串或 `{key,label}`）、`suggestion`、`agent`（agent id）、`project`、`kind: decide/do`），返回 `{ ok, id, merged }`；`answer`（`id`，`option` 和/或 `text`，`forward: false` 只记下）、`drop`（`id`，`text` 为原因，写了才转给终端），返回 `{ ok, item, delivered }`，`delivered`：`sent / queued / master / not-sent`；`snooze`（`id`，`until` 毫秒时间）；`reopen`（`id`）。失败 400 `{ ok:false, error }`（`unknown_item`、`not_open`、`answer is empty`…）。`via: 'master'` 为主控工具调用 | 同源 |
 | POST | `/api/agents/wrapup` | 收工：一次结束空闲的我方终端。`{ ids?, dry?, via? }`：`ids` 只考虑这几个（不填 = 全部存活的 Claude 终端），`dry: true` 只返回判断结果。`dry` 时返回 `{ ok, dry, close:[{id,name,project,unseen}], skip:[{id,name,project,reason}] }`，否则 `{ ok, closed:[…], skip:[…] }`。`reason`：`working / needs-approval / needs-answer / starting / just-ordered / queued / unreported / gone / not-claude`。每次调用都重新读取会话状态后判断 | 同源 |
 | GET/POST | `/api/trust` | 自动信任的目录：`{ auto, dirs }`。POST 可带 `auto`（布尔）、`dirs`（数组或每行一个路径的文本，替换整个列表）、`add` / `remove`（一个路径）；返回清理后的设置（只留绝对路径，去掉盘符根目录和重复项）。其他设备 POST 返回 403 `computer_only` | 同源 |
 | GET | `/api/agents/screen?id=` | 我方 agent 当前屏幕的文字（主控 `fleet_read_screen`） | 同源 |

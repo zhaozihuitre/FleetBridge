@@ -8,6 +8,7 @@ import { collectSessions } from './collectors/sessions.js';
 import { collectUsage, limitLabel, otherOrgs, withStatusline } from './collectors/usage.js';
 import { currentOrg, orgAt, orgInfo, orgOfUnit } from './accounts.js';
 import { modelQuota } from './modelquota.js';
+import { answerText, optionsOf, pendingStore, pendingView, squash, suggestionOf, systemItems } from './pending.js';
 import { gatingLimit } from './quotatext.js';
 import { readReply, saveReply } from './replies.js';
 import { analyzeNow, decide, improveState, improveTick, initImprove, proposalStore } from './insights/improve.js';
@@ -257,6 +258,8 @@ function publish() {
     // the whole answer on disk too (the notice gives its path; fleet_read_reply reads it)
     const status = t.neverRan ? 'never-ran' : r?.interrupted ? 'interrupted' : r?.error ? 'error' : 'done';
     const file = t.neverRan ? null : saveReply({ agentId: t.agentId, name: getAgent(t.agentId)?.name || t.name, order: t.text, reply: full, ms: t.ms, status });
+    // what its report needs of the user, on the 待决定 list before the master is told (its notice names the ids)
+    if (status === 'done' && full) pendingReport({ agentId: t.agentId, sessionId: t.sessionId, turnAt: t.since, order: t.text, reply: full, needs: '' });
     // its summary (rules at once, the model's within 15 s): the master's notice opens with it
     const lt = lastTurn(t.sessionId);
     const turn = lt && lt.promptAt >= t.since - 5000 ? lt : { prompt: t.text, reply: r?.reply || '', said: r?.reply || '' };
@@ -276,8 +279,10 @@ function publish() {
     console.error('self-improvement tick failed', e.message);
   }
   state.improve = improveState();
+  // the 待决定 list (server/pending.js): dialogs nobody answered, snoozed ones back, and Fleet Bridge's own
+  state.pending = pendingState(prompts);
   // notices (desktop toasts via the widget, phone push, the lists): decided once, each with its summary
-  updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow(), limits: state.usage?.limits });
+  updateNotices(state.units, state.quests, prompts, { quotaLow: quotaLow(), limits: state.usage?.limits, onTurn: ({ u, turn, needs }) => pendingReport({ agentId: u.agentId, sessionId: u.sessionId, turnAt: turn.promptAt, order: turn.prompt, reply: turn.reply || turn.said || '', needs }) });
   state.notices = recentNotices().map((n) => ({ ...n, toast: toastText(n), line: lineText(n) }));
   // system load (server/sysload.js): the machine, and each terminal's process tree
   sysUnits(state.units);
@@ -417,6 +422,102 @@ const orderedAt = (id) => Math.max(getAgent(id)?.orderedAt || 0, getAgent(id)?.t
  */
 function sharedNow(extra) {
   return sharedGroups([...sharedMembers({ agents: listAgents(), units: state?.units || [], skip: isMasterCwd }), ...(extra ? [extra] : [])]);
+}
+
+// ---- the 待决定 list (server/pending.js) ----
+
+/** A finished turn of one of our terminals: what its report needs of the user, as items. Their ids. */
+function pendingReport({ agentId, sessionId, turnAt, order, reply, needs }) {
+  const a = getAgent(agentId);
+  if (!a || a.kind === 'master' || a.kind === 'shell') return [];
+  return pendingStore().fromReport({ agentId, agentName: a.name || null, sessionId: sessionId || a.sessionId || null, project: path.basename(a.cwd || '') || null, cwd: a.cwd || null, turnAt, order, reply, needs });
+}
+
+/** The list as the pages and the master see it, after the dialogs on screen and the snoozed ones are looked at. */
+function pendingState(prompts) {
+  const store = pendingStore();
+  const dialogs = [];
+  for (const u of state?.units || []) {
+    if (!u.owned || !u.agentId || !u.permission) continue;
+    const a = getAgent(u.agentId);
+    if (!a || a.kind === 'master') continue;
+    const p = prompts?.get(u.sessionId);
+    const text = String(p?.text || u.permission.message || '').trim();
+    const options = (p?.options || []).map((o) => ({ key: String(o.key), label: o.label }));
+    dialogs.push({ dialogKey: `${u.agentId}|${squash(text).slice(0, 200)}|${options.map((o) => squash(o.label)).join(',')}`, at: u.permission.at || Date.now(), agentId: u.agentId, agentName: a.name || u.name || null, sessionId: u.sessionId, project: u.project || path.basename(a.cwd || '') || null, cwd: a.cwd || null, text: text || L('（见选项）', '(see the options)', '（選択肢を参照）'), options });
+  }
+  store.syncDialogs(dialogs, (id) => Boolean(getAgent(id)?.alive));
+  store.wake();
+  let proposals = [];
+  try {
+    proposals = proposalStore().list();
+  } catch {}
+  const system = systemItems({ proposals, agents: state?.agents || [] });
+  return { ...pendingView(store.items(), system), damaged: store.damaged() };
+}
+
+/**
+ * The answer goes to whoever asked: a dialog is answered by its choice; a terminal gets the question and the
+ * answer as an order (now when idle, queued when busy); the master is told one the user answered on the list.
+ * @returns {'sent'|'queued'|'master'|'not-sent'}
+ */
+function deliverPending(x, { text, option, dropped, via }) {
+  if (x.source === 'dialog') {
+    const a = getAgent(x.agentId);
+    const u = state?.units.find((v) => v.agentId === x.agentId);
+    if (dropped || option == null || !a?.alive || !u?.permission) return 'not-sent';
+    return agentAction({ id: a.id, action: 'answer', choice: String(option), via }).ok ? 'sent' : 'not-sent';
+  }
+  const words = answerText(x, { text, option, dropped });
+  if (!x.agentId) {
+    if (via === 'master') return 'not-sent'; // the master answered it itself
+    queueMasterNote(L(`【舰桥通知】用户在「待决定」清单里答复了你的问题：${words.replace(/^关于你之前提的问题/, '')}`, `[Fleet notice] The user answered your question on the pending list: ${words}`, `【艦橋通知】ユーザーが保留リストであなたの質問に回答しました：${words}`));
+    return 'master';
+  }
+  const a = getAgent(x.agentId);
+  if (!a?.alive || (a.kind || 'claude') !== 'claude') return 'not-sent'; // a Claude agent's kind is left unset
+  const u = state?.units.find((v) => v.agentId === a.id);
+  const busy = u?.status === 'busy' || Boolean(u?.permission) || queueOf(a.id).some((q) => !q.held);
+  const r = agentAction({ id: a.id, action: busy ? 'queue' : 'text', text: words, via });
+  return r.ok ? (busy ? 'queued' : 'sent') : 'not-sent';
+}
+
+/** Add (the master's question), answer, drop, snooze, reopen. via: 'master' from its tools, else the page. */
+function pendingAction(b = {}) {
+  const store = pendingStore();
+  const via = b.via === 'master' ? 'master' : b.via === 'web' ? 'web' : 'pending';
+  const by = b.via === 'master' ? 'master' : b.via === 'web' ? 'web' : 'ui';
+  try {
+    if (b.action === 'add') {
+      if (!String(b.text || '').trim()) return { ok: false, error: 'text is required' };
+      const a = b.agent ? getAgent(b.agent) : null;
+      // its options as given, else as written in the question ("A. … B. …", "要不要…"), like a report's
+      const given = Array.isArray(b.options) && b.options.length ? b.options.map((o, i) => (typeof o === 'string' ? { key: String(i + 1), label: o } : { key: String(o.key ?? i + 1), label: String(o.label ?? o.key) })) : null;
+      const options = given || optionsOf(b.text);
+      const kind = b.kind === 'do' || b.kind === 'decide' ? b.kind : options.length ? 'decide' : undefined;
+      const r = store.add({ source: 'master', text: String(b.text), kind, options, suggestion: b.suggestion || suggestionOf(b.text), project: b.project || (a ? path.basename(a.cwd || '') : null), agentId: a?.id || null, agentName: a?.name || null, sessionId: a?.sessionId || null, cwd: a?.cwd || null }, by);
+      logEvent('pending.add', { id: r.id, merged: r.merged, via });
+      return { ok: true, ...r };
+    }
+    const x = store.get(b.id || '');
+    if (!x) return { ok: false, error: 'unknown_item' };
+    if (b.action === 'snooze') return { ok: true, item: store.resolve(x.id, { action: 'snooze', until: Number(b.until), by }) };
+    if (b.action === 'reopen') return { ok: true, item: store.resolve(x.id, { action: 'reopen', by }) };
+    if (b.action !== 'answer' && b.action !== 'drop') return { ok: false, error: 'unknown_action' };
+    if (x.status !== 'open' && x.status !== 'snoozed') return { ok: false, error: 'not_open', status: x.status };
+    const dropped = b.action === 'drop';
+    const text = String(b.text || '').trim();
+    const option = b.option ?? null;
+    if (!dropped && !text && option == null && x.kind !== 'do') return { ok: false, error: 'answer is empty' };
+    // a dropped one is told to its terminal only with a reason; forward: false keeps the answer here
+    const forward = b.forward !== false && (!dropped || Boolean(text));
+    const delivered = forward ? deliverPending(x, { text, option, dropped, via }) : 'not-sent';
+    const item = store.resolve(x.id, { action: dropped ? 'dropped' : 'answered', answer: { text, option, delivered, orderAt: delivered === 'sent' || delivered === 'queued' ? Date.now() : null }, by });
+    logEvent('pending.' + (dropped ? 'drop' : 'answer'), { id: x.id, source: x.source, delivered, via });
+    return { ok: true, item, delivered };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 }
 
 /** One action for one or more of our agents; shared by the command center and the phone page. */
@@ -796,6 +897,19 @@ ${sharedNote(shared)}` : prompt;
     const lt = lastTurn(a.sessionId);
     if (!lt?.reply) return send(res, 404, { error: 'no_reply' });
     return send(res, 200, { source: 'transcript', text: `## Order\n\n${lt.prompt}\n\n## Reply\n\n${lt.reply}\n`, turn: 0, count: 0, ended: lt.ended });
+  }
+  // the 待决定 list: the open ones and Fleet Bridge's own (GET), add / answer / drop / snooze / reopen (POST)
+  // one item in full (its reports, its history)
+  if (req.method === 'GET' && req.url.startsWith('/api/pending?')) {
+    const x = pendingStore().get(new URL(req.url, 'http://x').searchParams.get('id') || '');
+    return x ? send(res, 200, { item: x }) : send(res, 404, { error: 'unknown_item' });
+  }
+  if (req.url === '/api/pending') {
+    if (req.method === 'GET') return send(res, 200, state?.pending || pendingState(new Map()));
+    const body = await readBody(req);
+    const r = pendingAction(req.fleetWeb ? { ...body, via: 'web' } : body);
+    if (r.ok) publish();
+    return send(res, r.ok ? 200 : 400, r);
   }
   if (req.method === 'POST' && req.url === '/api/agents/action') {
     const body = await readBody(req);

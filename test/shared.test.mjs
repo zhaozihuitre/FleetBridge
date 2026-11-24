@@ -269,5 +269,8 @@ test('the master\'s guide has the line, and the default before it is known as ol
   const line = GUIDE.split('\n').find((l) => l.startsWith('- 共用仓库：'));
   assert.match(line, /SHARED working tree.*git worktree 分开的不算.*【分工】.*谁负责提交.*舰桥会自动附给它们一次/);
   assert.ok(!OLD_GUIDES.includes(GUIDE));
-  assert.equal(OLD_GUIDES.at(-1), GUIDE.replace(line + '\n', ''), 'the default before this one');
+  // the default the shared line came in with: the one before the 待决定 line (test/pending.test.mjs)
+  const without = GUIDE.split('\n').filter((l) => !l.startsWith('- 待决定：')).join('\n');
+  assert.ok(OLD_GUIDES.includes(without), 'the default with it');
+  assert.ok(OLD_GUIDES.includes(without.replace(line + '\n', '')), 'the default before this one');
 });

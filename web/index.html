@@ -25,6 +25,7 @@
 <div class="energy-row" id="energy"></div>
 <div class="pilot box">
 <div><small id="pilot">PILOT</small><b id="clock">--:--:--</b></div>
+<button class="pending-chip" id="pending-chip" type="button" hidden title="等你决定" aria-label="待决定">待决定 <b>0</b></button>
 <button class="icon-btn view-switch" id="view-phone" hidden title="切到手机版（这台设备记住这个选择）" aria-label="切到手机版">手机版</button>
 <button class="icon-btn" id="phone-btn" aria-label="Web 访问 · 手机" title="Web 访问 · 手机 · 推送">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>
@@ -95,6 +96,7 @@
 <span class="key">Q</span>
 <button class="tab" role="tab" data-tab="units"><span class="en">UNITS</span><span class="cn">部队</span><span class="n" id="n-units">0</span></button>
 <button class="tab" role="tab" data-tab="agents"><span class="en">AGENTS</span><span class="cn">活动终端</span><span class="n" id="n-agents">0</span></button>
+<button class="tab" role="tab" data-tab="pending" title="等你决定的事：答复前一直留着"><span class="en">DECIDE</span><span class="cn">待决定</span><span class="n" id="n-pending">0</span></button>
 <button class="tab" role="tab" data-tab="orders"><span class="en">ORDERS</span><span class="cn">指令</span><span class="n" id="n-orders">0</span></button>
 <button class="tab" role="tab" data-tab="notices"><span class="en">NOTICES</span><span class="cn">通知</span><span class="n" id="n-notices">0</span></button>
 <button class="tab" role="tab" data-tab="proposals" title="舰桥根据使用情况提出的改进"><span class="en">PROPOSALS</span><span class="cn">改善</span><span class="n" id="n-proposals">0</span></button>

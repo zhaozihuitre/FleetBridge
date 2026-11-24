@@ -10,6 +10,7 @@ import { L, lang, locale, setLang, translateDom } from './i18n.js';
 import { followTheme, THEMES, THEME_KEYS } from './theme.js';
 import { initSys, renderSys, sysWarnSince, sysWarnText } from './sysload.js';
 import { initProposals, loadProposals, proposalCount, proposalsPage } from './proposals.js';
+import { initPending, pendingCount, pendingOf, pendingPage, pendingRed, setPending } from './pending.js';
 import { quotaText, tightest } from './quotafmt.js';
 import { dropIntoField, guardPage, setDropText } from './filedrop.js';
 
@@ -54,7 +55,7 @@ const KIND = {
 const LV_COLOR = { S: 'var(--red)', A: 'var(--amber)', B: '#C9A24A' };
 
 const QT = quotaText(L); // "今天 18:10 重置", "还有 25 分钟 · 13:10 重置" (web/quotafmt.js)
-const TABS = ['units', 'agents', 'orders', 'notices', 'proposals', 'archive'];
+const TABS = ['units', 'agents', 'pending', 'orders', 'notices', 'proposals', 'archive'];
 const ui = { tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'units', page: 0, line: 0, lineKey: null, folder: null };
 let state = null;
 
@@ -802,7 +803,7 @@ function unitCard(u) {
     : `<button class="mini ghost" data-focus="${u.pid}" title="${L('在外部终端里运行，只能切过去')}">${L('跳过去')}</button>`;
   return `
   <article class="unit ${cls}"${agoStyle(u)} data-unit="${esc(u.key)}" data-st="${stateOf(u, { standbyMs: th.standbyMinutes * 60_000 }).key}">
-    <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
+    <div class="top"><span>${stateChip(u, { standbyMs: th.standbyMinutes * 60_000 })}${u.owned ? ` <i class="ours">${L('我方')}</i>` : ''}${u.agentId && pendingOf(u.agentId) ? ` <button type="button" class="pd-chip" data-pd-go title="${esc(L('{0} 条等你决定', pendingOf(u.agentId)))}">? ${pendingOf(u.agentId)}</button>` : ''}</span><span class="top-r"><span class="timer" data-since="${u.statusSince}">T+${dur(now - u.statusSince)}</span>${action}</span></div>
     <div><h3 title="${esc(u.cwd)}">${esc(u.name || u.project)}</h3><div class="call">${u.name && u.name.toLowerCase() !== String(u.project).toLowerCase() ? `${L('项目')} ${esc(u.project)} · ` : ''}${esc((u.model || '').replace('claude-', '').toUpperCase())}</div>
       <div class="loc" title="${esc(u.cwd)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>${esc(u.cwd)}</div></div>
     <div class="last" title="${esc(u.permission?.message || u.lastText)}">${esc(u.permission ? (waitingKind(u) === 'question' ? L('等你回答：') : L('请求授权：')) + (u.permission.message || L('需要你确认')) : u.status === 'busy' && u.lastPrompt ? L('执行中：') + u.lastPrompt : limitText(u) || u.summary || u.lastText || (u.lastPrompt ? L('最后指令：') + u.lastPrompt : L('（还没有汇报）')))}</div>
@@ -943,7 +944,7 @@ function ordersPage() {
         .map((o) => {
           const k = ORDER_KIND[o.kind] || ORDER_KIND.sent;
           const waited = o.kind === 'dispatched' && o.queuedAt ? L('（排队 {0}）', waitText(o.at - o.queuedAt)) : '';
-          const via = o.via === 'phone' ? L('手机') : o.via === 'master' ? L('主控') : o.via === 'web' ? 'Web' : '';
+          const via = o.via === 'phone' ? L('手机') : o.via === 'master' ? L('主控') : o.via === 'web' ? 'Web' : o.via === 'pending' ? L('待决定') : '';
           const d = dayLabel(o.at, now);
           const sep = d !== day ? `<div class="o-day">${esc(d)}</div>` : '';
           day = d;
@@ -1006,7 +1007,7 @@ function noticesPage() {
       return `${sep}<button type="button" class="n-row${live ? '' : ' gone'}" style="--nc:${NOTICE_COLOR[n.kind] || 'var(--cyan)'}" data-notice="${esc(n.key)}" title="${esc(live ? L('回到这个终端') : L('这个终端已经结束了'))}">
         <span class="n-time">${clock(n.at)}</span>
         <span class="n-kind">${esc(`${n.icon || ''} ${n.word || n.kind}`.trim())}</span>
-        <span class="n-main"><span class="n-who">${esc(who)}${n.org ? ` <i class="n-org">${esc(n.org)}</i>` : ''}</span><b class="n-title">${esc(n.title || '')}</b>${n.needs ? `<span class="n-needs">${esc(L('需要你：') + n.needs)}</span>` : ''}${n.result && n.result !== n.title ? `<span class="n-result">${esc(n.result)}</span>` : ''}</span>
+        <span class="n-main"><span class="n-who">${esc(who)}${n.org ? ` <i class="n-org">${esc(n.org)}</i>` : ''}</span><b class="n-title">${esc(n.title || '')}</b>${n.needs ? `<span class="n-needs">${esc(L('需要你：') + n.needs)}</span>` : ''}${n.pending?.length ? `<span class="n-pd">${esc(L('已登记 {0}', n.pending.join('、')))}</span>` : ''}${n.result && n.result !== n.title ? `<span class="n-result">${esc(n.result)}</span>` : ''}</span>
         <span class="n-go" aria-hidden="true">${live ? '›' : ''}</span></button>`;
     })
     .join('');
@@ -1026,6 +1027,23 @@ function goNotice(n) {
   if (!t) return toast(L('这个终端已经结束了，可以在存档里接着用'));
   if (t.agent) return openTerm(t.agent);
   return post('/api/focus', { pid: t.pid });
+}
+
+// The 待决定 list's count: on its tab and in the top bar (red when one waited over 24 hours). Called by
+// renderPage, which has already handed the list to the page (setPending) and drawn it.
+function pendingBadge() {
+  const n = pendingCount();
+  const red = pendingRed();
+  $('n-pending').textContent = n;
+  $('n-pending').classList.toggle('new', n > 0);
+  $('n-pending').classList.toggle('red', red > 0);
+  const chip = $('pending-chip');
+  if (chip) {
+    chip.hidden = !n;
+    chip.classList.toggle('red', red > 0);
+    chip.querySelector('b').textContent = n;
+    chip.title = red ? L('{0} 条等你决定，{1} 条等了超过 24 小时', n, red) : L('{0} 条等你决定', n);
+  }
 }
 
 /** 今天 / 昨天 / 11-04: the day a time falls on, for the dividers in the orders log. */
@@ -1122,7 +1140,7 @@ function currentList() {
   }
   if (ui.tab === 'archive' || (ui.tab === 'units' && !units.length)) return { kind: 'archive', list: currentFolder()?.sessions || [] };
   if (ui.tab === 'units') return { kind: 'units', list: units };
-  if (ui.tab === 'orders' || ui.tab === 'notices' || ui.tab === 'proposals') return { kind: ui.tab, list: [] }; // one scrolling page, no paging
+  if (ui.tab === 'orders' || ui.tab === 'notices' || ui.tab === 'proposals' || ui.tab === 'pending') return { kind: ui.tab, list: [] }; // one scrolling page, no paging
   return { kind: ui.tab, list: { units: state.units, agents: liveAgents() }[ui.tab] };
 }
 
@@ -1166,6 +1184,7 @@ function flashChanged() {
 }
 
 function renderPage() {
+  setPending(state?.pending); // the 待决定 list as this state has it (web/pending.js)
   const { kind, list } = currentList();
   const size = pageSize(kind);
   const total = Math.max(1, Math.ceil(list.length / size));
@@ -1196,13 +1215,24 @@ function renderPage() {
   else if (ui.tab === 'orders') html = ordersPage();
   else if (ui.tab === 'notices') html = noticesPage();
   else if (ui.tab === 'proposals') html = proposalsPage();
+  else if (ui.tab === 'pending') html = pendingPage();
   if (kind !== 'archive') {
-    const scroller = { orders: '.orders', notices: '.notices', proposals: '.proposals' }[kind];
+    const scroller = { orders: '.orders', notices: '.notices', proposals: '.proposals', pending: '.pending' }[kind];
     const keep = scroller ? document.querySelector(scroller)?.scrollTop || 0 : 0;
     const repoScroll = new Map([...document.querySelectorAll('.unit[data-unit] .repos')].map((r) => [r.closest('.unit').dataset.unit, r.scrollTop]));
     // the proposals page is drawn again only when it changed (a note being typed there keeps its focus)
-    if (kind !== 'proposals' || renderPage.pp !== html) $('page').innerHTML = html;
-    renderPage.pp = kind === 'proposals' ? html : null;
+    // so is the 待决定 page; an answer being typed keeps its text (web/pending.js) and gets its focus back
+    const typing = kind === 'pending' && document.activeElement?.dataset?.pdDraft;
+    const caret = typing ? document.activeElement.selectionStart : 0;
+    if ((kind !== 'proposals' && kind !== 'pending') || renderPage.pp !== html) $('page').innerHTML = html;
+    renderPage.pp = kind === 'proposals' || kind === 'pending' ? html : null;
+    if (typing) {
+      const el = document.querySelector(`[data-pd-draft="${CSS.escape(typing)}"]`);
+      if (el && document.activeElement !== el) {
+        el.focus();
+        el.setSelectionRange(caret, caret);
+      }
+    }
     if (keep) document.querySelector(scroller).scrollTop = keep; // live refreshes keep the scroll position
     for (const r of document.querySelectorAll('.unit[data-unit] .repos')) {
       r.scrollTop = repoScroll.get(r.closest('.unit').dataset.unit) || 0;
@@ -1221,6 +1251,7 @@ function renderPage() {
   $('n-orders').textContent = (state.agents || []).reduce((n, a) => n + (a.alive ? a.queue?.length || 0 : 0), 0) + (state.orphanQueues || []).reduce((n, o) => n + o.queue.length, 0);
   noticeBadge();
   loadNotices();
+  pendingBadge();
   // improvement proposals: the ones waiting on you, and the list fetched again when it changed
   const pc = proposalCount(state);
   $('n-proposals').textContent = pc;
@@ -1429,6 +1460,18 @@ guardPage();
 dropIntoField($('cmd-text'));
 dropIntoField($('dp-prompt'));
 initProposals({ post, toast, render: () => renderPage() });
+// the count in the top bar and on a unit card lead to the 待决定 tab (a card's own click is not taken)
+document.addEventListener(
+  'click',
+  (e) => {
+    if (!e.target.closest?.('#pending-chip, [data-pd-go]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setTab('pending');
+  },
+  true,
+);
+initPending({ post, toast, render: () => ui.tab === 'pending' && renderPage(), setTab: (t) => setTab(t), openTerm: (id) => openTerm(id), agentAlive: (id) => (state?.agents || []).some((a) => a.id === id && a.alive) });
 
 async function focus(pid) {
   // our own agents live in the terminal panel, not in an outside window
@@ -2811,8 +2854,8 @@ window.addEventListener('hashchange', () => {
 function uiView() {
   const { kind, list } = currentList();
   const size = pageSize(kind);
-  const pages = kind === 'orders' || kind === 'notices' || kind === 'proposals' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
-  const shown = kind === 'orders' || kind === 'notices' || kind === 'proposals' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
+  const pages = kind === 'orders' || kind === 'notices' || kind === 'proposals' || kind === 'pending' ? 1 : Math.max(1, Math.ceil((list?.length || 0) / size));
+  const shown = kind === 'orders' || kind === 'notices' || kind === 'proposals' || kind === 'pending' ? [] : (list || []).slice(ui.page * size, ui.page * size + size);
   const label = (x) => x.name || x.title || x.project || x.cwd || x.id;
   return {
     tab: ui.tab,
