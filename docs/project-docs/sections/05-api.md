@@ -37,7 +37,7 @@
 | `readonly` | boolean? | `true` = 在首个指令末尾附上只读调查的限制（`server/constraints.js` 的 `readOnlyOrder`，主控 `fleet_spawn` 的 `readonly`）；没有 `prompt` 时不起作用 |
 | `resume` | string? | 接管的会话 ID，必须来自后端自己扫描的存档；给了 `resume` 就忽略 `cwd` |
 
-返回 `{ ok: true, id }`。错误：`400 {error}`（文件夹不存在、未知会话、终端组件不可用），`409`（该会话正在外部终端运行）。
+返回 `{ ok: true, id, shared, sharedTold }`：`shared` 是新 agent 在这个目录里会和谁共用工作区（同 `agents[].shared`，没有为 `null`，改善提案 P-007）；`sharedTold` = 首条指令末尾已附上「【共用仓库】」守则（只在 `via: "master"`、带 `prompt`、非只读时）。错误：`400 {error}`（文件夹不存在、未知会话、终端组件不可用），`409`（该会话正在外部终端运行）。
 
 ## POST /api/agents/action
 
@@ -47,7 +47,7 @@
 
 | action | 额外参数 | 作用 |
 |---|---|---|
-| `text` | `text`；`readonly`?: `true` | 以 bracketed paste 输入后回车。`readonly: true`（主控 `fleet_send` 的 `readonly`）在指令末尾附上只读调查的限制，`queue` 同样支持 |
+| `text` | `text`；`readonly`?: `true` | 以 bracketed paste 输入后回车。`readonly: true`（主控 `fleet_send` 的 `readonly`）在指令末尾附上只读调查的限制，`queue` 同样支持。`via: "master"` 且非只读、目标 agent 和别的 agent 共用工作区时，末尾附上「【共用仓库】」守则（`server/shared.js` 的 `sharedOrder`，每种情况只附一次），`queue` 同样 |
 | `key` | `key`: `esc` / `ctrl-c` / `enter` | 发送按键 |
 | `answer` | `choice`: 选项编号或 `esc` | 回答屏幕上的授权框、选择框。信任对话框的 1 / 2 按选项本身回答（1 = No, exit，2 = Yes, I trust this folder），不看它们在屏幕上的上下顺序 |
 | `trust` | `yes`?: 默认 `true`；`remember`?: `true` | 回答「是否信任此文件夹」：`yes: false` 选 No, exit。屏幕上没有信任对话框时返回 `false`；3 秒内重复调用不再按键。`remember: true`（只对本机指挥中心发来的生效）把这个 agent 的文件夹加入自动信任的目录并打开开关 |
@@ -77,6 +77,7 @@
 | `comms[]` | 最近 60 条事件 |
 | `operator` | 领航员 `mood` 与 `lines[]` |
 | `history[]` | 存档会话：`sessionId, cwd, project, title, lastPrompt, updatedAt, pid, owned, agentId` |
-| `agents[]` | 我方 agent：`id, sessionId, pid, name, cwd, alive, exitCode, startedAt`，以及 `queue`、`masterTurn`、`waiting`、`orderedAt`（最近一次收到指令或被输入的时间，收工判断用） |
+| `agents[]` | 我方 agent：`id, sessionId, pid, name, cwd, alive, exitCode, startedAt`，以及 `queue`、`masterTurn`、`waiting`、`orderedAt`（最近一次收到指令或被输入的时间，收工判断用）、`shared`（和别的 agent 共用工作区时为 `{ roots[], kind: "repo" | "folder", with: [{ id, name, outside }] }`，否则 `null`；`server/shared.js`） |
+| `shared[]` | 共用工作区的分组（改善提案 P-007）：`{ root, kind, members: [{ id, name, cwd, outside }] }`，只列两个及以上 agent 的；舰桥外会话的 `id` 是 `session:<sessionId>` |
 | `agentSupport` | `{ ok, error }`：node-pty 与 `claude` 是否可用 |
 | `thresholds` | 阈值配置 |

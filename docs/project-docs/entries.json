@@ -4733,6 +4733,40 @@
       "updated": "2026-11-23 16:39",
       "notes": [],
       "count": 1
+    },
+    {
+      "id": "C-097",
+      "type": "change",
+      "title": "共用仓库提示：同一工作区多个 agent 时标记并提示分工（改善提案 P-007）",
+      "summary": "按工作区（向上最近的 .git，git worktree 各算各的）找出同时干活的 agent：终端标题标「共用仓库」，fleet_status / fleet_send / fleet_spawn 提示冲突并给分工模板，主控派的指令末尾自动附一次通用守则",
+      "detail": "**背景**：11-23 00:40，mdlinkapp 与 mdlink-MagicAuth 两个终端同时在同一个主工作区里干活（一边提交真实改动，一边还原换行符），主控只能在两条指令里手写「两边同时在动，注意以下几点」。\n\n**改动内容**：\n- `server/shared.js`（新）：`treeRoot` / `treesOf`（工作目录所属的工作区，缓存 30 秒）、`sharedMembers`（谁算数：存活的我方 Claude agent 和舰桥外会话）、`sharedGroups` / `sharedOf`（分组）、`sharedNote` / `sharedOrder`（附在指令末尾的守则，以「【共用仓库】」开头，三种语言，每种情况只附一次）。\n- `server/index.js`：状态里加 `shared[]` 和 `agents[].shared`；`/api/agents/action` 的 `text`、`queue` 在 `via: \"master\"` 且非只读时附守则；`/api/agents` 返回 `shared`、`sharedTold`，主控给的首条指令同样附守则。\n- `server/fleet-mcp.cjs`：`fleet_status` 标 `SHARED working tree`，`fleet_send`、`fleet_spawn` 的结果里提示冲突并给【分工】模板。\n- `server/master.js`：主控说明加「共用仓库」一条，上一版默认留作 `GUIDE_V12`。\n- `web/app.js`、`web/style.css`、`web/i18n.js`：分屏终端标题栏和活动终端列表的「⚠ 共用仓库 / 共用目录」标记。\n\n**原因**：误报的主要来源是 git worktree。判断按工作区而不是按仓库或路径前缀：链接的 worktree 有自己的 `.git` 文件，天然是另一个工作区，不会被标。\n\n**影响范围**：重启舰桥后生效；主控的工具会自己热更新，主控说明要等主控重新启动才读到。用户改过的主控说明不会被替换。\n\n**注意事项**：只是提示和给模型的约定，不拦截操作；舰桥不知道谁该动哪些文件，【分工】仍由主控写。`fleet_send` 的冲突提示在指令发出之后返回，派单前的提示靠 `fleet_status`。用户在输入框、手机、终端里直接下的指令不附守则。\n\n**测试**：`test/shared.test.mjs`（15 个，含真实的 `git worktree add`），`test/guide.test.mjs`、`test/wrapup.test.mjs` 更新。\n",
+      "status": "done",
+      "files": [
+        "server/shared.js",
+        "server/index.js",
+        "server/fleet-mcp.cjs",
+        "server/master.js",
+        "web/app.js",
+        "web/i18n.js",
+        "web/style.css",
+        "test/shared.test.mjs",
+        "test/guide.test.mjs",
+        "test/wrapup.test.mjs"
+      ],
+      "tags": [
+        "主控",
+        "改善提案"
+      ],
+      "sections": [
+        "features",
+        "api"
+      ],
+      "refs": [
+        "P-007"
+      ],
+      "created": "2026-11-24 09:02",
+      "updated": "2026-11-24 09:02",
+      "notes": []
     }
   ]
 }

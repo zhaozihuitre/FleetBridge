@@ -884,6 +884,16 @@ function repoBadge(u) {
   return `<span class="t-repo ${r.remote ? '' : 'warn'}" title="${esc(all)}">⎇ ${esc(target)} · ${esc(r.branch || '')}</span>`;
 }
 
+// Not alone in its working tree (improvement P-007, server/shared.js): other agents change the same files.
+// Separate git worktrees are trees of their own and are not marked.
+function sharedBadge(a) {
+  const s = a?.alive ? a.shared : null;
+  if (!s?.with?.length) return '';
+  const names = s.with.map((x) => (x.outside ? L('{0}（舰桥外）', x.name) : x.name)).join('、');
+  const tip = L('和 {0} 在同一个工作区里（{1}），改的是同一份文件。派单时写明谁动哪些文件、谁负责提交；用 git worktree 分开的不算共用。', names, s.roots.join('、'));
+  return `<span class="t-repo warn t-shared" title="${esc(tip)}">${esc(s.kind === 'repo' ? L('⚠ 共用仓库 · {0}', names) : L('⚠ 共用目录 · {0}', names))}</span>`;
+}
+
 // One of our live terminals on the Agents page: status, project, load, last report; open it into the split.
 /* Orders tab: what is waiting in each agent's queue, then the record of every order given. */
 const ORDER_KIND = {
@@ -1044,7 +1054,7 @@ function agentRow(a) {
   const open = panes.has(a.id);
   return `<article class="quest agent-row ${open ? 'open' : ''}" style="--qc:${c}" data-flash="${esc(a.id)}" data-st="${s.key}">
     <span class="lv" aria-hidden="true">${s.icon}</span>
-    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}</span>
+    <div class="body"><span class="type">${stateChip(u, { agent: a })} · ${esc(u?.project || a.cwd.split(/[\\/]/).pop() || '')}${sharedBadge(a)}</span>
       <span class="title">${esc(agentLabel(a.id).name)}</span><span class="goal" title="${esc(text)}">${esc(text)}</span></div>
     <div class="side"><span class="mono">${L('负载 {0}', pct)}</span>${a.startedAt ? `<span class="ran">${L('已运行 {0}', waitText(Date.now() - a.startedAt))}</span>` : ''}<div>
       ${!u && a.waiting?.trust ? `<button class="btn" data-trust="${esc(a.id)}" title="${esc(L('回答「Yes, I trust this folder」：它继续启动。不信任请打开终端选 No, exit（会退出）'))}">${L('✓ 信任')}</button>` : ''}${open ? `<span class="opened">${L('已在分屏')}</span>` : ''}<button class="btn ${open ? 'ghost' : ''}" data-term="${esc(a.id)}">${open ? L('切过去') : L('▶ 打开')}</button></div></div>
@@ -1553,7 +1563,7 @@ function renderTermHeads() {
     // finished while you have it open in front of you: you have seen it
     if (s.key === 'done' && document.hasFocus() && !document.hidden) markSeen(u);
     st.className = 't-state';
-    el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + repoBadge(u);
+    el.querySelector('.t-ctx').innerHTML = ctxBadge(u) + sharedBadge(a) + repoBadge(u);
     el.querySelectorAll('[data-tkey], [data-tcmd], [data-tact=kill], [data-tact=pop]').forEach((b) => (b.disabled = !alive));
     el.querySelector('[data-tact=remove]').hidden = alive !== false;
   }

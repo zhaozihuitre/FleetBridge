@@ -30,6 +30,10 @@ const ownLimit = (q) =>
       ? `; ${q.ownNote.name} weekly limit of its own: not known (the usage API answers ${q.ownNote.error || 'nothing'}; only the 5-hour and all-models limits are read, from the status line)`
       : `; ${q.ownNote.name}: no weekly limit of its own`;
 
+// Agents in one working tree (server/shared.js): whom an agent meets there, and what an order to it should say.
+const sharedWith = (sh) => `${sh.roots.join(', ')} with: ${sh.with.map((o) => o.name + (o.outside ? ' (outside session)' : '')).join(', ')}`;
+const SPLIT_TEMPLATE = '【分工】本指令只动：<文件或目录>；不要动：<谁正在改的文件或目录>；提交：由 <谁> 负责，只提交自己改的文件';
+
 // Our agents (we can type into them) with what their session says about them.
 async function fleet() {
   const st = await api('/api/state');
@@ -63,13 +67,14 @@ function resolve(ours, ref) {
 const TOOLS = [
   {
     name: 'fleet_status',
-    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval = a permission dialog / needs-answer = a question or choice such as AskUserQuestion or plan approval / starting / shell), queued orders, last order and its latest reply, context use, model and the quota it runs on (the tightest limit, % used, when it resets). Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
+    description: 'List every live agent under Fleet Bridge command: id, name, project folder, state (working / idle / needs-approval = a permission dialog / needs-answer = a question or choice such as AskUserQuestion or plan approval / starting / shell), whether it shares its working tree with other agents ("SHARED working tree": the same checkout, so they can overwrite each other; separate git worktrees are not marked), queued orders, last order and its latest reply, context use, model and the quota it runs on (the tightest limit, % used, when it resets). Also lists Claude Code sessions running outside Fleet Bridge (read-only). Call this first.',
     inputSchema: { type: 'object', properties: {} },
     async run() {
       const { st, ours } = await fleet();
       const lines = ours.map(({ a, u, status, name, project }) => {
         const by = { master: 'you (master)', cc: 'the user (input box)', phone: 'the user (phone)', terminal: 'the user (typed in its terminal)' }[a.orderBy];
         const out = [`- ${name} [${a.id.slice(0, 8)}] ${project} · ${status}${u?.statusSince ? ' ' + ago(u.statusSince) : ''}${a.queue?.length ? ` · ${a.queue.length} queued${a.queue.some((q) => q.held) ? ` (${a.queue.filter((q) => q.held).length} on hold: queued before its session was reopened or its quota ran out; fleet_requeue once the user agrees, or fleet_unqueue)` : ''}` : ''}${u?.contextPct != null ? ` · ctx ${u.contextPct}%` : ''}`, `  cwd: ${a.cwd}`];
+        if (a.shared?.with?.length) out.push(`  SHARED working tree ${sharedWith(a.shared)}: they change the same files. An order that changes files here needs the split (who touches which files, who commits)`);
         if (by) out.push(`  last order from: ${by}${a.masterTurn ? ' · you get a 【舰桥通知】 with the answer when this turn ends' : ''}`);
         if (!u && a.waiting) out.push(`  asks: ${short(a.waiting.text, 300)}`, `  options: ${a.waiting.options.map((o) => `${o.key}=${o.label}${o.hint ? ` (${o.hint})` : ''}`).join(' | ')}${a.waiting.trust ? ' · answer with fleet_answer choice "trust"' : ''}`);
         if (u?.permission) out.push(`  asks: ${short(u.permission.prompt?.text || u.permission.message, 300)}`, `  options: ${(u.permission.prompt?.options || []).map((o) => `${o.key}=${o.label}`).join(' | ')}`);
@@ -155,7 +160,7 @@ const TOOLS = [
   },
   {
     name: 'fleet_send',
-    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. The agent does not see your conversation with the user: for a task, follow the order template of your guide (what the user said, quoted word for word, goal, scope, acceptance, what the user must do themselves, report format); a small order goes as it is, without the template. readonly: true for an investigation where nothing may be changed: Fleet Bridge adds the limits to the order itself (no changes to code or configuration, no commit or push, no deploy or release, no changes to live data), so do not write them out; leave it off when the agent is to change something. Agents already have a standing rule not to write secrets (keys, tokens, passwords) verbatim in their reports: no need to repeat it, and say so in the order when the user really needs the value. When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
+    description: 'Give an order (a prompt) to one or more agents, typed into their Claude Code as if the user wrote it. The agent does not see your conversation with the user: for a task, follow the order template of your guide (what the user said, quoted word for word, goal, scope, acceptance, what the user must do themselves, report format); a small order goes as it is, without the template. readonly: true for an investigation where nothing may be changed: Fleet Bridge adds the limits to the order itself (no changes to code or configuration, no commit or push, no deploy or release, no changes to live data), so do not write them out; leave it off when the agent is to change something. Agents already have a standing rule not to write secrets (keys, tokens, passwords) verbatim in their reports: no need to repeat it, and say so in the order when the user really needs the value. An agent that shares its working tree with others (fleet_status: "SHARED working tree") gets the general rules from Fleet Bridge by itself, once (only its own files, no reverting or overwriting of others\' changes, no git add -A); what only you know goes into the order: which files this agent touches, which it leaves alone, who commits (the 【分工】 line the result gives). When each one finishes that turn (or is interrupted) you get a 【舰桥通知】 with its answer (no need to poll). mode "auto" (default): idle agents get it now, working ones get it queued and sent when they finish their turn. "now": type it in immediately even if working. "queue": always queue. agents = list of ids / names / projects, or ["all"].',
     inputSchema: { type: 'object', properties: { agents: { type: 'array', items: { type: 'string' } }, text: { type: 'string' }, mode: { type: 'string', enum: ['auto', 'now', 'queue'] }, readonly: { type: 'boolean' } }, required: ['agents', 'text'] },
     async run({ agents, text, mode = 'auto', readonly }) {
       const { ours } = await fleet();
@@ -167,6 +172,14 @@ const TOOLS = [
         const r = await api('/api/agents/action', { id: x.a.id, action: queue ? 'queue' : 'text', text, readonly: readonly === true, via: 'master' });
         out.push(`${x.name}: ${r.ok ? (queue ? 'queued' : 'sent') : 'failed'}${r.ok && readonly === true ? ' (read-only limits added)' : ''}`);
       }
+      // not alone in their working tree: said after an order that may change files (a read-only one changes nothing)
+      const sharing = readonly === true ? [] : list.filter((x) => x.a.shared?.with?.length);
+      if (sharing.length)
+        out.push(
+          '',
+          ...sharing.map((x) => `⚠ ${x.name} shares the working tree ${sharedWith(x.a.shared)}.`),
+          `They change the same files. Fleet Bridge has told ${sharing.length > 1 ? 'each of them' : 'it'} the general rules (only its own files, no reverting or overwriting of others' changes, no git add -A). If this order changes files and does not say who does what, send the split now, one line per agent: ${SPLIT_TEMPLATE}`,
+        );
       return out.join('\n');
     },
   },
@@ -318,11 +331,12 @@ const TOOLS = [
   },
   {
     name: 'fleet_spawn',
-    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order (written like a fleet_send order: the order template for a task; readonly: true adds the read-only limits to it, as in fleet_send). resume = a session id from fleet_projects to continue that session instead.',
+    description: 'Start a new Claude Code agent in a folder (it opens in the command center), optionally with a name and a first order (written like a fleet_send order: the order template for a task; readonly: true adds the read-only limits to it, as in fleet_send). When other agents already work in the working tree of that folder, the result says so. resume = a session id from fleet_projects to continue that session instead.',
     inputSchema: { type: 'object', properties: { cwd: { type: 'string' }, name: { type: 'string' }, prompt: { type: 'string' }, resume: { type: 'string' }, readonly: { type: 'boolean' } } },
     async run({ cwd, name, prompt, resume, readonly }) {
       const r = await api('/api/agents', { cwd, name, prompt, resume, readonly: readonly === true, via: 'master' });
-      return `started: id ${r.id}${prompt && readonly === true ? ' (read-only limits added to its first order)' : ''}`;
+      const shared = r.shared?.with?.length ? `\n⚠ it shares the working tree ${sharedWith(r.shared)}: they change the same files${r.sharedTold ? ". Fleet Bridge added the general rules to its first order (only its own files, no reverting or overwriting of others' changes, no git add -A)" : ''}. For work that changes files, say who does what: ${SPLIT_TEMPLATE}. For a larger separate task, a git worktree of its own avoids this.` : '';
+      return `started: id ${r.id}${prompt && readonly === true ? ' (read-only limits added to its first order)' : ''}${shared}`;
     },
   },
 ];

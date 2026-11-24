@@ -22,6 +22,7 @@ import { collectToday } from './collectors/today.js';
 import { buildOffline, offlineSessions } from './offline.js';
 import { dequeue, dismissQuota, dispatch, enqueue, orphanQueues, queueOf, quotaStops, quotaWatch, reconcile, release } from './queue.js';
 import { readOnlyOrder } from './constraints.js';
+import { SHARED_MARK, noteTold, sharedGroups, sharedMembers, sharedOf, sharedNote, sharedOrder } from './shared.js';
 import { clip, endedTurns, masterTurn, noteOrder, transcriptOf, turnOver, turnReply } from './turns.js';
 import { hostInfo } from './ptyclient.js';
 import { getPreview, installBin, openExternal, openPreview, startPreview, stopPreview } from './preview.js';
@@ -198,6 +199,8 @@ function publish() {
     agents: all.filter((a) => a.kind !== 'master').map((a) => ({ ...a, queue: queueOf(a.id), masterTurn: Boolean(masterTurn(a.id)), waiting: starting.get(a.id) || null, orderedAt: orderedAt(a.id) })), // the master has its own column
     // orders queued for a terminal that is gone and not opened again: listed, to be dropped or taken up
     orphanQueues: hostReady ? orphanQueues(all) : [],
+    // agents in one working tree (improvement P-007): marked at their terminals, told to the master
+    shared: [],
     agentSupport: agentSupport(),
     // spoken notices: the settings, and the terminal you are looking at (not read out)
     voice: voiceSettings(),
@@ -231,7 +234,9 @@ function publish() {
     queueMasterNote(quotaBackNotice({ ...d, name }));
   }
   state.quotaStops = quotaStops();
-  state.agents = state.agents.map((a) => ({ ...a, queue: queueOf(a.id), orderedAt: orderedAt(a.id) })); // as it is after this round
+  state.shared = sharedNow();
+  const sharing = sharedOf(state.shared);
+  state.agents = state.agents.map((a) => ({ ...a, queue: queueOf(a.id), orderedAt: orderedAt(a.id), shared: sharing.get(a.id) || null })); // as it is after this round
   // the master hears without having to look: our agents waiting on a person (once per question),
   // and the turns it gave out that have ended, with their answers
   const owned = state.units.filter((u) => u.owned && u.agentId);
@@ -406,13 +411,27 @@ function orderTarget(a) {
 // When an agent last got an order, or was last typed into: for a moment after, it may not show as working yet.
 const orderedAt = (id) => Math.max(getAgent(id)?.orderedAt || 0, getAgent(id)?.typedAt || 0) || null;
 
+/**
+ * Who works in the same working tree right now (server/shared.js): our live Claude agents, and the Claude
+ * Code sessions outside Fleet Bridge. extra: one more member, an agent about to be started in a folder.
+ */
+function sharedNow(extra) {
+  return sharedGroups([...sharedMembers({ agents: listAgents(), units: state?.units || [], skip: isMasterCwd }), ...(extra ? [extra] : [])]);
+}
+
 /** One action for one or more of our agents; shared by the command center and the phone page. */
 function agentAction({ id, action, text, key, choice, index, held, yes, remember, readonly, via = 'cc' }) {
   // a read-only order (fleet_send readonly): the limits go after it, here, so the log and the queue have what was sent
   if (readonly === true && (action === 'text' || action === 'queue') && typeof text === 'string') text = readOnlyOrder(text);
   const ids = Array.isArray(id) ? id : [id];
+  // an order of the master's that may change files, to an agent that is not alone in its working tree: the
+  // standing rules go after it, once per situation (a read-only order changes nothing, so it goes as it is)
+  const order = text;
+  const sharing = via === 'master' && readonly !== true && (action === 'text' || action === 'queue') && typeof text === 'string' && text.trim() ? sharedOf(sharedNow()) : null;
   const results = ids.map((one) => {
     const a = getAgent(one);
+    if (sharing && a?.alive && a.kind === 'claude') text = sharedOrder(a.id, order, sharing.get(a.id));
+    else text = order;
     // a queue outlives its terminal: its held orders can be dropped with no agent there
     if (!a && action === 'unqueue' && queueOf(one).length) {
       const o = (state?.orphanQueues || []).find((x) => x.id === one);
@@ -595,7 +614,18 @@ async function handleRequest(req, res) {
   if (req.method === 'POST' && req.url === '/api/agents') {
     const body = await readBody(req);
     const { cwd, name, resume, shell, via } = body;
-    const prompt = body.readonly === true && body.prompt ? readOnlyOrder(body.prompt) : body.prompt; // fleet_spawn readonly
+    let prompt = body.readonly === true && body.prompt ? readOnlyOrder(body.prompt) : body.prompt; // fleet_spawn readonly
+    // a new agent in a working tree others already work in (improvement P-007): said in the answer, and the
+    // master's first order, when it may change files, gets the standing rules after it
+    let shared = null;
+    let told = false;
+    const joining = (dir) => {
+      shared = (dir && sharedOf(sharedNow({ id: '(new)', name: name ? String(name).trim() : path.basename(dir), cwd: dir })).get('(new)')) || null;
+      told = Boolean(shared && prompt && via === 'master' && body.readonly !== true && !String(prompt).includes(SHARED_MARK));
+      return told ? `${String(prompt).trim()}
+
+${sharedNote(shared)}` : prompt;
+    };
     try {
       let agent;
       if (shell) {
@@ -607,15 +637,18 @@ async function handleRequest(req, res) {
         const h = history.find((x) => x.sessionId === resume);
         if (!h) return send(res, 400, { error: L('未知会话', 'Unknown session', '不明なセッション') });
         if (h.pid && !getAgent(resume)?.alive) return send(res, 409, { error: L('这个会话正在外部终端里运行', 'This session is running in an outside terminal', 'このセッションは外部ターミナルで実行中です') });
+        prompt = joining(h.cwd);
         agent = spawnAgent({ cwd: h.cwd, resume, name, prompt });
       } else {
+        prompt = joining(String(cwd || '').trim());
         agent = spawnAgent({ cwd: String(cwd || '').trim(), name: name ? String(name).trim() : undefined, prompt: prompt ? String(prompt) : undefined });
       }
+      if (told) noteTold(agent.id, shared);
       // fleet_spawn's first order is the master's turn: it begins when the order is typed in (a resumed
       // session loads first), see onPromptSent below
       if (prompt) agent.firstOrderBy = via === 'master' ? 'master' : 'cc';
       setTimeout(refreshGit, 4000); // pick up the new unit's repos without waiting for the next scan
-      return send(res, 200, { ok: true, id: agent.id });
+      return send(res, 200, { ok: true, id: agent.id, shared, sharedTold: told });
     } catch (e) {
       return send(res, 400, { error: e.message });
     }
